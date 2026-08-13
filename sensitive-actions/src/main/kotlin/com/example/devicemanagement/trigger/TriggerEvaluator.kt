@@ -3,11 +3,11 @@ package com.example.devicemanagement.trigger
 import com.example.devicemanagement.action.ActionRequest
 import com.example.devicemanagement.action.DeviceActionType
 
-fun interface TriggerEvaluator {
+internal fun interface TriggerEvaluator {
     fun evaluate(trigger: Trigger?, nowEpochMillis: Long): TriggerEvaluation
 }
 
-class DefaultTriggerEvaluator : TriggerEvaluator {
+internal class DefaultTriggerEvaluator : TriggerEvaluator {
     override fun evaluate(trigger: Trigger?, nowEpochMillis: Long): TriggerEvaluation {
         if (trigger == null) {
             return TriggerEvaluation.Invalid(reason = "missing_trigger")

@@ -1,11 +1,11 @@
 package com.example.devicemanagement.decision
 
+import com.example.devicemanagement.action.ApprovalAuthority
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.ManagementState
 import com.example.devicemanagement.persistence.StateRepository
 import com.example.devicemanagement.trigger.DefaultTriggerEvaluator
 import com.example.devicemanagement.trigger.Trigger
-import com.example.devicemanagement.trigger.TriggerEvaluation
 import com.example.devicemanagement.trigger.TriggerEvaluator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -89,6 +89,7 @@ class DecisionEngineTest {
         val engine = FailSafeDecisionEngine(
             triggerEvaluator = throwingEvaluator,
             stateRepository = FixedStateRepository(enabledState),
+            approvalAuthority = ApprovalAuthority(),
             logger = logger,
             nowEpochMillis = { 1_000 },
         )
@@ -107,6 +108,7 @@ class DecisionEngineTest {
         val engine = FailSafeDecisionEngine(
             triggerEvaluator = DefaultTriggerEvaluator(),
             stateRepository = throwingRepository,
+            approvalAuthority = ApprovalAuthority(),
             logger = logger,
             nowEpochMillis = { 1_000 },
         )
@@ -130,6 +132,7 @@ class DecisionEngineTest {
         FailSafeDecisionEngine(
             triggerEvaluator = DefaultTriggerEvaluator(),
             stateRepository = FixedStateRepository(state),
+            approvalAuthority = ApprovalAuthority(),
             logger = logger,
             nowEpochMillis = { 1_000 },
         )
@@ -147,23 +150,15 @@ class DecisionEngineTest {
     }
 
     private class RecordingLogger : StructuredLogger {
-        val events = mutableListOf<String>()
+        override fun info(event: String, fields: Map<String, Any?>) = Unit
 
-        override fun info(event: String, fields: Map<String, Any?>) {
-            events += event
-        }
-
-        override fun warn(event: String, fields: Map<String, Any?>) {
-            events += event
-        }
+        override fun warn(event: String, fields: Map<String, Any?>) = Unit
 
         override fun error(
             event: String,
             fields: Map<String, Any?>,
             throwable: Throwable?,
-        ) {
-            events += event
-        }
+        ) = Unit
     }
 
     private companion object {

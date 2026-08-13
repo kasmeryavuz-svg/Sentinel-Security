@@ -3,44 +3,28 @@ package com.example.devicemanagement.action
 import com.example.devicemanagement.decision.ActionDecision
 import com.example.devicemanagement.logging.StructuredLogger
 
-class ActionExecutor(
+internal class ActionExecutor(
     actions: Set<DeviceAction>,
+    private val approvalAuthority: ApprovalAuthority,
     private val logger: StructuredLogger,
 ) {
     private val actionsByType = actions.associateBy(DeviceAction::type)
 
     fun execute(decision: ActionDecision): ActionResult {
         if (decision !is ActionDecision.Approved) {
-            logger.warn(
-                event = "action_execution_rejected",
-                fields = mapOf("reason" to "decision_not_approved"),
-            )
-            return ActionResult.Rejected("decision_not_approved")
+            return reject("decision_not_approved")
         }
 
-        val request = decision.request
+        val request = approvalAuthority.consume(decision.approval)
+            ?: return reject("approval_not_issued_or_already_consumed")
         val action = actionsByType[request.type]
-        if (action == null) {
-            logger.warn(
-                event = "action_execution_rejected",
+            ?: return reject(
+                reason = "action_not_registered",
                 fields = mapOf(
                     "action" to request.type.name,
-                    "reason" to "action_not_registered",
                     "request_id" to request.requestId,
                 ),
             )
-            return ActionResult.Rejected("action_not_registered")
-        }
-        if (action.type != request.type) {
-            logger.error(
-                event = "action_execution_rejected",
-                fields = mapOf(
-                    "reason" to "action_type_mismatch",
-                    "request_id" to request.requestId,
-                ),
-            )
-            return ActionResult.Rejected("action_type_mismatch")
-        }
 
         return try {
             val result = action.execute(request)
@@ -64,5 +48,16 @@ class ActionExecutor(
             )
             ActionResult.Failed(error::class.simpleName ?: "unknown_error")
         }
+    }
+
+    private fun reject(
+        reason: String,
+        fields: Map<String, Any?> = emptyMap(),
+    ): ActionResult.Rejected {
+        logger.warn(
+            event = "action_execution_rejected",
+            fields = fields + ("reason" to reason),
+        )
+        return ActionResult.Rejected(reason)
     }
 }

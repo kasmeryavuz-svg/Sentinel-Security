@@ -1,10 +1,10 @@
 package com.example.devicemanagement.decision
 
-import com.example.devicemanagement.action.ActionRequest
+import com.example.devicemanagement.action.Approval
 
-sealed interface ActionDecision {
+internal sealed interface ActionDecision {
     data class Approved(
-        val request: ActionRequest,
+        val approval: Approval,
         val reason: DecisionReason = DecisionReason.APPROVED_BY_POLICY,
     ) : ActionDecision
 

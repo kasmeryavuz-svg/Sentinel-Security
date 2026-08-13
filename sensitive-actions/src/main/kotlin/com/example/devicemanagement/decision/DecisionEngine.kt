@@ -1,18 +1,20 @@
 package com.example.devicemanagement.decision
 
+import com.example.devicemanagement.action.ApprovalAuthority
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.StateRepository
 import com.example.devicemanagement.trigger.Trigger
 import com.example.devicemanagement.trigger.TriggerEvaluation
 import com.example.devicemanagement.trigger.TriggerEvaluator
 
-interface DecisionEngine {
+internal fun interface DecisionEngine {
     fun decide(trigger: Trigger?): ActionDecision
 }
 
-class FailSafeDecisionEngine(
+internal class FailSafeDecisionEngine(
     private val triggerEvaluator: TriggerEvaluator,
     private val stateRepository: StateRepository,
+    private val approvalAuthority: ApprovalAuthority,
     private val logger: StructuredLogger,
     private val nowEpochMillis: () -> Long = System::currentTimeMillis,
 ) : DecisionEngine {
@@ -57,7 +59,9 @@ class FailSafeDecisionEngine(
                 "request_id" to evaluation.request.requestId,
             ),
         )
-        return ActionDecision.Approved(evaluation.request)
+        return ActionDecision.Approved(
+            approval = approvalAuthority.issue(evaluation.request),
+        )
     }
 
     private fun deny(reason: DecisionReason, detail: String? = null): ActionDecision.Denied {

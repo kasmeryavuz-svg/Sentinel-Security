@@ -2,7 +2,7 @@ package com.example.devicemanagement.action
 
 import com.example.devicemanagement.logging.StructuredLogger
 
-class SafeMockWipeAction(
+internal class SafeMockWipeAction(
     private val logger: StructuredLogger,
 ) : DeviceAction {
     override val type: DeviceActionType = DeviceActionType.MOCK_WIPE

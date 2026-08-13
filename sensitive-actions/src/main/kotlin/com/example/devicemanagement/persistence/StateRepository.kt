@@ -1,15 +1,15 @@
 package com.example.devicemanagement.persistence
 
-data class ManagementState(
+internal data class ManagementState(
     val serviceAvailable: Boolean,
     val sensitiveActionsEnabled: Boolean,
 )
 
-fun interface StateRepository {
+internal fun interface StateRepository {
     fun load(): ManagementState?
 }
 
-class InMemoryStateRepository(
+internal class InMemoryStateRepository(
     private var state: ManagementState?,
 ) : StateRepository {
     override fun load(): ManagementState? = state

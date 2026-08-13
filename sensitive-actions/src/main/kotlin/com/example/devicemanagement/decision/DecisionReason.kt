@@ -1,6 +1,6 @@
 package com.example.devicemanagement.decision
 
-enum class DecisionReason {
+internal enum class DecisionReason {
     APPROVED_BY_POLICY,
     INVALID_TRIGGER,
     MISSING_STATE,

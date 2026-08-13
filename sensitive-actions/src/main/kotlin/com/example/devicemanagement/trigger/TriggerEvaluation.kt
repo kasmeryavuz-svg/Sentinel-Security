@@ -2,7 +2,7 @@ package com.example.devicemanagement.trigger
 
 import com.example.devicemanagement.action.ActionRequest
 
-sealed interface TriggerEvaluation {
+internal sealed interface TriggerEvaluation {
     data class Valid(val request: ActionRequest) : TriggerEvaluation
 
     data class Invalid(
