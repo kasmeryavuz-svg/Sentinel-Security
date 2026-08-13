@@ -1,14 +1,11 @@
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.Directory
-import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFile
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
-import org.gradle.api.tasks.InputDirectory
-import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
@@ -34,10 +31,9 @@ abstract class ProductionBytecodePolicyTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val productionFiles: ConfigurableFileCollection
 
-    @get:InputDirectory
-    @get:Optional
+    @get:InputFiles
     @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val mergedNativeLibraries: DirectoryProperty
+    abstract val mergedNativeLibraries: ConfigurableFileCollection
 
     init {
         classJars.convention(emptyList())
@@ -65,11 +61,13 @@ abstract class ProductionBytecodePolicyTask : DefaultTask() {
     }
 
     private fun verifyMergedNativeLibraries(): List<String> {
-        if (!mergedNativeLibraries.isPresent) return emptyList()
-        val nativeLibraries = mergedNativeLibraries.get().asFile
-            .walkTopDown()
-            .filter { it.isFile }
-            .toList()
+        val nativeLibraries = mergedNativeLibraries.files.flatMap { root ->
+            if (root.exists()) {
+                root.walkTopDown().filter { it.isFile }.toList()
+            } else {
+                emptyList()
+            }
+        }
         return nativeLibraries.map { file ->
             "${artifactPath.get()}:${file.path}: packaged production native library is forbidden"
         }

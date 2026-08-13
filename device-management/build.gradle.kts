@@ -53,7 +53,7 @@ androidComponents {
             description =
                 "Verifies compiled ${variant.name} implementation classes against policy boundaries."
             artifactPath.set(project.path)
-            mergedNativeLibraries.set(
+            mergedNativeLibraries.from(
                 variant.artifacts.get(SingleArtifact.MERGED_NATIVE_LIBS),
             )
             productionFiles.from(fileTree("src") {
