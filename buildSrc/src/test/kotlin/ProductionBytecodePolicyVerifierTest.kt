@@ -346,6 +346,233 @@ class ProductionBytecodePolicyVerifierTest {
         assertRejected(classes, "outside VerifiedPolicyMutationExecutor")
     }
 
+    @Test
+    fun `direct concrete camera service setter bypass fails production verifier`() {
+        val classes = compileJava(
+            concreteCameraServiceStub(),
+            "attack/ConcreteCameraSetterBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.management.AndroidDevicePolicyCameraService;
+                public final class ConcreteCameraSetterBypass {
+                    void reach(AndroidDevicePolicyCameraService service) {
+                        service.setCameraDisabled(true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "outside VerifiedPolicyMutationExecutor")
+        assertRejected(classes, "AndroidDevicePolicyCameraService.setCameraDisabled")
+    }
+
+    @Test
+    fun `direct concrete screen capture service setter bypass fails production verifier`() {
+        val classes = compileJava(
+            concreteScreenCaptureServiceStub(),
+            "attack/ConcreteScreenCaptureSetterBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.management.AndroidDevicePolicyScreenCaptureService;
+                public final class ConcreteScreenCaptureSetterBypass {
+                    void reach(AndroidDevicePolicyScreenCaptureService service) {
+                        service.setScreenCaptureDisabled(true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "outside VerifiedPolicyMutationExecutor")
+        assertRejected(classes, "AndroidDevicePolicyScreenCaptureService.setScreenCaptureDisabled")
+    }
+
+    @Test
+    fun `cast from interface to concrete camera setter bypass fails production verifier`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/DevicePolicyCameraService.java" to
+                """
+                package com.example.devicemanagement.management;
+                public interface DevicePolicyCameraService {
+                    void setCameraDisabled(boolean disabled);
+                }
+                """.trimIndent(),
+            concreteCameraServiceStub(implementInterface = true),
+            "attack/CastConcreteCameraSetterBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.management.AndroidDevicePolicyCameraService;
+                import com.example.devicemanagement.management.DevicePolicyCameraService;
+                public final class CastConcreteCameraSetterBypass {
+                    void reach(DevicePolicyCameraService service) {
+                        ((AndroidDevicePolicyCameraService) service).setCameraDisabled(true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "outside VerifiedPolicyMutationExecutor")
+        assertRejected(classes, "AndroidDevicePolicyCameraService.setCameraDisabled")
+    }
+
+    @Test
+    fun `cast from interface to concrete screen capture setter bypass fails production verifier`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/DevicePolicyScreenCaptureService.java" to
+                """
+                package com.example.devicemanagement.management;
+                public interface DevicePolicyScreenCaptureService {
+                    void setScreenCaptureDisabled(boolean disabled);
+                }
+                """.trimIndent(),
+            concreteScreenCaptureServiceStub(implementInterface = true),
+            "attack/CastConcreteScreenCaptureSetterBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.management.AndroidDevicePolicyScreenCaptureService;
+                import com.example.devicemanagement.management.DevicePolicyScreenCaptureService;
+                public final class CastConcreteScreenCaptureSetterBypass {
+                    void reach(DevicePolicyScreenCaptureService service) {
+                        ((AndroidDevicePolicyScreenCaptureService) service)
+                            .setScreenCaptureDisabled(true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "outside VerifiedPolicyMutationExecutor")
+        assertRejected(
+            classes,
+            "AndroidDevicePolicyScreenCaptureService.setScreenCaptureDisabled",
+        )
+    }
+
+    @Test
+    fun `authorized verified mutation executor may invoke interface setters`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/DevicePolicyCameraService.java" to
+                """
+                package com.example.devicemanagement.management;
+                public interface DevicePolicyCameraService {
+                    void setCameraDisabled(boolean disabled);
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/management/DevicePolicyScreenCaptureService.java" to
+                """
+                package com.example.devicemanagement.management;
+                public interface DevicePolicyScreenCaptureService {
+                    void setScreenCaptureDisabled(boolean disabled);
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/management/VerifiedPolicyMutation.java" to
+                """
+                package com.example.devicemanagement.management;
+                public abstract class VerifiedPolicyMutation {
+                    public static final class Camera extends VerifiedPolicyMutation {
+                        public final boolean disabled;
+                        public Camera(boolean disabled) { this.disabled = disabled; }
+                    }
+                    public static final class ScreenCapture extends VerifiedPolicyMutation {
+                        public final boolean disabled;
+                        public ScreenCapture(boolean disabled) { this.disabled = disabled; }
+                    }
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/management/PolicyMutation.java" to
+                """
+                package com.example.devicemanagement.management;
+                public abstract class PolicyMutation {}
+                """.trimIndent(),
+            "com/example/devicemanagement/management/VerifiedPolicyMutationExecutor.java" to
+                """
+                package com.example.devicemanagement.management;
+                public final class VerifiedPolicyMutationExecutor {
+                    PolicyMutation executeCamera(
+                        VerifiedPolicyMutation.Camera mutation,
+                        String correlationId
+                    ) {
+                        DevicePolicyCameraService service = null;
+                        service.setCameraDisabled(mutation.disabled);
+                        return null;
+                    }
+                    PolicyMutation executeScreenCapture(
+                        VerifiedPolicyMutation.ScreenCapture mutation,
+                        String correlationId
+                    ) {
+                        DevicePolicyScreenCaptureService service = null;
+                        service.setScreenCaptureDisabled(mutation.disabled);
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(
+            violations.none { "outside VerifiedPolicyMutationExecutor" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    private fun concreteCameraServiceStub(
+        implementInterface: Boolean = false,
+    ): Pair<String, String> {
+        val implementsClause =
+            if (implementInterface) " implements DevicePolicyCameraService" else ""
+        return "com/example/devicemanagement/management/AndroidDevicePolicyCameraService.java" to
+            """
+            package com.example.devicemanagement.management;
+            import android.app.admin.DevicePolicyManager;
+            import android.content.ComponentName;
+            public final class AndroidDevicePolicyCameraService$implementsClause {
+                private final DevicePolicyManager manager;
+                private final ComponentName adminComponent;
+                public AndroidDevicePolicyCameraService(
+                    DevicePolicyManager manager,
+                    ComponentName adminComponent
+                ) {
+                    this.manager = manager;
+                    this.adminComponent = adminComponent;
+                }
+                public boolean isCameraDisabled() {
+                    return manager.getCameraDisabled(adminComponent);
+                }
+                public void setCameraDisabled(boolean disabled) {
+                    manager.setCameraDisabled(adminComponent, disabled);
+                }
+            }
+            """.trimIndent()
+    }
+
+    private fun concreteScreenCaptureServiceStub(
+        implementInterface: Boolean = false,
+    ): Pair<String, String> {
+        val implementsClause =
+            if (implementInterface) " implements DevicePolicyScreenCaptureService" else ""
+        return "com/example/devicemanagement/management/AndroidDevicePolicyScreenCaptureService.java" to
+            """
+            package com.example.devicemanagement.management;
+            import android.app.admin.DevicePolicyManager;
+            import android.content.ComponentName;
+            public final class AndroidDevicePolicyScreenCaptureService$implementsClause {
+                private final DevicePolicyManager manager;
+                private final ComponentName adminComponent;
+                public AndroidDevicePolicyScreenCaptureService(
+                    DevicePolicyManager manager,
+                    ComponentName adminComponent
+                ) {
+                    this.manager = manager;
+                    this.adminComponent = adminComponent;
+                }
+                public boolean isScreenCaptureDisabled() {
+                    return manager.getScreenCaptureDisabled(adminComponent);
+                }
+                public void setScreenCaptureDisabled(boolean disabled) {
+                    manager.setScreenCaptureDisabled(adminComponent, disabled);
+                }
+            }
+            """.trimIndent()
+    }
+
     private fun assertRejected(classes: File, expected: String) {
         val violations = verify(":app", classes)
         assertTrue(

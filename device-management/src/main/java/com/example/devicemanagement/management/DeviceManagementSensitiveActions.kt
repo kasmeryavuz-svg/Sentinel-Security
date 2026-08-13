@@ -1,8 +1,10 @@
 package com.example.devicemanagement.management
 
 import android.content.Context
+import android.os.SystemClock
 import com.example.devicemanagement.action.SensitiveActionController
 import com.example.devicemanagement.action.DeviceManagementSensitiveActionControllerFactory
+import com.example.devicemanagement.integration.MonotonicTimeSource
 import com.example.devicemanagement.integration.PolicyMutationResult
 import com.example.devicemanagement.integration.SensitiveActionAuthorization
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
@@ -80,8 +82,17 @@ internal object DeviceManagementComposition {
         return DeviceManagementSensitiveActionControllerFactory.create(
             backend = backend,
             logger = sensitiveActionLogger,
+            monotonicTimeSource = AndroidElapsedRealtimeMonotonicTimeSource,
         )
     }
+}
+
+/**
+ * Production Android monotonic source for approval freshness. Owned exclusively by
+ * trusted device-management composition; not injectable from app/UI code.
+ */
+internal object AndroidElapsedRealtimeMonotonicTimeSource : MonotonicTimeSource {
+    override fun nowMillis(): Long = SystemClock.elapsedRealtime()
 }
 
 internal class DeviceManagementSensitiveActionBackend(

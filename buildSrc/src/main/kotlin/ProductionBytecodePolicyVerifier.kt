@@ -98,23 +98,37 @@ internal object ProductionBytecodePolicyVerifier {
         "dalvik/system/DexFile",
     )
 
+    private val verifiedMutationExecutorScreenCapture = InvocationOrigin(
+        "com/example/devicemanagement/management/VerifiedPolicyMutationExecutor",
+        "executeScreenCapture",
+        "(Lcom/example/devicemanagement/management/VerifiedPolicyMutation" +
+            "\$ScreenCapture;Ljava/lang/String;)" +
+            "Lcom/example/devicemanagement/management/PolicyMutation;",
+    )
+
+    private val verifiedMutationExecutorCamera = InvocationOrigin(
+        "com/example/devicemanagement/management/VerifiedPolicyMutationExecutor",
+        "executeCamera",
+        "(Lcom/example/devicemanagement/management/VerifiedPolicyMutation" +
+            "\$Camera;Ljava/lang/String;)" +
+            "Lcom/example/devicemanagement/management/PolicyMutation;",
+    )
+
+    /**
+     * Narrow policy setters are bound to VerifiedPolicyMutationExecutor whether the
+     * bytecode call owner is the interface or the concrete Android implementation.
+     * Restricting only the interface leaves a concrete-type / cast bypass that still
+     * reaches the allowlisted DPM mutators inside those implementations.
+     */
     private val verifiedMutationOrigins = mapOf(
         "com/example/devicemanagement/management/DevicePolicyScreenCaptureService." +
-            "setScreenCaptureDisabled(Z)V" to InvocationOrigin(
-                "com/example/devicemanagement/management/VerifiedPolicyMutationExecutor",
-                "executeScreenCapture",
-                "(Lcom/example/devicemanagement/management/VerifiedPolicyMutation" +
-                    "\$ScreenCapture;Ljava/lang/String;)" +
-                    "Lcom/example/devicemanagement/management/PolicyMutation;",
-            ),
+            "setScreenCaptureDisabled(Z)V" to verifiedMutationExecutorScreenCapture,
+        "com/example/devicemanagement/management/AndroidDevicePolicyScreenCaptureService." +
+            "setScreenCaptureDisabled(Z)V" to verifiedMutationExecutorScreenCapture,
         "com/example/devicemanagement/management/DevicePolicyCameraService." +
-            "setCameraDisabled(Z)V" to InvocationOrigin(
-                "com/example/devicemanagement/management/VerifiedPolicyMutationExecutor",
-                "executeCamera",
-                "(Lcom/example/devicemanagement/management/VerifiedPolicyMutation" +
-                    "\$Camera;Ljava/lang/String;)" +
-                    "Lcom/example/devicemanagement/management/PolicyMutation;",
-            ),
+            "setCameraDisabled(Z)V" to verifiedMutationExecutorCamera,
+        "com/example/devicemanagement/management/AndroidDevicePolicyCameraService." +
+            "setCameraDisabled(Z)V" to verifiedMutationExecutorCamera,
     )
 
     fun verify(targets: Iterable<PolicyVerificationTarget>): List<String> {
@@ -302,6 +316,12 @@ internal object ProductionBytecodePolicyVerifier {
 
         private fun checkHandle(handle: Handle, location: String) {
             checkDpmInvocation(handle.owner, handle.name, handle.desc, "$location method handle")
+            checkVerifiedMutationInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
             checkForbiddenOwner(handle.owner, handle.name, "$location method handle")
             checkDescriptor(handle.desc, "$location method handle")
         }

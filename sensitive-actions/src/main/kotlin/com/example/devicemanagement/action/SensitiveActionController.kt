@@ -36,13 +36,20 @@ internal class DefaultSensitiveActionController(
 /**
  * Production composition entry point. This implementation module is not present
  * on the app compile classpath; app receives only SensitiveActionController API.
+ * Clock injection is intentionally unavailable to app/UI and is supplied only by
+ * trusted device-management composition.
  */
 object DeviceManagementSensitiveActionControllerFactory {
     fun create(
         backend: SensitiveActionPolicyBackend,
         logger: StructuredLogger,
+        monotonicTimeSource: MonotonicTimeSource,
     ): SensitiveActionController {
-        return createControlledController(backend = backend, logger = logger)
+        return createControlledController(
+            backend = backend,
+            logger = logger,
+            monotonicTimeSource = monotonicTimeSource,
+        )
     }
 }
 
