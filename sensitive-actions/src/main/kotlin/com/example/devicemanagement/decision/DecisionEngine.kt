@@ -2,6 +2,7 @@ package com.example.devicemanagement.decision
 
 import com.example.devicemanagement.action.ApprovalAuthority
 import com.example.devicemanagement.integration.MonotonicTimeSource
+import com.example.devicemanagement.integration.SystemMonotonicTimeSource
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.StateRepository
 import com.example.devicemanagement.trigger.Trigger
@@ -18,8 +19,7 @@ internal class FailSafeDecisionEngine(
     private val approvalAuthority: ApprovalAuthority,
     private val logger: StructuredLogger,
     private val nowEpochMillis: () -> Long = System::currentTimeMillis,
-    private val monotonicTimeSource: MonotonicTimeSource =
-        MonotonicTimeSource { System.nanoTime() / 1_000_000L },
+    private val monotonicTimeSource: MonotonicTimeSource = SystemMonotonicTimeSource,
 ) : DecisionEngine {
     override fun decide(
         trigger: Trigger?,

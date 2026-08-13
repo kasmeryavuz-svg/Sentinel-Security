@@ -2,6 +2,7 @@ package com.example.devicemanagement.action
 
 import com.example.devicemanagement.decision.ActionDecision
 import com.example.devicemanagement.integration.MonotonicTimeSource
+import com.example.devicemanagement.integration.SystemMonotonicTimeSource
 import com.example.devicemanagement.logging.StructuredLogger
 
 internal class ActionExecutor(
@@ -9,8 +10,7 @@ internal class ActionExecutor(
     private val approvalAuthority: ApprovalAuthority,
     private val logger: StructuredLogger,
     private val nowEpochMillis: () -> Long = System::currentTimeMillis,
-    private val monotonicTimeSource: MonotonicTimeSource =
-        MonotonicTimeSource { System.nanoTime() / 1_000_000L },
+    private val monotonicTimeSource: MonotonicTimeSource = SystemMonotonicTimeSource,
 ) {
     fun execute(decision: ActionDecision): ActionResult {
         if (decision !is ActionDecision.Approved) {

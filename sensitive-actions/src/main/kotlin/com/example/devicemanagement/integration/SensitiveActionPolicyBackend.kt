@@ -44,3 +44,7 @@ sealed interface PolicyMutationResult {
 internal fun interface MonotonicTimeSource {
     fun nowMillis(): Long
 }
+
+internal object SystemMonotonicTimeSource : MonotonicTimeSource {
+    override fun nowMillis(): Long = System.nanoTime() / 1_000_000L
+}

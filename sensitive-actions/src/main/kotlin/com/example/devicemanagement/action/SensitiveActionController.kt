@@ -4,6 +4,7 @@ import com.example.devicemanagement.decision.ActionDecision
 import com.example.devicemanagement.decision.FailSafeDecisionEngine
 import com.example.devicemanagement.integration.MonotonicTimeSource
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
+import com.example.devicemanagement.integration.SystemMonotonicTimeSource
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.InMemoryStateRepository
 import com.example.devicemanagement.persistence.ManagementState
@@ -80,8 +81,7 @@ internal fun createControlledController(
     backend: SensitiveActionPolicyBackend,
     logger: StructuredLogger,
     nowEpochMillis: () -> Long = System::currentTimeMillis,
-    monotonicTimeSource: MonotonicTimeSource =
-        MonotonicTimeSource { System.nanoTime() / 1_000_000L },
+    monotonicTimeSource: MonotonicTimeSource = SystemMonotonicTimeSource,
 ): SensitiveActionController {
     val approvalAuthority = ApprovalAuthority()
     val registry = SensitiveActionRegistry.controlled(backend)
