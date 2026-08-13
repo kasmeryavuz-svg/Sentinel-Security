@@ -11,98 +11,106 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class ScreenCaptureSensitiveActionTest {
+class CameraSensitiveActionTest {
     private val logger = NoOpLogger()
 
     @Test
-    fun `verified Device Owner can disable screen capture`() {
+    fun `verified Device Owner can disable camera`() {
         val backend = RecordingBackend()
 
         val result = controller(backend).submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
-        ))
-
-        assertTrue(result is ActionResult.Applied)
-        assertEquals(listOf(true), backend.writes)
-    }
-
-    @Test
-    fun `verified Device Owner can enable screen capture`() {
-        val backend = RecordingBackend()
-
-        val result = controller(backend).submit(trigger(
-            SensitiveActionCommands.ENABLE_SCREEN_CAPTURE,
-        ))
-
-        assertTrue(result is ActionResult.Applied)
-        assertEquals(listOf(false), backend.writes)
-    }
-
-    @Test
-    fun `ordinary app state is denied before policy writer`() {
-        val backend = RecordingBackend(
-            authorization = authorized.copy(verifiedDeviceOwner = false),
-        )
-
-        val result = controller(backend).submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
+            SensitiveActionCommands.DISABLE_CAMERA,
         ))
 
         assertEquals(
-            ActionResult.Rejected("decision_denied:DEVICE_OWNER_NOT_VERIFIED"),
+            ActionResult.Applied(
+                operation = SensitiveActionOperation.DISABLE_CAMERA,
+                requestedDisabled = true,
+                observedDisabled = true,
+                correlationId = "correlation",
+            ),
             result,
         )
-        assertTrue(backend.writes.isEmpty())
+        assertEquals(listOf(true), backend.cameraWrites)
     }
 
     @Test
-    fun `Profile Owner state is denied before policy writer`() {
-        val backend = RecordingBackend(
+    fun `verified Device Owner can enable camera`() {
+        val backend = RecordingBackend()
+
+        val result = controller(backend).submit(trigger(
+            SensitiveActionCommands.ENABLE_CAMERA,
+        ))
+
+        assertEquals(
+            ActionResult.Applied(
+                operation = SensitiveActionOperation.ENABLE_CAMERA,
+                requestedDisabled = false,
+                observedDisabled = false,
+                correlationId = "correlation",
+            ),
+            result,
+        )
+        assertEquals(listOf(false), backend.cameraWrites)
+    }
+
+    @Test
+    fun `ordinary app and Profile Owner are denied before camera writer`() {
+        val ordinaryBackend = RecordingBackend(
+            authorization = authorized.copy(verifiedDeviceOwner = false),
+        )
+        val profileBackend = RecordingBackend(
             authorization = authorized.copy(
                 verifiedDeviceOwner = false,
                 profileOwner = true,
             ),
         )
 
-        val result = controller(backend).submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
+        val ordinaryResult = controller(ordinaryBackend).submit(trigger(
+            SensitiveActionCommands.DISABLE_CAMERA,
+        ))
+        val profileResult = controller(profileBackend).submit(trigger(
+            SensitiveActionCommands.DISABLE_CAMERA,
         ))
 
         assertEquals(
-            ActionResult.Rejected("decision_denied:PROFILE_OWNER_NOT_ALLOWED"),
-            result,
+            ActionResult.Rejected("decision_denied:DEVICE_OWNER_NOT_VERIFIED"),
+            ordinaryResult,
         )
-        assertTrue(backend.writes.isEmpty())
+        assertEquals(
+            ActionResult.Rejected("decision_denied:PROFILE_OWNER_NOT_ALLOWED"),
+            profileResult,
+        )
+        assertTrue(ordinaryBackend.cameraWrites.isEmpty())
+        assertTrue(profileBackend.cameraWrites.isEmpty())
     }
 
     @Test
-    fun `unavailable policy service is denied before policy writer`() {
+    fun `unavailable policy service is denied before camera writer`() {
         val backend = RecordingBackend(
             authorization = authorized.copy(policyServiceAvailable = false),
         )
 
         val result = controller(backend).submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
+            SensitiveActionCommands.DISABLE_CAMERA,
         ))
 
         assertEquals(
             ActionResult.Rejected("decision_denied:SERVICE_UNAVAILABLE"),
             result,
         )
-        assertTrue(backend.writes.isEmpty())
+        assertTrue(backend.cameraWrites.isEmpty())
     }
 
     @Test
-    fun `malformed and excessive lifetime requests cannot reach policy writer`() {
+    fun `malformed and excessive lifetime requests cannot reach camera writer`() {
         val backend = RecordingBackend()
         val controller = controller(backend)
 
-        val malformed = controller.submit(
-            Trigger("unknown", "correlation", 2_000L),
-        )
+        val malformed = controller.submit(Trigger("unknown", "correlation", 2_000L))
         val excessiveLifetime = controller.submit(
             Trigger(
-                SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
+                SensitiveActionCommands.DISABLE_CAMERA,
                 "correlation",
                 61_001L,
             ),
@@ -110,24 +118,21 @@ class ScreenCaptureSensitiveActionTest {
 
         assertTrue(malformed is ActionResult.Rejected)
         assertTrue(excessiveLifetime is ActionResult.Rejected)
-        assertTrue(backend.writes.isEmpty())
+        assertTrue(backend.cameraWrites.isEmpty())
     }
 
     @Test
-    fun `backend denial and failure are preserved with correlation ID`() {
-        val deniedBackend = RecordingBackend(
-            mutationResult = PolicyMutationResult.Denied("validation_changed"),
-        )
-        val failedBackend = RecordingBackend(
-            mutationResult = PolicyMutationResult.Failed("security_exception"),
-        )
-
-        val denied = controller(deniedBackend).submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
-        ))
-        val failed = controller(failedBackend).submit(trigger(
-            SensitiveActionCommands.ENABLE_SCREEN_CAPTURE,
-        ))
+    fun `camera backend denial and failure preserve correlation ID`() {
+        val denied = controller(
+            RecordingBackend(
+                mutationResult = PolicyMutationResult.Denied("validation_changed"),
+            ),
+        ).submit(trigger(SensitiveActionCommands.DISABLE_CAMERA))
+        val failed = controller(
+            RecordingBackend(
+                mutationResult = PolicyMutationResult.Failed("security_exception"),
+            ),
+        ).submit(trigger(SensitiveActionCommands.ENABLE_CAMERA))
 
         assertEquals(
             ActionResult.Rejected("validation_changed", "correlation"),
@@ -157,7 +162,7 @@ class ScreenCaptureSensitiveActionTest {
         private val authorization: SensitiveActionAuthorization = authorized,
         private val mutationResult: PolicyMutationResult? = null,
     ) : SensitiveActionPolicyBackend {
-        val writes = mutableListOf<Boolean>()
+        val cameraWrites = mutableListOf<Boolean>()
 
         override fun currentAuthorization(): SensitiveActionAuthorization = authorization
 
@@ -165,15 +170,15 @@ class ScreenCaptureSensitiveActionTest {
             disabled: Boolean,
             correlationId: String,
         ): PolicyMutationResult {
-            writes += disabled
-            return mutationResult ?: PolicyMutationResult.Applied(disabled, disabled)
+            error("camera action must not invoke screen-capture policy")
         }
 
         override fun applyCameraDisabled(
             disabled: Boolean,
             correlationId: String,
         ): PolicyMutationResult {
-            error("screen-capture action must not invoke camera policy")
+            cameraWrites += disabled
+            return mutationResult ?: PolicyMutationResult.Applied(disabled, disabled)
         }
     }
 

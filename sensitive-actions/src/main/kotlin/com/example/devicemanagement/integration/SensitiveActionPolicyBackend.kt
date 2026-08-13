@@ -13,6 +13,11 @@ interface SensitiveActionPolicyBackend {
         disabled: Boolean,
         correlationId: String,
     ): PolicyMutationResult
+
+    fun applyCameraDisabled(
+        disabled: Boolean,
+        correlationId: String,
+    ): PolicyMutationResult
 }
 
 data class SensitiveActionAuthorization(

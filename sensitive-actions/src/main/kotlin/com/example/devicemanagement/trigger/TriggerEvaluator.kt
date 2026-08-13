@@ -38,6 +38,10 @@ internal class DefaultTriggerEvaluator : TriggerEvaluator {
                 DeviceActionType.DISABLE_SCREEN_CAPTURE
             SensitiveActionCommands.ENABLE_SCREEN_CAPTURE ->
                 DeviceActionType.ENABLE_SCREEN_CAPTURE
+            SensitiveActionCommands.DISABLE_CAMERA ->
+                DeviceActionType.DISABLE_CAMERA
+            SensitiveActionCommands.ENABLE_CAMERA ->
+                DeviceActionType.ENABLE_CAMERA
             else -> return TriggerEvaluation.Invalid(
                 reason = "unknown_command",
                 detail = command,
@@ -62,4 +66,6 @@ internal class DefaultTriggerEvaluator : TriggerEvaluator {
 object SensitiveActionCommands {
     const val DISABLE_SCREEN_CAPTURE = "disable_screen_capture"
     const val ENABLE_SCREEN_CAPTURE = "enable_screen_capture"
+    const val DISABLE_CAMERA = "disable_camera"
+    const val ENABLE_CAMERA = "enable_camera"
 }
