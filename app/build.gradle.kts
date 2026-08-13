@@ -100,6 +100,7 @@ val checkNoSensitiveActionComposition by tasks.registering {
 fun secureDocument(file: File) = DocumentBuilderFactory.newInstance().apply {
     setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
     setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+    isNamespaceAware = true
     isExpandEntityReferences = false
 }.newDocumentBuilder().parse(file)
 
