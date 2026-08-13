@@ -55,6 +55,7 @@ val allowedPolicyQueries = setOf(
     "isDeviceOwnerApp",
     "isProfileOwnerApp",
     "isAdminActive",
+    "isProvisioningAllowed",
 )
 
 val checkNoDestructiveDevicePolicyApis by tasks.registering {

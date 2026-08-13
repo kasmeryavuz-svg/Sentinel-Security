@@ -18,6 +18,10 @@ internal interface DevicePolicyReadService {
     fun isProfileOwnerApp(): Boolean
 
     fun isExpectedAdminActive(): Boolean
+
+    fun isDeviceOwnerProvisioningAllowed(): Boolean
+
+    fun isProfileOwnerProvisioningAllowed(): Boolean
 }
 
 internal interface DevicePolicyPlatform {
@@ -73,6 +77,14 @@ internal class AndroidDevicePolicyReadService(
     override fun isProfileOwnerApp(): Boolean = manager.isProfileOwnerApp(packageName)
 
     override fun isExpectedAdminActive(): Boolean = manager.isAdminActive(adminComponent)
+
+    override fun isDeviceOwnerProvisioningAllowed(): Boolean {
+        return manager.isProvisioningAllowed(DevicePolicyManager.ACTION_PROVISION_MANAGED_DEVICE)
+    }
+
+    override fun isProfileOwnerProvisioningAllowed(): Boolean {
+        return manager.isProvisioningAllowed(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE)
+    }
 }
 
 object DeviceManagementDiagnostics {
@@ -82,6 +94,21 @@ object DeviceManagementDiagnostics {
     ): DeviceManagementStatusProvider {
         return DefaultDeviceManagementStatusProvider(
             platform = AndroidDevicePolicyPlatform(context.applicationContext),
+            logger = logger,
+        )
+    }
+
+    fun createProvisioningReadiness(
+        context: Context,
+        logger: DeviceManagementLogger,
+    ): ProvisioningReadinessProvider {
+        val platform = AndroidDevicePolicyPlatform(context.applicationContext)
+        return DefaultProvisioningReadinessProvider(
+            managementStatusProvider = DefaultDeviceManagementStatusProvider(
+                platform = platform,
+                logger = logger,
+            ),
+            platform = platform,
             logger = logger,
         )
     }

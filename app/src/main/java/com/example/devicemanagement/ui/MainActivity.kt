@@ -7,26 +7,42 @@ import android.widget.TextView
 import com.example.devicemanagement.app.DeviceManagementApp
 import com.example.devicemanagement.management.DeviceManagementStatus
 import com.example.devicemanagement.management.ManagementMode
+import com.example.devicemanagement.management.ProvisioningAvailability
+import com.example.devicemanagement.management.ProvisioningOption
+import com.example.devicemanagement.management.ProvisioningReadiness
 
 class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val status = (application as DeviceManagementApp)
+        val readiness = (application as DeviceManagementApp)
             .container
-            .deviceManagementStatus
-            .currentStatus()
+            .provisioningReadiness
+            .currentReadiness()
 
         setContentView(
             TextView(this).apply {
                 gravity = Gravity.CENTER
                 setPadding(32, 32, 32, 32)
-                text = status.toDiagnosticsText()
+                text = readiness.toDiagnosticsText()
                 textSize = 16f
             },
         )
     }
 
-    private fun DeviceManagementStatus.toDiagnosticsText(): String {
+    private fun ProvisioningReadiness.toDiagnosticsText(): String {
+        val status = managementStatus
+        return """
+            ${status.toManagementDiagnosticsText()}
+
+            Device Owner provisioning:
+            ${deviceOwnerProvisioning.toDisplayText()}
+
+            Profile Owner provisioning:
+            ${profileOwnerProvisioning.toDisplayText()}
+        """.trimIndent()
+    }
+
+    private fun DeviceManagementStatus.toManagementDiagnosticsText(): String {
         val modeLabel = when (mode) {
             ManagementMode.DEVICE_OWNER -> "Device Owner"
             ManagementMode.PROFILE_OWNER -> "Profile Owner"
@@ -43,7 +59,7 @@ class MainActivity : Activity() {
             .joinToString("\n")
 
         return """
-            Device Management Diagnostics
+            Provisioning Readiness Diagnostics
 
             Management state: $modeLabel
             DevicePolicyManager available: ${isPolicyServiceAvailable.toYesNo()}
@@ -57,6 +73,21 @@ class MainActivity : Activity() {
 
             $diagnosticText
         """.trimIndent()
+    }
+
+    private fun ProvisioningOption.toDisplayText(): String {
+        val availabilityLabel = when (availability) {
+            ProvisioningAvailability.ALLOWED -> "Allowed"
+            ProvisioningAvailability.NOT_ALLOWED -> "Not allowed"
+            ProvisioningAvailability.UNAVAILABLE -> "Unavailable"
+        }
+        return buildString {
+            append(availabilityLabel)
+            reasons.forEach { reason ->
+                append("\n• ")
+                append(reason)
+            }
+        }
     }
 
     private fun Boolean.toYesNo(): String = if (this) "Yes" else "No"

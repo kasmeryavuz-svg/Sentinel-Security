@@ -60,6 +60,10 @@ class DefaultDeviceManagementStatusProviderTest {
             override fun isProfileOwnerApp(): Boolean = true
 
             override fun isExpectedAdminActive(): Boolean = true
+
+            override fun isDeviceOwnerProvisioningAllowed(): Boolean = false
+
+            override fun isProfileOwnerProvisioningAllowed(): Boolean = false
         }
 
         val status = provider(service = service).currentStatus()
@@ -132,6 +136,10 @@ class DefaultDeviceManagementStatusProviderTest {
         override fun isProfileOwnerApp(): Boolean = profileOwner
 
         override fun isExpectedAdminActive(): Boolean = adminActive
+
+        override fun isDeviceOwnerProvisioningAllowed(): Boolean = false
+
+        override fun isProfileOwnerProvisioningAllowed(): Boolean = false
     }
 
     private class RecordingLogger : DeviceManagementLogger {
