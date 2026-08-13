@@ -35,11 +35,18 @@ val checkProductionPolicyCoverage by tasks.registering {
         }
 
         val productionConfigurations = subprojects.flatMap { project ->
-            project.configurations.filterNot { configuration ->
-                configuration.name.startsWith("test", ignoreCase = true) ||
-                    configuration.name.contains("UnitTest") ||
-                    configuration.name.contains("AndroidTest") ||
-                    configuration.name.contains("TestFixtures")
+            project.configurations.filter { configuration ->
+                val dependencyBucket = listOf(
+                    "api",
+                    "implementation",
+                    "compileOnly",
+                    "runtimeOnly",
+                ).any { configuration.name.endsWith(it, ignoreCase = true) }
+                dependencyBucket &&
+                    !configuration.name.startsWith("test", ignoreCase = true) &&
+                    !configuration.name.contains("UnitTest") &&
+                    !configuration.name.contains("AndroidTest") &&
+                    !configuration.name.contains("TestFixtures")
             }.map { project to it }
         }
         val fileDependencies = productionConfigurations.flatMap { (project, configuration) ->
