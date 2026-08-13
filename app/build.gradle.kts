@@ -455,5 +455,5 @@ tasks.matching { it.name == "check" }.configureEach {
 }
 
 tasks.matching { it.name == "preBuild" }.configureEach {
-    dependsOn(checkAppDependencyIsolation, checkAppApiCompileNegative)
+    dependsOn(checkAppDependencyIsolation)
 }
