@@ -14,8 +14,15 @@ class ProductionBytecodePolicyVerifierTest {
                 import android.app.admin.DevicePolicyManager;
                 import android.content.ComponentName;
                 public final class AndroidDevicePolicyCameraService {
-                    private final DevicePolicyManager manager = new DevicePolicyManager();
-                    private final ComponentName adminComponent = new ComponentName();
+                    private final DevicePolicyManager manager;
+                    private final ComponentName adminComponent;
+                    AndroidDevicePolicyCameraService(
+                        DevicePolicyManager manager,
+                        ComponentName adminComponent
+                    ) {
+                        this.manager = manager;
+                        this.adminComponent = adminComponent;
+                    }
                     void setCameraDisabled(boolean disabled) {
                         manager.setCameraDisabled(adminComponent, disabled);
                     }
@@ -291,6 +298,14 @@ class ProductionBytecodePolicyVerifierTest {
     @Test
     fun `DexFile loading is rejected`() {
         val classes = compileJava(
+            "dalvik/system/DexFile.java" to
+                """
+                package dalvik.system;
+                public final class DexFile {
+                    public DexFile(String path) {}
+                    public Class<?> loadClass(String name, ClassLoader loader) { return null; }
+                }
+                """.trimIndent(),
             "attack/DexFileLoading.java" to
                 """
                 package attack;
@@ -389,14 +404,6 @@ class ProductionBytecodePolicyVerifierTest {
                 public boolean getCameraDisabled(ComponentName admin) { return false; }
                 public boolean getScreenCaptureDisabled(ComponentName admin) { return false; }
                 public void wipeData(int flags) {}
-            }
-            """.trimIndent(),
-        "dalvik/system/DexFile.java" to
-            """
-            package dalvik.system;
-            public final class DexFile {
-                public DexFile(String path) {}
-                public Class<?> loadClass(String name, ClassLoader loader) { return null; }
             }
             """.trimIndent(),
     )
