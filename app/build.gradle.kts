@@ -538,7 +538,11 @@ androidComponents {
                 it.name == "check$capitalized" ||
                 it.name == "check"
         }.configureEach {
-            dependsOn(guardTask, policyGuard)
+            dependsOn(
+                guardTask,
+                policyGuard,
+                rootProject.tasks.named("checkProductionBytecodePolicy"),
+            )
         }
     }
 }
