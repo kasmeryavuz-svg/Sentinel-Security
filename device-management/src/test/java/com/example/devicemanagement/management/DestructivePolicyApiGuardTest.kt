@@ -9,6 +9,7 @@ class DestructivePolicyApiGuardTest {
     @Test
     fun `DevicePolicyManager wrapper exposes query operations only`() {
         val exposedOperations = DevicePolicyReadService::class.java.declaredMethods
+            .filterNot { it.isSynthetic }
             .map { it.name }
             .toSet()
 
