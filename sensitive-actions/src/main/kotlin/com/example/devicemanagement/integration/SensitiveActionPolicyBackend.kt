@@ -6,7 +6,6 @@ package com.example.devicemanagement.integration
  * Application and UI code must receive only the configured
  * SensitiveActionController, never the real backend implementation.
  */
-@SensitiveActionCompositionApi
 interface SensitiveActionPolicyBackend {
     fun currentAuthorization(): SensitiveActionAuthorization
 

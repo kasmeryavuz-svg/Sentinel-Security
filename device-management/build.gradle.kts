@@ -33,6 +33,7 @@ kotlin {
 }
 
 dependencies {
+    api(project(":sensitive-actions-api"))
     implementation(project(":sensitive-actions"))
     testImplementation("junit:junit:4.13.2")
     testImplementation(kotlin("reflect"))

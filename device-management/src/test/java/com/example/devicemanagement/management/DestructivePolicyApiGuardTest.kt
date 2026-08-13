@@ -4,7 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.DataInputStream
 import java.io.File
+import java.net.URI
+import java.util.jar.JarFile
 
 class DestructivePolicyApiGuardTest {
     @Test
@@ -227,5 +231,158 @@ class DestructivePolicyApiGuardTest {
             "Only allowlisted policy queries and mutators are allowed: $violations",
             violations.isEmpty(),
         )
+    }
+
+    @Test
+    fun `compiled DevicePolicyManager calls use the exact allowlist`() {
+        val allowedQueries = setOf(
+            "isDeviceOwnerApp",
+            "isProfileOwnerApp",
+            "isAdminActive",
+            "isProvisioningAllowed",
+            "getActiveAdmins",
+            "getScreenCaptureDisabled",
+            "getCameraDisabled",
+        )
+        val allowedMutators = setOf(
+            "setScreenCaptureDisabled",
+            "setCameraDisabled",
+        )
+        val compiledCalls = productionClassBytes().flatMap { (className, bytes) ->
+            methodReferences(bytes)
+                .filter { it.owner == DEVICE_POLICY_MANAGER_INTERNAL_NAME }
+                .map { reference ->
+                    CompiledPolicyCall(
+                        className = className,
+                        methodName = reference.name,
+                        sourceBoundaryMarkerPresent = bytes.toString(Charsets.ISO_8859_1)
+                            .contains("AndroidDeviceManagementInfrastructure.kt"),
+                    )
+                }
+        }
+
+        assertTrue("Expected compiled DevicePolicyManager calls", compiledCalls.isNotEmpty())
+        assertTrue(
+            "DPM calls must originate from the authorized source boundary: $compiledCalls",
+            compiledCalls.all(CompiledPolicyCall::sourceBoundaryMarkerPresent),
+        )
+        val unapprovedCalls = compiledCalls.filter {
+            it.methodName !in allowedQueries && it.methodName !in allowedMutators
+        }
+        assertTrue(
+            "Compiled non-allowlisted DevicePolicyManager calls: $unapprovedCalls",
+            unapprovedCalls.isEmpty(),
+        )
+        assertEquals(
+            allowedMutators,
+            compiledCalls.map(CompiledPolicyCall::methodName)
+                .filter { it in allowedMutators }
+                .toSet(),
+        )
+    }
+
+    private fun productionClassBytes(): List<Pair<String, ByteArray>> {
+        val location = File(
+            URI(AndroidDevicePolicyPlatform::class.java.protectionDomain.codeSource.location.toString()),
+        )
+        val packagePath = "com/example/devicemanagement/management/"
+        return if (location.isDirectory) {
+            val packageDirectory = File(location, packagePath)
+            packageDirectory.walkTopDown()
+                .filter { it.isFile && it.extension == "class" }
+                .map { file ->
+                    file.relativeTo(location).invariantSeparatorsPath to file.readBytes()
+                }
+                .toList()
+        } else {
+            JarFile(location).use { jar ->
+                jar.entries().asSequence()
+                    .filter { !it.isDirectory && it.name.startsWith(packagePath) }
+                    .filter { it.name.endsWith(".class") }
+                    .map { entry ->
+                        entry.name to jar.getInputStream(entry).use { it.readBytes() }
+                    }
+                    .toList()
+            }
+        }
+    }
+
+    private fun methodReferences(classBytes: ByteArray): List<MethodReference> {
+        DataInputStream(ByteArrayInputStream(classBytes)).use { input ->
+            check(input.readInt() == CLASS_FILE_MAGIC)
+            input.readUnsignedShort()
+            input.readUnsignedShort()
+            val constantPool = arrayOfNulls<ConstantPoolEntry>(input.readUnsignedShort())
+            var index = 1
+            while (index < constantPool.size) {
+                when (val tag = input.readUnsignedByte()) {
+                    1 -> constantPool[index] = Utf8Entry(input.readUTF())
+                    3, 4 -> input.skipBytes(4)
+                    5, 6 -> {
+                        input.skipBytes(8)
+                        index += 1
+                    }
+                    7 -> constantPool[index] = ClassEntry(input.readUnsignedShort())
+                    8, 16, 19, 20 -> input.skipBytes(2)
+                    9, 10, 11 -> constantPool[index] = ReferenceEntry(
+                        tag = tag,
+                        classIndex = input.readUnsignedShort(),
+                        nameAndTypeIndex = input.readUnsignedShort(),
+                    )
+                    12 -> constantPool[index] = NameAndTypeEntry(
+                        nameIndex = input.readUnsignedShort(),
+                        descriptorIndex = input.readUnsignedShort(),
+                    )
+                    15 -> input.skipBytes(3)
+                    17, 18 -> input.skipBytes(4)
+                    else -> error("Unsupported class-file constant-pool tag: $tag")
+                }
+                index += 1
+            }
+            return constantPool.filterIsInstance<ReferenceEntry>()
+                .filter { it.tag == 10 || it.tag == 11 }
+                .map { reference ->
+                    val ownerEntry = constantPool[reference.classIndex] as ClassEntry
+                    val owner = (constantPool[ownerEntry.nameIndex] as Utf8Entry).value
+                    val nameAndType =
+                        constantPool[reference.nameAndTypeIndex] as NameAndTypeEntry
+                    val name = (constantPool[nameAndType.nameIndex] as Utf8Entry).value
+                    MethodReference(owner = owner, name = name)
+                }
+        }
+    }
+
+    private sealed interface ConstantPoolEntry
+
+    private data class Utf8Entry(val value: String) : ConstantPoolEntry
+
+    private data class ClassEntry(val nameIndex: Int) : ConstantPoolEntry
+
+    private data class NameAndTypeEntry(
+        val nameIndex: Int,
+        val descriptorIndex: Int,
+    ) : ConstantPoolEntry
+
+    private data class ReferenceEntry(
+        val tag: Int,
+        val classIndex: Int,
+        val nameAndTypeIndex: Int,
+    ) : ConstantPoolEntry
+
+    private data class MethodReference(
+        val owner: String,
+        val name: String,
+    )
+
+    private data class CompiledPolicyCall(
+        val className: String,
+        val methodName: String,
+        val sourceBoundaryMarkerPresent: Boolean,
+    )
+
+    private companion object {
+        const val CLASS_FILE_MAGIC = -889275714
+        const val DEVICE_POLICY_MANAGER_INTERNAL_NAME =
+            "android/app/admin/DevicePolicyManager"
     }
 }

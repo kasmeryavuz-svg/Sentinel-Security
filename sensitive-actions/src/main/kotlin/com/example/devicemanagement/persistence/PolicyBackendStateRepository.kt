@@ -1,5 +1,3 @@
-@file:OptIn(com.example.devicemanagement.integration.SensitiveActionCompositionApi::class)
-
 package com.example.devicemanagement.persistence
 
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend

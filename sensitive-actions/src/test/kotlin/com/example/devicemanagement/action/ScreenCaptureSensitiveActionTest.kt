@@ -1,5 +1,3 @@
-@file:OptIn(com.example.devicemanagement.integration.SensitiveActionCompositionApi::class)
-
 package com.example.devicemanagement.action
 
 import com.example.devicemanagement.integration.MonotonicTimeSource
@@ -153,7 +151,7 @@ class ScreenCaptureSensitiveActionTest {
     }
 
     private fun controller(backend: SensitiveActionPolicyBackend) =
-        SensitiveActionController.createControlledInternal(
+        createControlledController(
             backend = backend,
             logger = logger,
             nowEpochMillis = { 1_000L },

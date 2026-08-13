@@ -1,5 +1,3 @@
-@file:OptIn(com.example.devicemanagement.integration.SensitiveActionCompositionApi::class)
-
 package com.example.devicemanagement.action
 
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
@@ -109,7 +107,7 @@ internal class SensitiveActionRegistry internal constructor(
             return create(
                 listOf(
                     SensitiveActionRegistration(
-                        command = SensitiveActionCommands.MOCK_WIPE_SIMULATION,
+                        command = MOCK_WIPE_SIMULATION_COMMAND,
                         action = SafeMockWipeAction(logger),
                     ),
                 ),
@@ -126,3 +124,5 @@ internal data class SensitiveActionRegistration(
     val command: String,
     val action: DeviceAction,
 )
+
+internal const val MOCK_WIPE_SIMULATION_COMMAND = "mock_wipe"

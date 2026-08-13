@@ -20,7 +20,7 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(uiSources.contains("DevicePolicyScreenCaptureService"))
         assertFalse(uiSources.contains("DevicePolicyCameraService"))
         assertFalse(uiSources.contains("SensitiveActionPolicyBackend"))
-        assertFalse(uiSources.contains("SensitiveActionCompositionApi"))
+        assertFalse(uiSources.contains("DeviceManagementSensitiveActionControllerFactory"))
         assertFalse(uiSources.contains("MonotonicTimeSource"))
         assertFalse(uiSources.contains("createControlled"))
         assertFalse(uiSources.contains("SensitiveActionRegistry"))

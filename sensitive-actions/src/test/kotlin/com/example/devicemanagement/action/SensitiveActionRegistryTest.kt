@@ -1,5 +1,3 @@
-@file:OptIn(com.example.devicemanagement.integration.SensitiveActionCompositionApi::class)
-
 package com.example.devicemanagement.action
 
 import com.example.devicemanagement.integration.PolicyMutationResult
@@ -50,7 +48,7 @@ class SensitiveActionRegistryTest {
         val registry = SensitiveActionRegistry.failSafe(logger)
 
         assertEquals(
-            setOf(SensitiveActionCommands.MOCK_WIPE_SIMULATION),
+            setOf(MOCK_WIPE_SIMULATION_COMMAND),
             registry.commands(),
         )
         assertEquals(setOf(DeviceActionType.MOCK_WIPE), registry.actionTypes())
@@ -100,7 +98,7 @@ class SensitiveActionRegistryTest {
         val registry = SensitiveActionRegistry.controlled(backend)
 
         assertNull(registry.actionTypeForCommand("unknown"))
-        val result = SensitiveActionController.createControlledInternal(
+        val result = createControlledController(
             backend = backend,
             logger = logger,
             nowEpochMillis = { 1_000L },
@@ -112,7 +110,7 @@ class SensitiveActionRegistryTest {
 
     @Test
     fun `controlled mode cannot accept mock wipe`() {
-        val result = SensitiveActionController.createControlledInternal(
+        val result = createControlledController(
             backend = backend,
             logger = logger,
             nowEpochMillis = { 1_000L },

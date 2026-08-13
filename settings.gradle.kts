@@ -17,4 +17,5 @@ dependencyResolutionManagement {
 rootProject.name = "SentinelSecurity"
 include(":app")
 include(":device-management")
+include(":sensitive-actions-api")
 include(":sensitive-actions")

@@ -28,11 +28,13 @@ simulation exists only in the separate fail-safe registry. Registries are
 immutable, reject duplicate commands and action types, and expose no runtime
 registration API.
 
-Controlled construction is a device-management-only opt-in composition API.
-App production sources are build-guarded from the backend contract, controlled
-factory, and security clock types. The public factory accepts no caller-supplied
-wall or monotonic clock; tests use a module-internal factory for deterministic
-time.
+The app compiles only against the submit-only `sensitive-actions-api` module.
+Controlled construction and the backend contract live in the separate
+`sensitive-actions` implementation module, which is an implementation-only
+dependency of device-management and is rejected from the app compile classpath.
+Device-management owns the production factory and returns an already-composed
+controller. Tests inside the implementation module use internal factories for
+deterministic time.
 
 ## Approval lifecycle
 
@@ -75,16 +77,19 @@ The only permitted `DevicePolicyManager` mutators are:
 Direct `DevicePolicyManager` access is confined to
 `AndroidDeviceManagementInfrastructure.kt`. Build and unit-test guards reject
 references from every Android production source set outside that exact boundary,
-including fully-qualified references. The boundary allowlist derives the typed
-DevicePolicyManager receiver name instead of assuming a variable name.
+including fully-qualified references, and reject reflection, method handles, and
+dynamic class loading in production. Compiled class-file verification resolves
+actual DevicePolicyManager method owners, so aliases and inferred receiver names
+cannot evade the exact method allowlist.
 
 DeviceAdmin metadata declares exactly `disable-camera`. Screen-capture control
 does not require a `uses-policies` declaration. Metadata tests reject every
 other capability, including `wipe-data`, `reset-password`, and `force-lock`.
-In addition to the source XML test, build verification checks the merged debug
-and release application manifests and decodes each variant's linked resource.
-An app or variant resource override therefore must still resolve to exactly the
-approved metadata.
+In addition to the source XML test, Android Components registers verification
+for every application variant. Each variant's assemble, unit-test, and check
+lifecycle validates the merged manifest and decodes the linked resource. New
+flavors and build types inherit the guard automatically; an app or variant
+override must still resolve to exactly the approved metadata.
 
 ## Adding a future capability safely
 

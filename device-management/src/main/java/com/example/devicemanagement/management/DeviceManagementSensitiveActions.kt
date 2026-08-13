@@ -1,9 +1,8 @@
-@file:OptIn(com.example.devicemanagement.integration.SensitiveActionCompositionApi::class)
-
 package com.example.devicemanagement.management
 
 import android.content.Context
 import com.example.devicemanagement.action.SensitiveActionController
+import com.example.devicemanagement.action.DeviceManagementSensitiveActionControllerFactory
 import com.example.devicemanagement.integration.PolicyMutationResult
 import com.example.devicemanagement.integration.SensitiveActionAuthorization
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
@@ -36,7 +35,7 @@ object DeviceManagementSensitiveActions {
             cameraPolicy = cameraPolicy,
             logger = deviceManagementLogger,
         )
-        return SensitiveActionController.createControlled(
+        return DeviceManagementSensitiveActionControllerFactory.create(
             backend = backend,
             logger = sensitiveActionLogger,
         )

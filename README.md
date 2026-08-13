@@ -22,7 +22,8 @@ UI -> SensitiveActionController -> TriggerEvaluator -> DecisionEngine
 Invalid, missing, expired, unavailable, disabled, or exceptional states are
 denied. The Android app can access only `SensitiveActionController.submit`,
 which accepts trigger input. Decisions, approval capabilities, device actions,
-and the executor are internal to the separate `sensitive-actions` module.
+and the executor are internal to the separate `sensitive-actions` implementation
+module. App code compiles only against the submit-only `sensitive-actions-api`.
 Approvals are identity-bound, single-use, and accepted only by the executor
 paired with the issuing decision engine. Authoritative correlation IDs are
 created inside the controller; caller request IDs are diagnostic input only.
@@ -53,9 +54,8 @@ or variant overrides from widening those allowlists.
 See `docs/DEVICE_OWNER_TEST_DEVICE.md` for the development-only disposable
 test-device workflow and `docs/POLICY_ARCHITECTURE.md` for trust boundaries,
 approval lifecycle, mutation verification, and the safe capability checklist.
-The pure Kotlin
-`sensitive-actions` module independently owns the decision and execution
-security boundary.
+The pure Kotlin `sensitive-actions` module independently owns the decision and
+execution security boundary behind its narrow API module.
 
 ## Build
 

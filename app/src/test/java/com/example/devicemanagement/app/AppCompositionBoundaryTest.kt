@@ -20,8 +20,8 @@ class AppCompositionBoundaryTest {
             }
             .toList()
         val forbiddenTokens = setOf(
+            "DeviceManagementSensitiveActionControllerFactory",
             "SensitiveActionPolicyBackend",
-            "SensitiveActionCompositionApi",
             "SensitiveActionAuthorization",
             "PolicyMutationResult",
             "MonotonicTimeSource",

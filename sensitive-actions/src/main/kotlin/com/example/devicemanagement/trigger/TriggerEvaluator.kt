@@ -62,11 +62,3 @@ internal class DefaultTriggerEvaluator(
         const val MAX_REQUEST_LIFETIME_MILLIS = 60_000L
     }
 }
-
-object SensitiveActionCommands {
-    const val DISABLE_SCREEN_CAPTURE = "disable_screen_capture"
-    const val ENABLE_SCREEN_CAPTURE = "enable_screen_capture"
-    const val DISABLE_CAMERA = "disable_camera"
-    const val ENABLE_CAMERA = "enable_camera"
-    internal const val MOCK_WIPE_SIMULATION = "mock_wipe"
-}

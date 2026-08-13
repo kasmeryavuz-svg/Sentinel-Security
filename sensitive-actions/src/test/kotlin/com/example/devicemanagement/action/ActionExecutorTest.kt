@@ -8,7 +8,6 @@ import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.ManagementState
 import com.example.devicemanagement.persistence.StateRepository
 import com.example.devicemanagement.trigger.DefaultTriggerEvaluator
-import com.example.devicemanagement.trigger.SensitiveActionCommands
 import com.example.devicemanagement.trigger.Trigger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -69,7 +68,7 @@ class ActionExecutorTest {
 
     @Test
     fun `production controller remains disabled by default`() {
-        val controller = SensitiveActionController.createFailSafe(logger)
+        val controller = createFailSafeController(logger)
 
         val result = controller.submit(
             Trigger(
@@ -251,25 +250,10 @@ class ActionExecutorTest {
         )
     }
 
-    @Test
-    fun `public controlled composition accepts no caller supplied security clock`() {
-        val controlledFactory = SensitiveActionController.Companion::class.java
-            .declaredMethods
-            .single { it.name == "createControlled" }
-
-        assertFalse(
-            controlledFactory.parameterTypes.any {
-                it.name.contains("Function0") ||
-                    it.name.contains("MonotonicTimeSource")
-            },
-        )
-        assertEquals(2, controlledFactory.parameterCount)
-    }
-
     private fun enabledController(action: DeviceAction): SensitiveActionController {
         val authority = ApprovalAuthority()
         val registry = registry(setOf(action))
-        return SensitiveActionController(
+        return DefaultSensitiveActionController(
             decisionEngine = FailSafeDecisionEngine(
                 triggerEvaluator = DefaultTriggerEvaluator(registry),
                 stateRepository = StateRepository {
@@ -323,7 +307,7 @@ class ActionExecutorTest {
             actions.mapIndexed { index, action ->
                 SensitiveActionRegistration(
                     command = if (action.type == DeviceActionType.MOCK_WIPE) {
-                        SensitiveActionCommands.MOCK_WIPE_SIMULATION
+                        MOCK_WIPE_SIMULATION_COMMAND
                     } else {
                         "test-command-$index"
                     },

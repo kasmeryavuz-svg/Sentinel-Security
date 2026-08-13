@@ -19,16 +19,20 @@ fun sourceCodeWithoutCommentsOrLiterals(source: String): String {
 val checkDevicePolicyManagerBoundary by tasks.registering {
     group = "verification"
     description =
-        "Rejects DevicePolicyManager references outside the sole infrastructure boundary."
+        "Rejects unauthorized DevicePolicyManager and dynamic invocation access."
 
     val productionSources = fileTree(rootDir) {
-        include("**/src/**/*.kt", "**/src/**/*.java")
+        include("**/*.kt", "**/*.java")
         exclude(
             "**/src/test/**",
             "**/src/androidTest/**",
             "**/src/testFixtures/**",
+            "**/test/**",
+            "**/androidTest/**",
+            "**/testFixtures/**",
             "**/build/**",
             "**/.gradle/**",
+            "**/.git/**",
         )
     }
     val authorizedBoundary =
@@ -45,13 +49,42 @@ val checkDevicePolicyManagerBoundary by tasks.registering {
             "Expected exactly one DevicePolicyManager boundary at $authorizedBoundary"
         }
 
-        val violations = sourceFiles.mapNotNull { source ->
+        val forbiddenDynamicPatterns = mapOf(
+            "Class.forName" to Regex("""\bClass\s*\.\s*forName\s*\("""),
+            "runtime Class API" to Regex("""\bClass\b"""),
+            "java.lang.reflect" to Regex("""\bjava\s*\.\s*lang\s*\.\s*reflect\b"""),
+            "kotlin.reflect" to Regex("""\bkotlin\s*\.\s*reflect\b"""),
+            "reflective method lookup" to
+                Regex("""\bget(?:Declared)?(?:Method|Methods)\s*\("""),
+            "reflective constructor lookup" to
+                Regex("""\bget(?:Declared)?Constructor\s*\("""),
+            "reflective field lookup" to
+                Regex("""\bget(?:Declared)?Field\s*\("""),
+            "reflective invocation" to Regex("""\binvoke\s*\("""),
+            "method handles" to Regex(
+                """\bjava\s*\.\s*lang\s*\.\s*invoke\b|""" +
+                    """\b(?:MethodHandle|MethodHandles|MethodType|CallSite|""" +
+                    """LambdaMetafactory)\b""",
+            ),
+            "dynamic class loader" to Regex(
+                """\b(?:ClassLoader|URLClassLoader|DexClassLoader|PathClassLoader|""" +
+                    """InMemoryDexClassLoader)\b|\bloadClass\s*\(|""" +
+                    """\b(?:System|Runtime)\s*\.\s*(?:load|loadLibrary)\s*\(""",
+            ),
+        )
+        val violations = sourceFiles.flatMap { source ->
             val relativePath = source.relativeTo(rootDir).invariantSeparatorsPath
-            if (relativePath == authorizedBoundary) {
-                null
-            } else {
-                val rawSource = source.readText()
-                val code = sourceCodeWithoutCommentsOrLiterals(rawSource)
+            val rawSource = source.readText()
+            val code = sourceCodeWithoutCommentsOrLiterals(rawSource)
+            val dynamicViolations = forbiddenDynamicPatterns.mapNotNull {
+                    (description, pattern) ->
+                if (pattern.containsMatchIn(code)) {
+                    "$relativePath: forbidden production $description"
+                } else {
+                    null
+                }
+            }
+            val dpmViolation = if (relativePath != authorizedBoundary) {
                 val directReference =
                     Regex("""\bDevicePolicyManager\b""").containsMatchIn(code)
                 val reflectiveReference = rawSource.contains(
@@ -62,10 +95,13 @@ val checkDevicePolicyManagerBoundary by tasks.registering {
                 } else {
                     null
                 }
+            } else {
+                null
             }
+            dynamicViolations + listOfNotNull(dpmViolation)
         }
         check(violations.isEmpty()) {
-            "Only $authorizedBoundary may reference DevicePolicyManager:\n" +
+            "Only typed, non-dynamic policy access through $authorizedBoundary is allowed:\n" +
                 violations.joinToString("\n")
         }
     }
