@@ -33,9 +33,9 @@ class SensitiveActionRegistryTest {
             DeviceActionType.ENABLE_CAMERA,
         )
 
-        assertEquals(expectedCommands, registry.registeredCommands())
-        assertEquals(expectedTypes, registry.registeredTypes())
-        assertFalse(DeviceActionType.MOCK_WIPE in registry.registeredTypes())
+        assertEquals(expectedCommands, registry.commands())
+        assertEquals(expectedTypes, registry.actionTypes())
+        assertFalse(DeviceActionType.MOCK_WIPE in registry.actionTypes())
         expectedCommands.forEach { command ->
             val type = registry.actionTypeForCommand(command)
             assertNotNull(type)
@@ -49,15 +49,15 @@ class SensitiveActionRegistryTest {
 
         assertEquals(
             setOf(SensitiveActionCommands.MOCK_WIPE_SIMULATION),
-            registry.registeredCommands(),
+            registry.commands(),
         )
-        assertEquals(setOf(DeviceActionType.MOCK_WIPE), registry.registeredTypes())
+        assertEquals(setOf(DeviceActionType.MOCK_WIPE), registry.actionTypes())
     }
 
     @Test
     fun `all action types have exactly one explicit registry implementation`() {
-        val controlled = SensitiveActionRegistry.controlled(backend).registeredTypes()
-        val failSafe = SensitiveActionRegistry.failSafe(logger).registeredTypes()
+        val controlled = SensitiveActionRegistry.controlled(backend).actionTypes()
+        val failSafe = SensitiveActionRegistry.failSafe(logger).actionTypes()
 
         assertTrue(controlled.intersect(failSafe).isEmpty())
         assertEquals(DeviceActionType.entries.toSet(), controlled + failSafe)
@@ -126,11 +126,11 @@ class SensitiveActionRegistryTest {
 
         val commandMutation = runCatching {
             @Suppress("UNCHECKED_CAST")
-            (registry.registeredCommands() as MutableSet<String>).add("injected")
+            (registry.commands() as MutableSet<String>).add("injected")
         }.exceptionOrNull()
         val typeMutation = runCatching {
             @Suppress("UNCHECKED_CAST")
-            (registry.registeredTypes() as MutableSet<DeviceActionType>)
+            (registry.actionTypes() as MutableSet<DeviceActionType>)
                 .add(DeviceActionType.MOCK_WIPE)
         }.exceptionOrNull()
 

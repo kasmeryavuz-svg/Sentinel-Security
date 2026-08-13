@@ -55,9 +55,9 @@ internal class SensitiveActionRegistry internal constructor(
 
     fun actionForType(type: DeviceActionType): DeviceAction? = actionsByType[type]
 
-    internal fun registeredCommands(): Set<String> = registrationsByCommand.keys
+    internal fun commands(): Set<String> = registrationsByCommand.keys
 
-    internal fun registeredTypes(): Set<DeviceActionType> = actionsByType.keys
+    internal fun actionTypes(): Set<DeviceActionType> = actionsByType.keys
 
     companion object {
         fun controlled(backend: SensitiveActionPolicyBackend): SensitiveActionRegistry {
@@ -97,7 +97,7 @@ internal class SensitiveActionRegistry internal constructor(
                     ),
                 ),
             ).also { registry ->
-                check(DeviceActionType.MOCK_WIPE !in registry.registeredTypes()) {
+                check(DeviceActionType.MOCK_WIPE !in registry.actionTypes()) {
                     "MOCK_WIPE must never be registered in controlled mode"
                 }
             }

@@ -8,6 +8,7 @@ import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.ManagementState
 import com.example.devicemanagement.persistence.StateRepository
 import com.example.devicemanagement.trigger.DefaultTriggerEvaluator
+import com.example.devicemanagement.trigger.SensitiveActionCommands
 import com.example.devicemanagement.trigger.Trigger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -305,7 +306,14 @@ class ActionExecutorTest {
     private fun registry(actions: Set<DeviceAction>): SensitiveActionRegistry {
         return SensitiveActionRegistry(
             actions.mapIndexed { index, action ->
-                SensitiveActionRegistration("test-command-$index", action)
+                SensitiveActionRegistration(
+                    command = if (action.type == DeviceActionType.MOCK_WIPE) {
+                        SensitiveActionCommands.MOCK_WIPE_SIMULATION
+                    } else {
+                        "test-command-$index"
+                    },
+                    action = action,
+                )
             },
         )
     }
