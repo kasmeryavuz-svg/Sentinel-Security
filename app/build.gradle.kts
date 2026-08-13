@@ -227,21 +227,30 @@ val checkAppApiCompileNegative by tasks.registering {
             "com/example/devicemanagement/management/CameraPolicyStatusProvider",
             "com/example/devicemanagement/facade/R",
         )
-        val appVisibleProjectClasses = compileFiles.flatMap { root ->
-            when {
-                root.isDirectory -> root.walkTopDown()
-                    .filter { it.isFile && it.extension == "class" }
-                    .map { it.relativeTo(root).invariantSeparatorsPath.removeSuffix(".class") }
-                    .toList()
-                root.isFile && root.extension == "jar" -> JarFile(root).use { jar ->
-                    jar.entries().asSequence()
-                        .filter { !it.isDirectory && it.name.endsWith(".class") }
-                        .map { it.name.removeSuffix(".class") }
-                        .toList()
-                }
-                else -> emptyList()
+        val appBuildDirectory = layout.buildDirectory.get().asFile.canonicalFile
+        val appVisibleProjectClasses = compileFiles
+            .filterNot { root ->
+                root.canonicalFile.toPath().startsWith(appBuildDirectory.toPath())
             }
-        }.filter { it.startsWith("com/example/devicemanagement/") }
+            .flatMap { root ->
+                when {
+                    root.isDirectory -> root.walkTopDown()
+                        .filter { it.isFile && it.extension == "class" }
+                        .map {
+                            it.relativeTo(root).invariantSeparatorsPath
+                                .removeSuffix(".class")
+                        }
+                        .toList()
+                    root.isFile && root.extension == "jar" -> JarFile(root).use { jar ->
+                        jar.entries().asSequence()
+                            .filter { !it.isDirectory && it.name.endsWith(".class") }
+                            .map { it.name.removeSuffix(".class") }
+                            .toList()
+                    }
+                    else -> emptyList()
+                }
+            }
+            .filter { it.startsWith("com/example/devicemanagement/") }
         val unapprovedClasses = appVisibleProjectClasses.filter { className ->
             className.substringBefore('$') !in approvedTopLevelClasses
         }
