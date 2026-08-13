@@ -38,8 +38,10 @@ paired with the issuing decision engine.
 
 The `app` module contains Android UI and dependency wiring. The
 `device-management` module exposes a read-only status model and contains all
-direct `DevicePolicyManager` queries. Its build fails if a known destructive
-policy operation appears in production source. The pure Kotlin
+direct `DevicePolicyManager` queries. It also reports Device Owner and Profile
+Owner provisioning readiness without starting provisioning or exposing
+provisioning intents. Its build fails if a known destructive policy operation
+appears in production source. The pure Kotlin
 `sensitive-actions` module independently owns the decision and execution
 security boundary.
 

@@ -17,6 +17,8 @@ class DestructivePolicyApiGuardTest {
                 "isDeviceOwnerApp",
                 "isProfileOwnerApp",
                 "isExpectedAdminActive",
+                "isDeviceOwnerProvisioningAllowed",
+                "isProfileOwnerProvisioningAllowed",
             ),
             exposedOperations,
         )
@@ -73,6 +75,7 @@ class DestructivePolicyApiGuardTest {
             "isDeviceOwnerApp",
             "isProfileOwnerApp",
             "isAdminActive",
+            "isProvisioningAllowed",
         )
         val nonQueryCalls = Regex(
             """\bmanager\s*\.\s*([A-Za-z][A-Za-z0-9_]*)\s*\(""",
