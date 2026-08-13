@@ -3,6 +3,7 @@ package com.example.devicemanagement.app
 import android.content.Context
 import com.example.devicemanagement.action.SensitiveActionController
 import com.example.devicemanagement.logging.StructuredLogger
+import com.example.devicemanagement.management.CameraPolicyStatusProvider
 import com.example.devicemanagement.management.DeviceManagementLogger
 import com.example.devicemanagement.management.DeviceManagementDiagnostics
 import com.example.devicemanagement.management.DeviceManagementSensitiveActions
@@ -40,6 +41,12 @@ class AppContainer(
 
     val screenCapturePolicyStatus: ScreenCapturePolicyStatusProvider =
         DeviceManagementDiagnostics.createScreenCapturePolicyStatus(
+            context,
+            deviceManagementLogger,
+        )
+
+    val cameraPolicyStatus: CameraPolicyStatusProvider =
+        DeviceManagementDiagnostics.createCameraPolicyStatus(
             context,
             deviceManagementLogger,
         )

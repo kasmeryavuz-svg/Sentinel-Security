@@ -78,10 +78,12 @@ val allowedPolicyQueries = setOf(
     "isAdminActive",
     "isProvisioningAllowed",
     "getScreenCaptureDisabled",
+    "getCameraDisabled",
 )
 
 val allowedPolicyMutators = setOf(
     "setScreenCaptureDisabled",
+    "setCameraDisabled",
 )
 
 val checkNoDestructiveDevicePolicyApis by tasks.registering {
@@ -147,5 +149,12 @@ tasks.withType<Test>().configureEach {
     systemProperty(
         "deviceManagementSourceDir",
         layout.projectDirectory.dir("src/main").asFile.absolutePath,
+    )
+    systemProperty(
+        "deviceAdminMetadataFile",
+        layout.projectDirectory
+            .file("src/main/res/xml/device_admin_receiver.xml")
+            .asFile
+            .absolutePath,
     )
 }

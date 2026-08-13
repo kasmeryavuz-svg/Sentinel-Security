@@ -31,6 +31,8 @@ internal interface DevicePolicyPlatform {
 
     fun screenCapturePolicyService(): DevicePolicyScreenCaptureService? = null
 
+    fun cameraPolicyService(): DevicePolicyCameraService? = null
+
     fun isExpectedAdminReceiverRegistered(): Boolean
 
     fun adminComponentConfiguration(): AdminComponentConfiguration =
@@ -59,6 +61,14 @@ internal class AndroidDevicePolicyPlatform(
     override fun screenCapturePolicyService(): DevicePolicyScreenCaptureService? {
         val manager = context.getSystemService(DevicePolicyManager::class.java) ?: return null
         return AndroidDevicePolicyScreenCaptureService(
+            manager = manager,
+            adminComponent = adminComponent,
+        )
+    }
+
+    override fun cameraPolicyService(): DevicePolicyCameraService? {
+        val manager = context.getSystemService(DevicePolicyManager::class.java) ?: return null
+        return AndroidDevicePolicyCameraService(
             manager = manager,
             adminComponent = adminComponent,
         )
@@ -159,6 +169,25 @@ internal class AndroidDevicePolicyScreenCaptureService(
     }
 }
 
+internal interface DevicePolicyCameraService {
+    fun isCameraDisabled(): Boolean
+
+    fun setCameraDisabled(disabled: Boolean)
+}
+
+internal class AndroidDevicePolicyCameraService(
+    private val manager: DevicePolicyManager,
+    private val adminComponent: ComponentName,
+) : DevicePolicyCameraService {
+    override fun isCameraDisabled(): Boolean {
+        return manager.getCameraDisabled(adminComponent)
+    }
+
+    override fun setCameraDisabled(disabled: Boolean) {
+        manager.setCameraDisabled(adminComponent, disabled)
+    }
+}
+
 object DeviceManagementDiagnostics {
     fun create(
         context: Context,
@@ -213,6 +242,21 @@ object DeviceManagementDiagnostics {
     ): ScreenCapturePolicyStatusProvider {
         val platform = AndroidDevicePolicyPlatform(context.applicationContext)
         return DefaultScreenCapturePolicyStatusProvider(
+            deviceOwnerValidationProvider = createDeviceOwnerValidationProvider(
+                platform = platform,
+                logger = logger,
+            ),
+            platform = platform,
+            logger = logger,
+        )
+    }
+
+    fun createCameraPolicyStatus(
+        context: Context,
+        logger: DeviceManagementLogger,
+    ): CameraPolicyStatusProvider {
+        val platform = AndroidDevicePolicyPlatform(context.applicationContext)
+        return DefaultCameraPolicyStatusProvider(
             deviceOwnerValidationProvider = createDeviceOwnerValidationProvider(
                 platform = platform,
                 logger = logger,

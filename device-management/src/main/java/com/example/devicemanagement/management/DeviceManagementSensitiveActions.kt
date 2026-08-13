@@ -20,14 +20,20 @@ object DeviceManagementSensitiveActions {
             platform = platform,
             logger = deviceManagementLogger,
         )
-        val policy = DefaultScreenCapturePolicy(
+        val screenCapturePolicy = DefaultScreenCapturePolicy(
+            deviceOwnerValidationProvider = validationProvider,
+            platform = platform,
+            logger = deviceManagementLogger,
+        )
+        val cameraPolicy = DefaultCameraPolicy(
             deviceOwnerValidationProvider = validationProvider,
             platform = platform,
             logger = deviceManagementLogger,
         )
         val backend = DeviceManagementSensitiveActionBackend(
             deviceOwnerValidationProvider = validationProvider,
-            screenCapturePolicy = policy,
+            screenCapturePolicy = screenCapturePolicy,
+            cameraPolicy = cameraPolicy,
             logger = deviceManagementLogger,
         )
         return SensitiveActionController.createControlled(
@@ -41,6 +47,7 @@ object DeviceManagementSensitiveActions {
 internal class DeviceManagementSensitiveActionBackend(
     private val deviceOwnerValidationProvider: DeviceOwnerValidationProvider,
     private val screenCapturePolicy: ScreenCapturePolicy,
+    private val cameraPolicy: CameraPolicy,
     private val logger: DeviceManagementLogger,
 ) : SensitiveActionPolicyBackend {
     override fun currentAuthorization(): SensitiveActionAuthorization {
@@ -90,6 +97,22 @@ internal class DeviceManagementSensitiveActionBackend(
             is ScreenCapturePolicyMutation.Denied ->
                 PolicyMutationResult.Denied(result.reason)
             is ScreenCapturePolicyMutation.Failed ->
+                PolicyMutationResult.Failed(result.reason)
+        }
+    }
+
+    override fun applyCameraDisabled(
+        disabled: Boolean,
+        correlationId: String,
+    ): PolicyMutationResult {
+        return when (val result = cameraPolicy.applyDisabled(disabled)) {
+            is CameraPolicyMutation.Applied -> PolicyMutationResult.Applied(
+                requestedDisabled = result.requestedDisabled,
+                observedDisabled = result.observedDisabled,
+            )
+            is CameraPolicyMutation.Denied ->
+                PolicyMutationResult.Denied(result.reason)
+            is CameraPolicyMutation.Failed ->
                 PolicyMutationResult.Failed(result.reason)
         }
     }

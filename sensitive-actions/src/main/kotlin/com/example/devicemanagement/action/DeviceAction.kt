@@ -30,4 +30,6 @@ sealed interface ActionResult {
 enum class SensitiveActionOperation {
     DISABLE_SCREEN_CAPTURE,
     ENABLE_SCREEN_CAPTURE,
+    DISABLE_CAMERA,
+    ENABLE_CAMERA,
 }

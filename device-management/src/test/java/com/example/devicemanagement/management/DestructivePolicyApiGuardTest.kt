@@ -27,7 +27,7 @@ class DestructivePolicyApiGuardTest {
     }
 
     @Test
-    fun `screen capture wrapper exposes the only approved policy mutator`() {
+    fun `screen capture wrapper exposes only its approved policy surface`() {
         val exposedOperations = DevicePolicyScreenCaptureService::class.java.declaredMethods
             .filterNot { it.isSynthetic }
             .map { it.name }
@@ -40,10 +40,34 @@ class DestructivePolicyApiGuardTest {
     }
 
     @Test
+    fun `camera wrapper exposes only its approved policy surface`() {
+        val exposedOperations = DevicePolicyCameraService::class.java.declaredMethods
+            .filterNot { it.isSynthetic }
+            .map { it.name }
+            .toSet()
+
+        assertEquals(
+            setOf("isCameraDisabled", "setCameraDisabled"),
+            exposedOperations,
+        )
+    }
+
+    @Test
     fun `public screen capture status provider is read only`() {
         assertEquals(
             setOf("currentStatus"),
             ScreenCapturePolicyStatusProvider::class.java.declaredMethods
+                .filterNot { it.isSynthetic }
+                .map { it.name }
+                .toSet(),
+        )
+    }
+
+    @Test
+    fun `public camera status provider is read only`() {
+        assertEquals(
+            setOf("currentStatus"),
+            CameraPolicyStatusProvider::class.java.declaredMethods
                 .filterNot { it.isSynthetic }
                 .map { it.name }
                 .toSet(),
@@ -129,14 +153,34 @@ class DestructivePolicyApiGuardTest {
                 "manager.setScreenCaptureDisabled(adminComponent, disabled)",
             ),
         )
+        assertTrue(
+            "Camera read-back must use the expected admin component",
+            boundarySource.readText().contains(
+                "manager.getCameraDisabled(adminComponent)",
+            ),
+        )
+        assertTrue(
+            "Camera mutation must use the expected admin component",
+            boundarySource.readText().contains(
+                "manager.setCameraDisabled(adminComponent, disabled)",
+            ),
+        )
         val allowedQueries = setOf(
             "isDeviceOwnerApp",
             "isProfileOwnerApp",
             "isAdminActive",
             "isProvisioningAllowed",
             "getScreenCaptureDisabled",
+            "getCameraDisabled",
         )
-        val allowedMutators = setOf("setScreenCaptureDisabled")
+        val allowedMutators = setOf(
+            "setScreenCaptureDisabled",
+            "setCameraDisabled",
+        )
+        assertEquals(
+            setOf("setScreenCaptureDisabled", "setCameraDisabled"),
+            allowedMutators,
+        )
         val nonQueryCalls = Regex(
             """\bmanager\s*\.\s*([A-Za-z][A-Za-z0-9_]*)\s*\(""",
         ).findAll(boundarySource.readText())
@@ -147,7 +191,7 @@ class DestructivePolicyApiGuardTest {
         val violations = destructiveCalls + importsOutsideBoundary + nonQueryCalls
 
         assertTrue(
-            "Only read-only policy queries are allowed: $violations",
+            "Only allowlisted policy queries and mutators are allowed: $violations",
             violations.isEmpty(),
         )
     }

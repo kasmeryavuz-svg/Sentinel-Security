@@ -9,6 +9,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.example.devicemanagement.action.ActionResult
 import com.example.devicemanagement.app.DeviceManagementApp
+import com.example.devicemanagement.management.CameraPolicyStatus
 import com.example.devicemanagement.management.DeviceManagementStatus
 import com.example.devicemanagement.management.DeviceOwnerValidation
 import com.example.devicemanagement.management.DeviceOwnerValidationResult
@@ -26,7 +27,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         val container = (application as DeviceManagementApp).container
         val validationText = TextView(this)
-        val policyStatusText = TextView(this)
+        val screenCapturePolicyStatusText = TextView(this)
+        val cameraPolicyStatusText = TextView(this)
         val operationResultText = TextView(this).apply {
             text = "Operation result: No operation requested.\n" +
                 "Failure/denial reason: none\nCorrelation ID: none"
@@ -35,7 +37,10 @@ class MainActivity : Activity() {
         fun refreshStatus() {
             val validation = container.deviceOwnerValidation.currentValidation()
             validationText.text = validation.toDiagnosticsText()
-            policyStatusText.text = container.screenCapturePolicyStatus
+            screenCapturePolicyStatusText.text = container.screenCapturePolicyStatus
+                .currentStatus()
+                .toDisplayText(validation.result)
+            cameraPolicyStatusText.text = container.cameraPolicyStatus
                 .currentStatus()
                 .toDisplayText(validation.result)
         }
@@ -63,7 +68,7 @@ class MainActivity : Activity() {
                 text = "\nTEST DEVICE — SCREEN CAPTURE POLICY"
                 textSize = 20f
             })
-            addView(policyStatusText)
+            addView(screenCapturePolicyStatusText)
             addView(Button(context).apply {
                 text = "Disable screen capture"
                 setOnClickListener {
@@ -74,6 +79,23 @@ class MainActivity : Activity() {
                 text = "Enable screen capture"
                 setOnClickListener {
                     submit(SensitiveActionCommands.ENABLE_SCREEN_CAPTURE)
+                }
+            })
+            addView(TextView(context).apply {
+                text = "\nTEST DEVICE — CAMERA POLICY"
+                textSize = 20f
+            })
+            addView(cameraPolicyStatusText)
+            addView(Button(context).apply {
+                text = "Disable camera"
+                setOnClickListener {
+                    submit(SensitiveActionCommands.DISABLE_CAMERA)
+                }
+            })
+            addView(Button(context).apply {
+                text = "Enable camera"
+                setOnClickListener {
+                    submit(SensitiveActionCommands.ENABLE_CAMERA)
                 }
             })
             addView(operationResultText)
@@ -88,6 +110,18 @@ class MainActivity : Activity() {
         val reason = reasons.ifEmpty { listOf("none") }.joinToString("\n• ")
         return """
             Current screen-capture policy: ${state.name.lowercase()}
+            Device Owner verification state: ${validationResult.name}
+            Status reason:
+            • $reason
+        """.trimIndent()
+    }
+
+    private fun CameraPolicyStatus.toDisplayText(
+        validationResult: DeviceOwnerValidationResult,
+    ): String {
+        val reason = reasons.ifEmpty { listOf("none") }.joinToString("\n• ")
+        return """
+            Current camera policy: ${state.name.lowercase()}
             Device Owner verification state: ${validationResult.name}
             Status reason:
             • $reason

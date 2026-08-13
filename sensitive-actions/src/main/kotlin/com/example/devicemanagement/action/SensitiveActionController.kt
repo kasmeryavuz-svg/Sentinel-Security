@@ -89,6 +89,16 @@ class SensitiveActionController internal constructor(
                             disabled = false,
                             backend = backend,
                         ),
+                        CameraPolicyAction(
+                            type = DeviceActionType.DISABLE_CAMERA,
+                            disabled = true,
+                            backend = backend,
+                        ),
+                        CameraPolicyAction(
+                            type = DeviceActionType.ENABLE_CAMERA,
+                            disabled = false,
+                            backend = backend,
+                        ),
                     ),
                     approvalAuthority = approvalAuthority,
                     logger = logger,
