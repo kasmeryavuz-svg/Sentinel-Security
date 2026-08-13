@@ -49,4 +49,5 @@ kotlin {
 
 dependencies {
     implementation(project(":sensitive-actions"))
+    testImplementation("junit:junit:4.13.2")
 }

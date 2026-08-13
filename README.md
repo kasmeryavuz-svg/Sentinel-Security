@@ -9,6 +9,11 @@ Device Owner provisioning, accessibility, shell, or ADB functionality. The
 only wipe-shaped action is `SafeMockWipeAction`; it logs
 `WIPE WOULD EXECUTE` and returns a simulated result.
 
+The app's single screen is an explicit simulation harness. Its button creates
+a correlation ID and submits a short-lived `mock_wipe` trigger through the
+public controller. The screen displays either an approved simulation result or
+a human-readable denial reason together with that correlation ID.
+
 All sensitive-action requests follow one controlled path:
 
 ```text

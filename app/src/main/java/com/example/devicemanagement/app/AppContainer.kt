@@ -7,5 +7,5 @@ class AppContainer(
     logger: StructuredLogger,
 ) {
     val sensitiveActions: SensitiveActionController =
-        SensitiveActionController.createFailSafe(logger)
+        SensitiveActionController.createSimulation(logger)
 }

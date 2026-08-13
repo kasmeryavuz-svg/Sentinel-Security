@@ -44,7 +44,7 @@ class ActionExecutorTest {
             ),
         )
 
-        assertTrue(result is ActionResult.Rejected)
+        assertTrue(result is SensitiveActionResult.Denied)
         assertEquals(0, action.executionCount)
     }
 
@@ -61,7 +61,7 @@ class ActionExecutorTest {
             ),
         )
 
-        assertTrue(result is ActionResult.Simulated)
+        assertTrue(result is SensitiveActionResult.Approved)
         assertEquals(1, action.executionCount)
     }
 
@@ -77,7 +77,7 @@ class ActionExecutorTest {
             ),
         )
 
-        assertTrue(result is ActionResult.Rejected)
+        assertTrue(result is SensitiveActionResult.Denied)
         assertFalse(logger.events.contains(SafeMockWipeAction.WIPE_LOG_MESSAGE))
     }
 
@@ -204,6 +204,7 @@ class ActionExecutorTest {
                 nowEpochMillis = { 1_000 },
             ),
             actionExecutor = ActionExecutor(setOf(action), authority, logger),
+            logger = logger,
         )
     }
 
