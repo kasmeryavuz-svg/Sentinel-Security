@@ -7,7 +7,7 @@ plugins {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
-        freeCompilerArgs.add("-Xlambdas=class")
+        freeCompilerArgs.addAll("-Xlambdas=class", "-Xsam-conversions=class")
     }
 }
 
