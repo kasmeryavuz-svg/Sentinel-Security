@@ -22,12 +22,22 @@ internal interface DevicePolicyReadService {
     fun isDeviceOwnerProvisioningAllowed(): Boolean
 
     fun isProfileOwnerProvisioningAllowed(): Boolean
+
+    fun activeAdminComponentNames(): Set<String> = emptySet()
 }
 
 internal interface DevicePolicyPlatform {
     fun policyService(): DevicePolicyReadService?
 
     fun isExpectedAdminReceiverRegistered(): Boolean
+
+    fun adminComponentConfiguration(): AdminComponentConfiguration =
+        AdminComponentConfiguration(
+            packageName = "",
+            expectedComponentName = "",
+            registeredSentinelAdminComponents = emptyList(),
+            isExpectedReceiverRegisteredCorrectly = false,
+        )
 }
 
 internal class AndroidDevicePolicyPlatform(
@@ -45,21 +55,47 @@ internal class AndroidDevicePolicyPlatform(
     }
 
     override fun isExpectedAdminReceiverRegistered(): Boolean {
-        val receiverInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getReceiverInfo(
-                adminComponent,
-                PackageManager.ComponentInfoFlags.of(PackageManager.GET_META_DATA.toLong()),
+        return adminComponentConfiguration().isExpectedReceiverRegisteredCorrectly
+    }
+
+    override fun adminComponentConfiguration(): AdminComponentConfiguration {
+        val flags = PackageManager.GET_RECEIVERS or PackageManager.GET_META_DATA
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
             )
         } else {
             @Suppress("DEPRECATION")
-            context.packageManager.getReceiverInfo(adminComponent, PackageManager.GET_META_DATA)
+            context.packageManager.getPackageInfo(context.packageName, flags)
         }
+        val receivers = packageInfo.receivers.orEmpty().toList()
+        val registeredAdminComponents = receivers
+            .filter { receiver ->
+                receiver.permission == Manifest.permission.BIND_DEVICE_ADMIN &&
+                    (receiver.metaData?.getInt(DEVICE_ADMIN_METADATA, 0) ?: 0) != 0
+            }
+            .map { receiver ->
+                ComponentName(receiver.packageName, receiver.name).flattenToString()
+            }
+        val expectedReceiver = receivers.singleOrNull { receiver ->
+            ComponentName(receiver.packageName, receiver.name) == adminComponent
+        }
+        val expectedMetadata =
+            expectedReceiver?.metaData?.getInt(DEVICE_ADMIN_METADATA, 0) ?: 0
+        val expectedRegisteredCorrectly =
+            expectedReceiver != null &&
+                expectedReceiver.enabled &&
+                expectedReceiver.exported &&
+                expectedReceiver.permission == Manifest.permission.BIND_DEVICE_ADMIN &&
+                expectedMetadata != 0
 
-        val metadataResource = receiverInfo.metaData?.getInt(DEVICE_ADMIN_METADATA, 0) ?: 0
-        return receiverInfo.enabled &&
-            receiverInfo.exported &&
-            receiverInfo.permission == Manifest.permission.BIND_DEVICE_ADMIN &&
-            metadataResource != 0
+        return AdminComponentConfiguration(
+            packageName = context.packageName,
+            expectedComponentName = adminComponent.flattenToString(),
+            registeredSentinelAdminComponents = registeredAdminComponents,
+            isExpectedReceiverRegisteredCorrectly = expectedRegisteredCorrectly,
+        )
     }
 
     private companion object {
@@ -85,6 +121,13 @@ internal class AndroidDevicePolicyReadService(
     override fun isProfileOwnerProvisioningAllowed(): Boolean {
         return manager.isProvisioningAllowed(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE)
     }
+
+    override fun activeAdminComponentNames(): Set<String> {
+        return manager.activeAdmins
+            .orEmpty()
+            .map(ComponentName::flattenToString)
+            .toSet()
+    }
 }
 
 object DeviceManagementDiagnostics {
@@ -108,6 +151,28 @@ object DeviceManagementDiagnostics {
                 platform = platform,
                 logger = logger,
             ),
+            platform = platform,
+            logger = logger,
+        )
+    }
+
+    fun createDeviceOwnerValidation(
+        context: Context,
+        logger: DeviceManagementLogger,
+    ): DeviceOwnerValidationProvider {
+        val platform = AndroidDevicePolicyPlatform(context.applicationContext)
+        val statusProvider = DefaultDeviceManagementStatusProvider(
+            platform = platform,
+            logger = logger,
+        )
+        val readinessProvider = DefaultProvisioningReadinessProvider(
+            managementStatusProvider = statusProvider,
+            platform = platform,
+            logger = logger,
+        )
+        return DefaultDeviceOwnerValidationProvider(
+            managementStatusProvider = statusProvider,
+            provisioningReadinessProvider = readinessProvider,
             platform = platform,
             logger = logger,
         )

@@ -6,6 +6,8 @@ import android.view.Gravity
 import android.widget.TextView
 import com.example.devicemanagement.app.DeviceManagementApp
 import com.example.devicemanagement.management.DeviceManagementStatus
+import com.example.devicemanagement.management.DeviceOwnerValidation
+import com.example.devicemanagement.management.DeviceOwnerValidationResult
 import com.example.devicemanagement.management.ManagementMode
 import com.example.devicemanagement.management.ProvisioningAvailability
 import com.example.devicemanagement.management.ProvisioningOption
@@ -14,19 +16,51 @@ import com.example.devicemanagement.management.ProvisioningReadiness
 class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val readiness = (application as DeviceManagementApp)
+        val validation = (application as DeviceManagementApp)
             .container
-            .provisioningReadiness
-            .currentReadiness()
+            .deviceOwnerValidation
+            .currentValidation()
 
         setContentView(
             TextView(this).apply {
                 gravity = Gravity.CENTER
                 setPadding(32, 32, 32, 32)
-                text = readiness.toDiagnosticsText()
+                text = validation.toDiagnosticsText()
                 textSize = 16f
             },
         )
+    }
+
+    private fun DeviceOwnerValidation.toDiagnosticsText(): String {
+        val resultLabel = when (result) {
+            DeviceOwnerValidationResult.VERIFIED_DEVICE_OWNER -> "Verified Device Owner"
+            DeviceOwnerValidationResult.NOT_DEVICE_OWNER -> "Not Device Owner"
+            DeviceOwnerValidationResult.CONFIGURATION_ERROR -> "Configuration error"
+            DeviceOwnerValidationResult.UNAVAILABLE -> "Unavailable"
+        }
+        val registeredComponents = registeredSentinelAdminComponents
+            .sorted()
+            .ifEmpty { listOf("none") }
+            .joinToString()
+        val validationReasons = reasons.joinToString(
+            separator = "\n• ",
+            prefix = "• ",
+        )
+
+        return """
+            TEST-DEVICE DEVICE OWNER VALIDATION
+
+            Package: $packageName
+            Expected admin receiver: $expectedAdminReceiverComponent
+            Registered Sentinel admin components: $registeredComponents
+            Device Owner verification: $resultLabel
+            Profile Owner: ${managementStatus.isProfileOwner.toYesNo()}
+
+            ${provisioningReadiness.toDiagnosticsText()}
+
+            Validation details:
+            $validationReasons
+        """.trimIndent()
     }
 
     private fun ProvisioningReadiness.toDiagnosticsText(): String {
