@@ -282,8 +282,13 @@ class DestructivePolicyApiGuardTest {
     }
 
     private fun productionClassBytes(): List<Pair<String, ByteArray>> {
+        val codeSource = checkNotNull(
+            AndroidDevicePolicyPlatform::class.java.protectionDomain?.codeSource,
+        ) {
+            "Device-management production class location is unavailable"
+        }
         val location = File(
-            URI(AndroidDevicePolicyPlatform::class.java.protectionDomain.codeSource.location.toString()),
+            URI(codeSource.location.toString()),
         )
         val packagePath = "com/example/devicemanagement/management/"
         return if (location.isDirectory) {
