@@ -152,8 +152,10 @@ val checkEffectiveDeviceAdminMetadata by tasks.registering {
                     "android.app.device_admin metadata declaration"
             }
             val metadata = metadataElements.single()
-            val receiver = metadata.parentNode as? Element
-            check(receiver?.tagName == "receiver") {
+            val receiver = checkNotNull(metadata.parentNode as? Element) {
+                "Effective $variant DeviceAdmin metadata must belong to a receiver"
+            }
+            check(receiver.tagName == "receiver") {
                 "Effective $variant DeviceAdmin metadata must belong to a receiver"
             }
             check(receiver.getAttributeNS(androidNamespace, "name") == expectedReceiver) {
