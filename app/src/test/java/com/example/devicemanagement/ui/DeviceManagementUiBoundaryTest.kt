@@ -17,6 +17,15 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(uiSources.contains("import android.app.admin.DevicePolicyManager"))
         assertFalse(uiSources.contains("AndroidDevicePolicyPlatform"))
         assertFalse(uiSources.contains("DevicePolicyReadService"))
+        assertFalse(uiSources.contains("DevicePolicyScreenCaptureService"))
+        assertFalse(uiSources.contains("SensitiveActionPolicyBackend"))
+        assertFalse(uiSources.contains("DefaultScreenCapturePolicy"))
+        assertFalse(
+            uiSources.contains(
+                "import com.example.devicemanagement.management.ScreenCapturePolicy\n",
+            ),
+        )
+        assertFalse(uiSources.contains("setScreenCaptureDisabled"))
         assertFalse(uiSources.contains("ActionExecutor"))
         assertFalse(uiSources.contains("DeviceAction"))
     }

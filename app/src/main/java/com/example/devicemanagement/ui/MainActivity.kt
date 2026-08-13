@@ -3,7 +3,11 @@ package com.example.devicemanagement.ui
 import android.app.Activity
 import android.os.Bundle
 import android.view.Gravity
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
+import com.example.devicemanagement.action.ActionResult
 import com.example.devicemanagement.app.DeviceManagementApp
 import com.example.devicemanagement.management.DeviceManagementStatus
 import com.example.devicemanagement.management.DeviceOwnerValidation
@@ -12,23 +16,116 @@ import com.example.devicemanagement.management.ManagementMode
 import com.example.devicemanagement.management.ProvisioningAvailability
 import com.example.devicemanagement.management.ProvisioningOption
 import com.example.devicemanagement.management.ProvisioningReadiness
+import com.example.devicemanagement.management.ScreenCapturePolicyStatus
+import com.example.devicemanagement.trigger.SensitiveActionCommands
+import com.example.devicemanagement.trigger.Trigger
+import java.util.UUID
 
 class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val validation = (application as DeviceManagementApp)
-            .container
-            .deviceOwnerValidation
-            .currentValidation()
+        val container = (application as DeviceManagementApp).container
+        val validationText = TextView(this)
+        val policyStatusText = TextView(this)
+        val operationResultText = TextView(this).apply {
+            text = "Operation result: No operation requested.\n" +
+                "Failure/denial reason: none\nCorrelation ID: none"
+        }
 
-        setContentView(
-            TextView(this).apply {
-                gravity = Gravity.CENTER
-                setPadding(32, 32, 32, 32)
-                text = validation.toDiagnosticsText()
-                textSize = 16f
-            },
-        )
+        fun refreshStatus() {
+            val validation = container.deviceOwnerValidation.currentValidation()
+            validationText.text = validation.toDiagnosticsText()
+            policyStatusText.text = container.screenCapturePolicyStatus
+                .currentStatus()
+                .toDisplayText(validation.result)
+        }
+
+        fun submit(command: String) {
+            val correlationId = UUID.randomUUID().toString()
+            val result = container.sensitiveActions.submit(
+                Trigger(
+                    command = command,
+                    requestId = correlationId,
+                    expiresAtEpochMillis =
+                        System.currentTimeMillis() + REQUEST_LIFETIME_MILLIS,
+                ),
+            )
+            operationResultText.text = result.toDisplayText(correlationId)
+            refreshStatus()
+        }
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(32, 32, 32, 32)
+            addView(validationText)
+            addView(TextView(context).apply {
+                text = "\nTEST DEVICE — SCREEN CAPTURE POLICY"
+                textSize = 20f
+            })
+            addView(policyStatusText)
+            addView(Button(context).apply {
+                text = "Disable screen capture"
+                setOnClickListener {
+                    submit(SensitiveActionCommands.DISABLE_SCREEN_CAPTURE)
+                }
+            })
+            addView(Button(context).apply {
+                text = "Enable screen capture"
+                setOnClickListener {
+                    submit(SensitiveActionCommands.ENABLE_SCREEN_CAPTURE)
+                }
+            })
+            addView(operationResultText)
+        }
+        setContentView(ScrollView(this).apply { addView(content) })
+        refreshStatus()
+    }
+
+    private fun ScreenCapturePolicyStatus.toDisplayText(
+        validationResult: DeviceOwnerValidationResult,
+    ): String {
+        val reason = reasons.ifEmpty { listOf("none") }.joinToString("\n• ")
+        return """
+            Current screen-capture policy: ${state.name.lowercase()}
+            Device Owner verification state: ${validationResult.name}
+            Status reason:
+            • $reason
+        """.trimIndent()
+    }
+
+    private fun ActionResult.toDisplayText(fallbackCorrelationId: String): String {
+        val result: String
+        val reason: String
+        val correlationId: String
+        when (this) {
+            is ActionResult.Applied -> {
+                result = "${operation.name}: requested disabled=$requestedDisabled, " +
+                    "observed disabled=$observedDisabled"
+                reason = "none"
+                correlationId = this.correlationId
+            }
+            is ActionResult.Rejected -> {
+                result = "Denied"
+                reason = this.reason
+                correlationId = this.correlationId ?: fallbackCorrelationId
+            }
+            is ActionResult.Failed -> {
+                result = "Failed"
+                reason = this.reason
+                correlationId = this.correlationId ?: fallbackCorrelationId
+            }
+            is ActionResult.Simulated -> {
+                result = "Simulation"
+                reason = message
+                correlationId = fallbackCorrelationId
+            }
+        }
+        return """
+            Operation result: $result
+            Failure/denial reason: $reason
+            Correlation ID: $correlationId
+        """.trimIndent()
     }
 
     private fun DeviceOwnerValidation.toDiagnosticsText(): String {
@@ -125,4 +222,8 @@ class MainActivity : Activity() {
     }
 
     private fun Boolean.toYesNo(): String = if (this) "Yes" else "No"
+
+    private companion object {
+        const val REQUEST_LIFETIME_MILLIS = 30_000L
+    }
 }

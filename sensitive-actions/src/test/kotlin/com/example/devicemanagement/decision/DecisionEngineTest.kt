@@ -62,7 +62,7 @@ class DecisionEngineTest {
     @Test
     fun `unavailable service is denied`() {
         val decision = engineWith(
-            state = enabledState.copy(serviceAvailable = false),
+            state = enabledState.copy(policyServiceAvailable = false),
         ).decide(validTrigger())
 
         assertEquals(
@@ -163,8 +163,13 @@ class DecisionEngineTest {
 
     private companion object {
         val enabledState = ManagementState(
-            serviceAvailable = true,
+            policyServiceAvailable = true,
             sensitiveActionsEnabled = true,
+            verifiedDeviceOwner = true,
+            profileOwner = false,
+            expectedAdminReceiverRegistered = true,
+            expectedAdminActive = true,
+            managementStateConsistent = true,
         )
     }
 }

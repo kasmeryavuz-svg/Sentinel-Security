@@ -28,9 +28,16 @@ internal class DefaultTriggerEvaluator : TriggerEvaluator {
         if (expiresAt <= nowEpochMillis) {
             return TriggerEvaluation.Invalid(reason = "expired_trigger")
         }
+        if (expiresAt - nowEpochMillis > MAX_REQUEST_LIFETIME_MILLIS) {
+            return TriggerEvaluation.Invalid(reason = "request_lifetime_too_long")
+        }
 
         val actionType = when (command) {
             MOCK_WIPE_COMMAND -> DeviceActionType.MOCK_WIPE
+            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE ->
+                DeviceActionType.DISABLE_SCREEN_CAPTURE
+            SensitiveActionCommands.ENABLE_SCREEN_CAPTURE ->
+                DeviceActionType.ENABLE_SCREEN_CAPTURE
             else -> return TriggerEvaluation.Invalid(
                 reason = "unknown_command",
                 detail = command,
@@ -41,11 +48,18 @@ internal class DefaultTriggerEvaluator : TriggerEvaluator {
             ActionRequest(
                 type = actionType,
                 requestId = requestId,
+                expiresAtEpochMillis = expiresAt,
             ),
         )
     }
 
     private companion object {
         const val MOCK_WIPE_COMMAND = "mock_wipe"
+        const val MAX_REQUEST_LIFETIME_MILLIS = 60_000L
     }
+}
+
+object SensitiveActionCommands {
+    const val DISABLE_SCREEN_CAPTURE = "disable_screen_capture"
+    const val ENABLE_SCREEN_CAPTURE = "enable_screen_capture"
 }

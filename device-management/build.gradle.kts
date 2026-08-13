@@ -33,6 +33,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":sensitive-actions"))
     testImplementation("junit:junit:4.13.2")
 }
 
@@ -76,6 +77,11 @@ val allowedPolicyQueries = setOf(
     "isProfileOwnerApp",
     "isAdminActive",
     "isProvisioningAllowed",
+    "getScreenCaptureDisabled",
+)
+
+val allowedPolicyMutators = setOf(
+    "setScreenCaptureDisabled",
 )
 
 val checkNoDestructiveDevicePolicyApis by tasks.registering {
@@ -116,15 +122,17 @@ val checkNoDestructiveDevicePolicyApis by tasks.registering {
             Regex("""\bmanager\s*\.\s*([A-Za-z][A-Za-z0-9_]*)\s*\(""")
                 .findAll(source.readText())
                 .map { it.groupValues[1] }
-                .filterNot(allowedPolicyQueries::contains)
+                .filterNot { call ->
+                    call in allowedPolicyQueries || call in allowedPolicyMutators
+                }
                 .map {
-                    "${source.relativeTo(projectDir)}: non-query DevicePolicyManager call $it"
+                    "${source.relativeTo(projectDir)}: non-allowlisted DevicePolicyManager call $it"
                 }
                 .toList()
         }.orEmpty()
         val violations = destructiveCalls + policyImportsOutsideBoundary + nonQueryCalls
         check(violations.isEmpty()) {
-            "Only read-only DevicePolicyManager queries are allowed:\n" +
+            "Only allowlisted DevicePolicyManager queries and mutators are allowed:\n" +
                 violations.joinToString("\n")
         }
     }

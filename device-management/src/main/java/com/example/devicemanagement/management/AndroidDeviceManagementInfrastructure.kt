@@ -29,6 +29,8 @@ internal interface DevicePolicyReadService {
 internal interface DevicePolicyPlatform {
     fun policyService(): DevicePolicyReadService?
 
+    fun screenCapturePolicyService(): DevicePolicyScreenCaptureService? = null
+
     fun isExpectedAdminReceiverRegistered(): Boolean
 
     fun adminComponentConfiguration(): AdminComponentConfiguration =
@@ -50,6 +52,14 @@ internal class AndroidDevicePolicyPlatform(
         return AndroidDevicePolicyReadService(
             manager = manager,
             packageName = context.packageName,
+            adminComponent = adminComponent,
+        )
+    }
+
+    override fun screenCapturePolicyService(): DevicePolicyScreenCaptureService? {
+        val manager = context.getSystemService(DevicePolicyManager::class.java) ?: return null
+        return AndroidDevicePolicyScreenCaptureService(
+            manager = manager,
             adminComponent = adminComponent,
         )
     }
@@ -130,6 +140,25 @@ internal class AndroidDevicePolicyReadService(
     }
 }
 
+internal interface DevicePolicyScreenCaptureService {
+    fun isScreenCaptureDisabled(): Boolean
+
+    fun setScreenCaptureDisabled(disabled: Boolean)
+}
+
+internal class AndroidDevicePolicyScreenCaptureService(
+    private val manager: DevicePolicyManager,
+    private val adminComponent: ComponentName,
+) : DevicePolicyScreenCaptureService {
+    override fun isScreenCaptureDisabled(): Boolean {
+        return manager.getScreenCaptureDisabled(adminComponent)
+    }
+
+    override fun setScreenCaptureDisabled(disabled: Boolean) {
+        manager.setScreenCaptureDisabled(adminComponent, disabled)
+    }
+}
+
 object DeviceManagementDiagnostics {
     fun create(
         context: Context,
@@ -173,6 +202,41 @@ object DeviceManagementDiagnostics {
         return DefaultDeviceOwnerValidationProvider(
             managementStatusProvider = statusProvider,
             provisioningReadinessProvider = readinessProvider,
+            platform = platform,
+            logger = logger,
+        )
+    }
+
+    fun createScreenCapturePolicyStatus(
+        context: Context,
+        logger: DeviceManagementLogger,
+    ): ScreenCapturePolicyStatusProvider {
+        val platform = AndroidDevicePolicyPlatform(context.applicationContext)
+        return DefaultScreenCapturePolicyStatusProvider(
+            deviceOwnerValidationProvider = createDeviceOwnerValidationProvider(
+                platform = platform,
+                logger = logger,
+            ),
+            platform = platform,
+            logger = logger,
+        )
+    }
+
+    internal fun createDeviceOwnerValidationProvider(
+        platform: DevicePolicyPlatform,
+        logger: DeviceManagementLogger,
+    ): DeviceOwnerValidationProvider {
+        val statusProvider = DefaultDeviceManagementStatusProvider(
+            platform = platform,
+            logger = logger,
+        )
+        return DefaultDeviceOwnerValidationProvider(
+            managementStatusProvider = statusProvider,
+            provisioningReadinessProvider = DefaultProvisioningReadinessProvider(
+                managementStatusProvider = statusProvider,
+                platform = platform,
+                logger = logger,
+            ),
             platform = platform,
             logger = logger,
         )

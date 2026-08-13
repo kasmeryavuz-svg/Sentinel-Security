@@ -3,9 +3,12 @@ package com.example.devicemanagement.action
 import com.example.devicemanagement.decision.ActionDecision
 import com.example.devicemanagement.decision.DecisionEngine
 import com.example.devicemanagement.decision.FailSafeDecisionEngine
+import com.example.devicemanagement.integration.MonotonicTimeSource
+import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.InMemoryStateRepository
 import com.example.devicemanagement.persistence.ManagementState
+import com.example.devicemanagement.persistence.PolicyBackendStateRepository
 import com.example.devicemanagement.trigger.DefaultTriggerEvaluator
 import com.example.devicemanagement.trigger.Trigger
 
@@ -33,8 +36,13 @@ class SensitiveActionController internal constructor(
             val approvalAuthority = ApprovalAuthority()
             val stateRepository = InMemoryStateRepository(
                 ManagementState(
-                    serviceAvailable = false,
+                    policyServiceAvailable = false,
                     sensitiveActionsEnabled = false,
+                    verifiedDeviceOwner = false,
+                    profileOwner = false,
+                    expectedAdminReceiverRegistered = false,
+                    expectedAdminActive = false,
+                    managementStateConsistent = false,
                 ),
             )
             return SensitiveActionController(
@@ -48,6 +56,44 @@ class SensitiveActionController internal constructor(
                     actions = setOf(SafeMockWipeAction(logger)),
                     approvalAuthority = approvalAuthority,
                     logger = logger,
+                ),
+            )
+        }
+
+        fun createControlled(
+            backend: SensitiveActionPolicyBackend,
+            logger: StructuredLogger,
+            nowEpochMillis: () -> Long = System::currentTimeMillis,
+            monotonicTimeSource: MonotonicTimeSource =
+                MonotonicTimeSource { System.nanoTime() / 1_000_000L },
+        ): SensitiveActionController {
+            val approvalAuthority = ApprovalAuthority()
+            return SensitiveActionController(
+                decisionEngine = FailSafeDecisionEngine(
+                    triggerEvaluator = DefaultTriggerEvaluator(),
+                    stateRepository = PolicyBackendStateRepository(backend),
+                    approvalAuthority = approvalAuthority,
+                    logger = logger,
+                    nowEpochMillis = nowEpochMillis,
+                    monotonicTimeSource = monotonicTimeSource,
+                ),
+                actionExecutor = ActionExecutor(
+                    actions = setOf(
+                        ScreenCapturePolicyAction(
+                            type = DeviceActionType.DISABLE_SCREEN_CAPTURE,
+                            disabled = true,
+                            backend = backend,
+                        ),
+                        ScreenCapturePolicyAction(
+                            type = DeviceActionType.ENABLE_SCREEN_CAPTURE,
+                            disabled = false,
+                            backend = backend,
+                        ),
+                    ),
+                    approvalAuthority = approvalAuthority,
+                    logger = logger,
+                    nowEpochMillis = nowEpochMillis,
+                    monotonicTimeSource = monotonicTimeSource,
                 ),
             )
         }

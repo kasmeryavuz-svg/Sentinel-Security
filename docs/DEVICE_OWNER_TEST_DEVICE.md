@@ -56,4 +56,18 @@ Any `NOT_DEVICE_OWNER`, `CONFIGURATION_ERROR`, or `UNAVAILABLE` result must be
 treated as a failed validation. The application does not attempt to repair,
 repeat, or initiate provisioning.
 
+### Reversible screen-capture policy
+
+Only after Device Owner validation succeeds, use the
+**TEST DEVICE — SCREEN CAPTURE POLICY** section:
+
+1. Select **Disable screen capture**. The operation must report matching
+   requested and observed disabled states.
+2. Select **Enable screen capture** to restore the original policy. The
+   operation must report matching requested and observed enabled states.
+3. Record the correlation ID shown for each operation.
+
+Any denial, failure, unavailable state, or post-write read-back mismatch is a
+failed test. Do not bypass the validation or attempt another policy operation.
+
 Production QR enrollment is intentionally not implemented.

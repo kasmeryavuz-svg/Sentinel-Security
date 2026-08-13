@@ -3,6 +3,7 @@ package com.example.devicemanagement.action
 import com.example.devicemanagement.decision.ActionDecision
 import com.example.devicemanagement.decision.DecisionReason
 import com.example.devicemanagement.decision.FailSafeDecisionEngine
+import com.example.devicemanagement.integration.MonotonicTimeSource
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.ManagementState
 import com.example.devicemanagement.persistence.StateRepository
@@ -21,7 +22,7 @@ class ActionExecutorTest {
     fun `denied decision never invokes an action`() {
         val authority = ApprovalAuthority()
         val action = RecordingAction()
-        val executor = ActionExecutor(setOf(action), authority, logger)
+        val executor = executor(setOf(action), authority)
 
         val result = executor.execute(
             ActionDecision.Denied(DecisionReason.INVALID_TRIGGER),
@@ -85,7 +86,7 @@ class ActionExecutorTest {
     fun `forged approval not issued by the paired decision engine is rejected`() {
         val authority = ApprovalAuthority()
         val action = RecordingAction()
-        val executor = ActionExecutor(setOf(action), authority, logger)
+        val executor = executor(setOf(action), authority)
         val forgedDecision = ActionDecision.Approved(Approval.create())
 
         val result = executor.execute(forgedDecision)
@@ -102,9 +103,10 @@ class ActionExecutorTest {
         val executorAuthority = ApprovalAuthority()
         val foreignAuthority = ApprovalAuthority()
         val action = RecordingAction()
-        val executor = ActionExecutor(setOf(action), executorAuthority, logger)
+        val executor = executor(setOf(action), executorAuthority)
         val foreignApproval = foreignAuthority.issue(
-            ActionRequest(DeviceActionType.MOCK_WIPE, "request-1"),
+            request(),
+            issuedAtMonotonicMillis = 100L,
         )
 
         val result = executor.execute(ActionDecision.Approved(foreignApproval))
@@ -117,9 +119,9 @@ class ActionExecutorTest {
     fun `approved capability is single use and cannot be replayed`() {
         val authority = ApprovalAuthority()
         val action = RecordingAction()
-        val executor = ActionExecutor(setOf(action), authority, logger)
+        val executor = executor(setOf(action), authority)
         val decision = ActionDecision.Approved(
-            authority.issue(ActionRequest(DeviceActionType.MOCK_WIPE, "request-1")),
+            authority.issue(request(), issuedAtMonotonicMillis = 100L),
         )
 
         val firstResult = executor.execute(decision)
@@ -131,11 +133,56 @@ class ActionExecutorTest {
     }
 
     @Test
+    fun `expired approval request cannot reach action`() {
+        val authority = ApprovalAuthority()
+        val action = RecordingAction()
+        val decision = ActionDecision.Approved(
+            authority.issue(request(), issuedAtMonotonicMillis = 100L),
+        )
+        val executor = ActionExecutor(
+            actions = setOf(action),
+            approvalAuthority = authority,
+            logger = logger,
+            nowEpochMillis = { 2_000L },
+            monotonicTimeSource = MonotonicTimeSource { 100L },
+        )
+
+        val result = executor.execute(decision)
+
+        assertEquals(ActionResult.Rejected("request_expired_before_execution"), result)
+        assertEquals(0, action.executionCount)
+    }
+
+    @Test
+    fun `stale monotonic approval cannot reach action`() {
+        val authority = ApprovalAuthority()
+        val action = RecordingAction()
+        val decision = ActionDecision.Approved(
+            authority.issue(request(), issuedAtMonotonicMillis = 100L),
+        )
+        val executor = ActionExecutor(
+            actions = setOf(action),
+            approvalAuthority = authority,
+            logger = logger,
+            nowEpochMillis = { 1_000L },
+            monotonicTimeSource = MonotonicTimeSource { 5_101L },
+        )
+
+        val result = executor.execute(decision)
+
+        assertEquals(ActionResult.Rejected("approval_stale"), result)
+        assertEquals(0, action.executionCount)
+    }
+
+    @Test
     fun `unregistered action is rejected after a genuine approval`() {
         val authority = ApprovalAuthority()
-        val executor = ActionExecutor(emptySet(), authority, logger)
+        val executor = executor(emptySet(), authority)
         val decision = ActionDecision.Approved(
-            authority.issue(ActionRequest(DeviceActionType.UNSUPPORTED, "request-1")),
+            authority.issue(
+                request(type = DeviceActionType.UNSUPPORTED),
+                issuedAtMonotonicMillis = 100L,
+            ),
         )
 
         val result = executor.execute(decision)
@@ -146,7 +193,7 @@ class ActionExecutorTest {
     @Test
     fun `safe mock wipe only logs simulation and returns simulated result`() {
         val action = SafeMockWipeAction(logger)
-        val request = ActionRequest(DeviceActionType.MOCK_WIPE, "request-1")
+        val request = request()
 
         val result = action.execute(request)
 
@@ -160,9 +207,9 @@ class ActionExecutorTest {
     @Test
     fun `action exception is contained as a failed result`() {
         val authority = ApprovalAuthority()
-        val executor = ActionExecutor(setOf(ThrowingAction()), authority, logger)
+        val executor = executor(setOf(ThrowingAction()), authority)
         val decision = ActionDecision.Approved(
-            authority.issue(ActionRequest(DeviceActionType.MOCK_WIPE, "request-1")),
+            authority.issue(request(), issuedAtMonotonicMillis = 100L),
         )
 
         val result = executor.execute(decision)
@@ -195,17 +242,47 @@ class ActionExecutorTest {
                 triggerEvaluator = DefaultTriggerEvaluator(),
                 stateRepository = StateRepository {
                     ManagementState(
-                        serviceAvailable = true,
+                        policyServiceAvailable = true,
                         sensitiveActionsEnabled = true,
+                        verifiedDeviceOwner = true,
+                        profileOwner = false,
+                        expectedAdminReceiverRegistered = true,
+                        expectedAdminActive = true,
+                        managementStateConsistent = true,
                     )
                 },
                 approvalAuthority = authority,
                 logger = logger,
                 nowEpochMillis = { 1_000 },
+                monotonicTimeSource = MonotonicTimeSource { 100L },
             ),
-            actionExecutor = ActionExecutor(setOf(action), authority, logger),
+            actionExecutor = ActionExecutor(
+                actions = setOf(action),
+                approvalAuthority = authority,
+                logger = logger,
+                nowEpochMillis = { 1_000 },
+                monotonicTimeSource = MonotonicTimeSource { 100L },
+            ),
         )
     }
+
+    private fun request(type: DeviceActionType = DeviceActionType.MOCK_WIPE) =
+        ActionRequest(
+            type = type,
+            requestId = "request-1",
+            expiresAtEpochMillis = 2_000L,
+        )
+
+    private fun executor(
+        actions: Set<DeviceAction>,
+        authority: ApprovalAuthority,
+    ) = ActionExecutor(
+        actions = actions,
+        approvalAuthority = authority,
+        logger = logger,
+        nowEpochMillis = { 1_000L },
+        monotonicTimeSource = MonotonicTimeSource { 100L },
+    )
 
     private class RecordingAction : DeviceAction {
         override val type = DeviceActionType.MOCK_WIPE
