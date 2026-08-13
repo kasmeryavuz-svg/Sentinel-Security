@@ -9,7 +9,7 @@ import com.example.devicemanagement.trigger.TriggerEvaluation
 import com.example.devicemanagement.trigger.TriggerEvaluator
 
 internal fun interface DecisionEngine {
-    fun decide(trigger: Trigger?): ActionDecision
+    fun decide(trigger: Trigger?, authoritativeCorrelationId: String): ActionDecision
 }
 
 internal class FailSafeDecisionEngine(
@@ -21,9 +21,18 @@ internal class FailSafeDecisionEngine(
     private val monotonicTimeSource: MonotonicTimeSource =
         MonotonicTimeSource { System.nanoTime() / 1_000_000L },
 ) : DecisionEngine {
-    override fun decide(trigger: Trigger?): ActionDecision {
+    override fun decide(
+        trigger: Trigger?,
+        authoritativeCorrelationId: String,
+    ): ActionDecision {
         return try {
-            when (val evaluation = triggerEvaluator.evaluate(trigger, nowEpochMillis())) {
+            when (
+                val evaluation = triggerEvaluator.evaluate(
+                    trigger = trigger,
+                    nowEpochMillis = nowEpochMillis(),
+                    authoritativeCorrelationId = authoritativeCorrelationId,
+                )
+            ) {
                 is TriggerEvaluation.Invalid -> deny(
                     reason = DecisionReason.INVALID_TRIGGER,
                     detail = evaluation.reason,
@@ -74,7 +83,8 @@ internal class FailSafeDecisionEngine(
                 "action" to evaluation.request.type.name,
                 "outcome" to "approved",
                 "reason" to DecisionReason.APPROVED_BY_POLICY.name,
-                "request_id" to evaluation.request.requestId,
+                "correlation_id" to evaluation.request.correlationId,
+                "caller_request_id" to evaluation.request.callerRequestId,
             ),
         )
         return ActionDecision.Approved(

@@ -7,7 +7,10 @@ internal interface DeviceAction {
 }
 
 sealed interface ActionResult {
-    data class Simulated(val message: String) : ActionResult
+    data class Simulated(
+        val message: String,
+        val correlationId: String,
+    ) : ActionResult
 
     data class Applied(
         val operation: SensitiveActionOperation,

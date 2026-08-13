@@ -70,4 +70,20 @@ Only after Device Owner validation succeeds, use the
 Any denial, failure, unavailable state, or post-write read-back mismatch is a
 failed test. Do not bypass the validation or attempt another policy operation.
 
+### Reversible camera policy
+
+Only after Device Owner validation succeeds, use the
+**TEST DEVICE — CAMERA POLICY** section:
+
+1. Select **Disable camera**. Android must block camera access and Sentinel must
+   report matching requested and observed disabled states.
+2. Select **Enable camera** to restore the original policy. Android must allow
+   camera access and Sentinel must report matching requested and observed
+   enabled states.
+3. Record the authoritative correlation ID returned by Sentinel. The trigger's
+   caller request ID is diagnostic input and is not approval identity.
+
+Any denial, validation uncertainty, exception, unavailable state, or post-write
+read-back mismatch is a failed test. Do not bypass validation.
+
 Production QR enrollment is intentionally not implemented.

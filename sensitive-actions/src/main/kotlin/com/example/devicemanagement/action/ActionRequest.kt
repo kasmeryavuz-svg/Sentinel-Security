@@ -6,11 +6,11 @@ internal enum class DeviceActionType {
     ENABLE_SCREEN_CAPTURE,
     DISABLE_CAMERA,
     ENABLE_CAMERA,
-    UNSUPPORTED,
 }
 
 internal data class ActionRequest(
     val type: DeviceActionType,
-    val requestId: String,
+    val correlationId: String,
+    val callerRequestId: String,
     val expiresAtEpochMillis: Long,
 )

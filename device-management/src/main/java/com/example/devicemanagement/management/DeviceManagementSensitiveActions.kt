@@ -89,31 +89,24 @@ internal class DeviceManagementSensitiveActionBackend(
         disabled: Boolean,
         correlationId: String,
     ): PolicyMutationResult {
-        return when (val result = screenCapturePolicy.applyDisabled(disabled)) {
-            is ScreenCapturePolicyMutation.Applied -> PolicyMutationResult.Applied(
-                requestedDisabled = result.requestedDisabled,
-                observedDisabled = result.observedDisabled,
-            )
-            is ScreenCapturePolicyMutation.Denied ->
-                PolicyMutationResult.Denied(result.reason)
-            is ScreenCapturePolicyMutation.Failed ->
-                PolicyMutationResult.Failed(result.reason)
-        }
+        return screenCapturePolicy.applyDisabled(disabled, correlationId).toBackendResult()
     }
 
     override fun applyCameraDisabled(
         disabled: Boolean,
         correlationId: String,
     ): PolicyMutationResult {
-        return when (val result = cameraPolicy.applyDisabled(disabled)) {
-            is CameraPolicyMutation.Applied -> PolicyMutationResult.Applied(
-                requestedDisabled = result.requestedDisabled,
-                observedDisabled = result.observedDisabled,
+        return cameraPolicy.applyDisabled(disabled, correlationId).toBackendResult()
+    }
+
+    private fun PolicyMutation.toBackendResult(): PolicyMutationResult {
+        return when (this) {
+            is PolicyMutation.Applied -> PolicyMutationResult.Applied(
+                requestedDisabled = requestedDisabled,
+                observedDisabled = observedDisabled,
             )
-            is CameraPolicyMutation.Denied ->
-                PolicyMutationResult.Denied(result.reason)
-            is CameraPolicyMutation.Failed ->
-                PolicyMutationResult.Failed(result.reason)
+            is PolicyMutation.Denied -> PolicyMutationResult.Denied(reason)
+            is PolicyMutation.Failed -> PolicyMutationResult.Failed(reason)
         }
     }
 

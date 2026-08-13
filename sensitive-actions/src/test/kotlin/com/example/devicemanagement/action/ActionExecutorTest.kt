@@ -140,7 +140,7 @@ class ActionExecutorTest {
             authority.issue(request(), issuedAtMonotonicMillis = 100L),
         )
         val executor = ActionExecutor(
-            actions = setOf(action),
+            registry = registry(setOf(action)),
             approvalAuthority = authority,
             logger = logger,
             nowEpochMillis = { 2_000L },
@@ -149,7 +149,13 @@ class ActionExecutorTest {
 
         val result = executor.execute(decision)
 
-        assertEquals(ActionResult.Rejected("request_expired_before_execution"), result)
+        assertEquals(
+            ActionResult.Rejected(
+                "request_expired_before_execution",
+                "authoritative-correlation",
+            ),
+            result,
+        )
         assertEquals(0, action.executionCount)
     }
 
@@ -161,7 +167,7 @@ class ActionExecutorTest {
             authority.issue(request(), issuedAtMonotonicMillis = 100L),
         )
         val executor = ActionExecutor(
-            actions = setOf(action),
+            registry = registry(setOf(action)),
             approvalAuthority = authority,
             logger = logger,
             nowEpochMillis = { 1_000L },
@@ -170,24 +176,30 @@ class ActionExecutorTest {
 
         val result = executor.execute(decision)
 
-        assertEquals(ActionResult.Rejected("approval_stale"), result)
+        assertEquals(
+            ActionResult.Rejected("approval_stale", "authoritative-correlation"),
+            result,
+        )
         assertEquals(0, action.executionCount)
     }
 
     @Test
     fun `unregistered action is rejected after a genuine approval`() {
         val authority = ApprovalAuthority()
-        val executor = executor(emptySet(), authority)
+        val executor = executor(setOf(RecordingAction()), authority)
         val decision = ActionDecision.Approved(
             authority.issue(
-                request(type = DeviceActionType.UNSUPPORTED),
+                request(type = DeviceActionType.DISABLE_CAMERA),
                 issuedAtMonotonicMillis = 100L,
             ),
         )
 
         val result = executor.execute(decision)
 
-        assertEquals(ActionResult.Rejected("action_not_registered"), result)
+        assertEquals(
+            ActionResult.Rejected("action_not_registered", "authoritative-correlation"),
+            result,
+        )
     }
 
     @Test
@@ -198,7 +210,10 @@ class ActionExecutorTest {
         val result = action.execute(request)
 
         assertEquals(
-            ActionResult.Simulated(SafeMockWipeAction.WIPE_LOG_MESSAGE),
+            ActionResult.Simulated(
+                SafeMockWipeAction.WIPE_LOG_MESSAGE,
+                "authoritative-correlation",
+            ),
             result,
         )
         assertTrue(logger.events.contains(SafeMockWipeAction.WIPE_LOG_MESSAGE))
@@ -237,9 +252,10 @@ class ActionExecutorTest {
 
     private fun enabledController(action: DeviceAction): SensitiveActionController {
         val authority = ApprovalAuthority()
+        val registry = registry(setOf(action))
         return SensitiveActionController(
             decisionEngine = FailSafeDecisionEngine(
-                triggerEvaluator = DefaultTriggerEvaluator(),
+                triggerEvaluator = DefaultTriggerEvaluator(registry),
                 stateRepository = StateRepository {
                     ManagementState(
                         policyServiceAvailable = true,
@@ -257,19 +273,21 @@ class ActionExecutorTest {
                 monotonicTimeSource = MonotonicTimeSource { 100L },
             ),
             actionExecutor = ActionExecutor(
-                actions = setOf(action),
+                registry = registry,
                 approvalAuthority = authority,
                 logger = logger,
                 nowEpochMillis = { 1_000 },
                 monotonicTimeSource = MonotonicTimeSource { 100L },
             ),
+            correlationIdGenerator = { "authoritative-correlation" },
         )
     }
 
     private fun request(type: DeviceActionType = DeviceActionType.MOCK_WIPE) =
         ActionRequest(
             type = type,
-            requestId = "request-1",
+            correlationId = "authoritative-correlation",
+            callerRequestId = "request-1",
             expiresAtEpochMillis = 2_000L,
         )
 
@@ -277,12 +295,20 @@ class ActionExecutorTest {
         actions: Set<DeviceAction>,
         authority: ApprovalAuthority,
     ) = ActionExecutor(
-        actions = actions,
+        registry = registry(actions),
         approvalAuthority = authority,
         logger = logger,
         nowEpochMillis = { 1_000L },
         monotonicTimeSource = MonotonicTimeSource { 100L },
     )
+
+    private fun registry(actions: Set<DeviceAction>): SensitiveActionRegistry {
+        return SensitiveActionRegistry(
+            actions.mapIndexed { index, action ->
+                SensitiveActionRegistration("test-command-$index", action)
+            },
+        )
+    }
 
     private class RecordingAction : DeviceAction {
         override val type = DeviceActionType.MOCK_WIPE
@@ -290,7 +316,7 @@ class ActionExecutorTest {
 
         override fun execute(request: ActionRequest): ActionResult {
             executionCount += 1
-            return ActionResult.Simulated("recorded")
+            return ActionResult.Simulated("recorded", request.correlationId)
         }
     }
 

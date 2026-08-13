@@ -1,6 +1,7 @@
 package com.example.devicemanagement.management
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -181,6 +182,24 @@ class DestructivePolicyApiGuardTest {
             setOf("setScreenCaptureDisabled", "setCameraDisabled"),
             allowedMutators,
         )
+        val requiredVerificationPairs = mapOf(
+            "setScreenCaptureDisabled" to "isScreenCaptureDisabled",
+            "setCameraDisabled" to "isCameraDisabled",
+        )
+        val verifiedMutationSource = sourceFiles.single {
+            it.name == "VerifiedPolicyMutation.kt"
+        }.readText()
+        requiredVerificationPairs.forEach { (mutator, readBack) ->
+            assertTrue(
+                "$mutator must be explicitly paired with $readBack",
+                verifiedMutationSource.contains("service.$mutator") &&
+                    verifiedMutationSource.contains("service.$readBack"),
+            )
+        }
+        assertFalse(verifiedMutationSource.contains("kotlin.reflect"))
+        assertFalse(verifiedMutationSource.contains("java.lang.reflect"))
+        assertFalse(verifiedMutationSource.contains("Function<"))
+        assertFalse(verifiedMutationSource.contains("Map<String, Any"))
         val nonQueryCalls = Regex(
             """\bmanager\s*\.\s*([A-Za-z][A-Za-z0-9_]*)\s*\(""",
         ).findAll(boundarySource.readText())

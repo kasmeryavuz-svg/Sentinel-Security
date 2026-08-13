@@ -24,6 +24,7 @@ class ScreenCaptureSensitiveActionTest {
 
         assertTrue(result is ActionResult.Applied)
         assertEquals(listOf(true), backend.writes)
+        assertAuthoritativeCorrelation(result as ActionResult.Applied, backend)
     }
 
     @Test
@@ -36,6 +37,25 @@ class ScreenCaptureSensitiveActionTest {
 
         assertTrue(result is ActionResult.Applied)
         assertEquals(listOf(false), backend.writes)
+        assertAuthoritativeCorrelation(result as ActionResult.Applied, backend)
+    }
+
+    @Test
+    fun `caller request ID is not the authoritative correlation identity`() {
+        val backend = RecordingBackend()
+        val controller = controller(backend)
+
+        val first = controller.submit(trigger(
+            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
+        )) as ActionResult.Applied
+        val second = controller.submit(trigger(
+            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
+        )) as ActionResult.Applied
+
+        assertTrue(first.correlationId != "correlation")
+        assertTrue(second.correlationId != "correlation")
+        assertTrue(first.correlationId != second.correlationId)
+        assertEquals(listOf(first.correlationId, second.correlationId), backend.correlations)
     }
 
     @Test
@@ -48,10 +68,7 @@ class ScreenCaptureSensitiveActionTest {
             SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
         ))
 
-        assertEquals(
-            ActionResult.Rejected("decision_denied:DEVICE_OWNER_NOT_VERIFIED"),
-            result,
-        )
+        assertRejected(result, "decision_denied:DEVICE_OWNER_NOT_VERIFIED")
         assertTrue(backend.writes.isEmpty())
     }
 
@@ -68,10 +85,7 @@ class ScreenCaptureSensitiveActionTest {
             SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
         ))
 
-        assertEquals(
-            ActionResult.Rejected("decision_denied:PROFILE_OWNER_NOT_ALLOWED"),
-            result,
-        )
+        assertRejected(result, "decision_denied:PROFILE_OWNER_NOT_ALLOWED")
         assertTrue(backend.writes.isEmpty())
     }
 
@@ -85,10 +99,7 @@ class ScreenCaptureSensitiveActionTest {
             SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
         ))
 
-        assertEquals(
-            ActionResult.Rejected("decision_denied:SERVICE_UNAVAILABLE"),
-            result,
-        )
+        assertRejected(result, "decision_denied:SERVICE_UNAVAILABLE")
         assertTrue(backend.writes.isEmpty())
     }
 
@@ -129,14 +140,14 @@ class ScreenCaptureSensitiveActionTest {
             SensitiveActionCommands.ENABLE_SCREEN_CAPTURE,
         ))
 
-        assertEquals(
-            ActionResult.Rejected("validation_changed", "correlation"),
-            denied,
-        )
-        assertEquals(
-            ActionResult.Failed("security_exception", "correlation"),
-            failed,
-        )
+        assertTrue(denied is ActionResult.Rejected)
+        assertEquals("validation_changed", (denied as ActionResult.Rejected).reason)
+        assertTrue(failed is ActionResult.Failed)
+        assertEquals("security_exception", (failed as ActionResult.Failed).reason)
+        assertTrue(denied.correlationId != "correlation")
+        assertTrue(failed.correlationId != "correlation")
+        assertEquals(listOf(denied.correlationId), deniedBackend.correlations)
+        assertEquals(listOf(failed.correlationId), failedBackend.correlations)
     }
 
     private fun controller(backend: SensitiveActionPolicyBackend) =
@@ -153,11 +164,29 @@ class ScreenCaptureSensitiveActionTest {
         expiresAtEpochMillis = 2_000L,
     )
 
+    private fun assertAuthoritativeCorrelation(
+        result: ActionResult.Applied,
+        backend: RecordingBackend,
+    ) {
+        assertTrue(result.correlationId.isNotBlank())
+        assertTrue(result.correlationId != "correlation")
+        assertEquals(listOf(result.correlationId), backend.correlations)
+    }
+
+    private fun assertRejected(result: ActionResult, reason: String) {
+        assertTrue(result is ActionResult.Rejected)
+        result as ActionResult.Rejected
+        assertEquals(reason, result.reason)
+        assertTrue(result.correlationId?.isNotBlank() == true)
+        assertTrue(result.correlationId != "correlation")
+    }
+
     private class RecordingBackend(
         private val authorization: SensitiveActionAuthorization = authorized,
         private val mutationResult: PolicyMutationResult? = null,
     ) : SensitiveActionPolicyBackend {
         val writes = mutableListOf<Boolean>()
+        val correlations = mutableListOf<String>()
 
         override fun currentAuthorization(): SensitiveActionAuthorization = authorization
 
@@ -166,6 +195,7 @@ class ScreenCaptureSensitiveActionTest {
             correlationId: String,
         ): PolicyMutationResult {
             writes += disabled
+            correlations += correlationId
             return mutationResult ?: PolicyMutationResult.Applied(disabled, disabled)
         }
 

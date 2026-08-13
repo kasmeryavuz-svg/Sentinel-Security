@@ -6,15 +6,17 @@ Minimal, fail-safe Android device-management skeleton.
 
 This project contains no real wipe, factory-reset, deletion, Device Owner
 provisioning, accessibility, shell, or ADB functionality. Its passive
-`DeviceAdminReceiver` declares no policies or callbacks and exists only for
-registration diagnostics. The only wipe-shaped action is `SafeMockWipeAction`; it logs
-`WIPE WOULD EXECUTE` and returns a simulated result.
+`DeviceAdminReceiver` declares only Android's `disable-camera` metadata policy
+and no callbacks. The only wipe-shaped action is `SafeMockWipeAction`; it is
+isolated to fail-safe simulation mode, logs `WIPE WOULD EXECUTE`, and returns a
+simulated result.
 
 All sensitive-action requests follow one controlled path:
 
 ```text
-Trigger -> SensitiveActionController -> DecisionEngine -> private approval
-                                                  -> ActionExecutor
+UI -> SensitiveActionController -> TriggerEvaluator -> DecisionEngine
+   -> private approval -> ActionExecutor -> typed policy action
+   -> device-management backend -> verified DevicePolicyManager boundary
 ```
 
 Invalid, missing, expired, unavailable, disabled, or exceptional states are
@@ -22,7 +24,8 @@ denied. The Android app can access only `SensitiveActionController.submit`,
 which accepts trigger input. Decisions, approval capabilities, device actions,
 and the executor are internal to the separate `sensitive-actions` module.
 Approvals are identity-bound, single-use, and accepted only by the executor
-paired with the issuing decision engine.
+paired with the issuing decision engine. Authoritative correlation IDs are
+created inside the controller; caller request IDs are diagnostic input only.
 
 ## Packages
 
@@ -31,7 +34,7 @@ paired with the issuing decision engine.
 - `decision`: centralized, fail-safe sensitive-action decisions.
 - `action`: public trigger-based controller, internal controlled executor, and
   safe mock action.
-- `policy`: non-destructive device-policy boundary.
+- `device-management`: typed, allowlisted device-policy boundary.
 - `persistence`: state storage boundary and in-memory implementation.
 - `logging`: structured logging abstraction and Android implementation.
 - `app`: dependency wiring and application entry point.
@@ -42,9 +45,13 @@ direct `DevicePolicyManager` queries. It also reports Device Owner and Profile
 Owner provisioning readiness without starting provisioning or exposing
 provisioning intents, and validates an already-provisioned Device Owner using
 read-only package, receiver, ownership, and active-admin checks. Its build
-fails if a known destructive policy operation appears in production source.
+fails if a non-allowlisted policy operation appears in production source. The
+only mutators are screen-capture and camera disable toggles, each followed by
+an immediate read-back using the expected admin component.
 See `docs/DEVICE_OWNER_TEST_DEVICE.md` for the development-only disposable
-test-device workflow. The pure Kotlin
+test-device workflow and `docs/POLICY_ARCHITECTURE.md` for trust boundaries,
+approval lifecycle, mutation verification, and the safe capability checklist.
+The pure Kotlin
 `sensitive-actions` module independently owns the decision and execution
 security boundary.
 

@@ -12,19 +12,20 @@ class DefaultCameraPolicyTest {
         val operations = mutableListOf<String>()
         val service = FakeCameraService(false, operations = operations)
 
-        val result = policy(verifiedValidation(), service, operations).applyDisabled(true)
+        val result = policy(verifiedValidation(), service, operations)
+            .applyDisabled(true, CORRELATION_ID)
 
-        assertEquals(CameraPolicyMutation.Applied(true, true), result)
-        assertEquals(listOf("validate", "service", "set:true", "get"), operations)
+        assertEquals(PolicyMutation.Applied(true, true), result)
+        assertEquals(listOf("service", "validate", "set:true", "get"), operations)
     }
 
     @Test
     fun `verified Device Owner can restore camera with immediate component read back`() {
         val service = FakeCameraService(initialDisabled = true)
 
-        val result = policy(verifiedValidation(), service).applyDisabled(false)
+        val result = policy(verifiedValidation(), service).applyDisabled(false, CORRELATION_ID)
 
-        assertEquals(CameraPolicyMutation.Applied(false, false), result)
+        assertEquals(PolicyMutation.Applied(false, false), result)
         assertEquals(listOf("set:false", "get"), service.operations)
     }
 
@@ -35,10 +36,10 @@ class DefaultCameraPolicyTest {
             ignoreWrites = true,
         )
 
-        val result = policy(verifiedValidation(), service).applyDisabled(true)
+        val result = policy(verifiedValidation(), service).applyDisabled(true, CORRELATION_ID)
 
         assertEquals(
-            CameraPolicyMutation.Failed("post_write_read_back_mismatch"),
+            PolicyMutation.Failed("post_write_read_back_mismatch"),
             result,
         )
         assertEquals(listOf("set:true", "get"), service.operations)
@@ -52,14 +53,14 @@ class DefaultCameraPolicyTest {
         val ordinaryResult = policy(
             validation(ManagementMode.ORDINARY_APP),
             ordinaryService,
-        ).applyDisabled(true)
+        ).applyDisabled(true, CORRELATION_ID)
         val profileResult = policy(
             validation(ManagementMode.PROFILE_OWNER),
             profileService,
-        ).applyDisabled(true)
+        ).applyDisabled(true, CORRELATION_ID)
 
-        assertTrue(ordinaryResult is CameraPolicyMutation.Denied)
-        assertTrue(profileResult is CameraPolicyMutation.Denied)
+        assertTrue(ordinaryResult is PolicyMutation.Denied)
+        assertTrue(profileResult is PolicyMutation.Denied)
         assertTrue(ordinaryService.operations.isEmpty())
         assertTrue(profileService.operations.isEmpty())
     }
@@ -72,18 +73,18 @@ class DefaultCameraPolicyTest {
         val inactive = policy(
             verifiedValidation(isAdminActive = false),
             inactiveService,
-        ).applyDisabled(true)
+        ).applyDisabled(true, CORRELATION_ID)
         val mismatched = policy(
             verifiedValidation(registeredComponents = emptySet()),
             mismatchedService,
-        ).applyDisabled(true)
+        ).applyDisabled(true, CORRELATION_ID)
 
         assertEquals(
-            CameraPolicyMutation.Denied("expected_admin_not_active"),
+            PolicyMutation.Denied("expected_admin_not_active"),
             inactive,
         )
         assertEquals(
-            CameraPolicyMutation.Denied("expected_admin_component_mismatch"),
+            PolicyMutation.Denied("expected_admin_component_mismatch"),
             mismatched,
         )
         assertTrue(inactiveService.operations.isEmpty())
@@ -102,21 +103,22 @@ class DefaultCameraPolicyTest {
             logger = logger,
         )
 
-        val result = policy.applyDisabled(true)
+        val result = policy.applyDisabled(true, CORRELATION_ID)
 
         assertEquals(
-            CameraPolicyMutation.Failed("device_owner_validation_failed"),
+            PolicyMutation.Failed("device_owner_validation_failed"),
             result,
         )
-        assertEquals(listOf("validate"), operations)
+        assertEquals(listOf("service", "validate"), operations)
     }
 
     @Test
     fun `unavailable camera policy service fails closed`() {
-        val result = policy(verifiedValidation(), service = null).applyDisabled(true)
+        val result = policy(verifiedValidation(), service = null)
+            .applyDisabled(true, CORRELATION_ID)
 
         assertEquals(
-            CameraPolicyMutation.Failed("policy_service_unavailable"),
+            PolicyMutation.Failed("policy_service_unavailable"),
             result,
         )
     }
@@ -128,9 +130,9 @@ class DefaultCameraPolicyTest {
             setError = SecurityException("denied"),
         )
 
-        val result = policy(verifiedValidation(), service).applyDisabled(true)
+        val result = policy(verifiedValidation(), service).applyDisabled(true, CORRELATION_ID)
 
-        assertEquals(CameraPolicyMutation.Failed("security_exception"), result)
+        assertEquals(PolicyMutation.Failed("security_exception"), result)
         assertEquals(listOf("set:true"), service.operations)
     }
 
@@ -141,10 +143,10 @@ class DefaultCameraPolicyTest {
             getError = IllegalStateException("unavailable"),
         )
 
-        val result = policy(verifiedValidation(), service).applyDisabled(true)
+        val result = policy(verifiedValidation(), service).applyDisabled(true, CORRELATION_ID)
 
         assertEquals(
-            CameraPolicyMutation.Failed(
+            PolicyMutation.Failed(
                 "unexpected_exception:IllegalStateException",
             ),
             result,
@@ -267,6 +269,7 @@ class DefaultCameraPolicyTest {
     }
 
     private companion object {
+        const val CORRELATION_ID = "authoritative-correlation"
         const val EXPECTED_COMPONENT =
             "com.example.devicemanagement/.management.SentinelDeviceAdminReceiver"
     }

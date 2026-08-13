@@ -72,6 +72,12 @@ val destructivePolicyOperations = listOf(
     "setDeviceOwner",
 )
 
+val verifiedPolicyMutationPairs = mapOf(
+    "setScreenCaptureDisabled" to
+        ("getScreenCaptureDisabled" to "isScreenCaptureDisabled"),
+    "setCameraDisabled" to ("getCameraDisabled" to "isCameraDisabled"),
+)
+
 val allowedPolicyQueries = setOf(
     "isDeviceOwnerApp",
     "isProfileOwnerApp",
@@ -81,10 +87,7 @@ val allowedPolicyQueries = setOf(
     "getCameraDisabled",
 )
 
-val allowedPolicyMutators = setOf(
-    "setScreenCaptureDisabled",
-    "setCameraDisabled",
-)
+val allowedPolicyMutators = verifiedPolicyMutationPairs.keys
 
 val checkNoDestructiveDevicePolicyApis by tasks.registering {
     group = "verification"
@@ -120,6 +123,9 @@ val checkNoDestructiveDevicePolicyApis by tasks.registering {
         val boundarySource = productionSources.files.singleOrNull {
             it.name == "AndroidDeviceManagementInfrastructure.kt"
         }
+        val verifiedMutationSource = productionSources.files.singleOrNull {
+            it.name == "VerifiedPolicyMutation.kt"
+        }
         val nonQueryCalls = boundarySource?.let { source ->
             Regex("""\bmanager\s*\.\s*([A-Za-z][A-Za-z0-9_]*)\s*\(""")
                 .findAll(source.readText())
@@ -132,7 +138,24 @@ val checkNoDestructiveDevicePolicyApis by tasks.registering {
                 }
                 .toList()
         }.orEmpty()
-        val violations = destructiveCalls + policyImportsOutsideBoundary + nonQueryCalls
+        val missingVerificationPairs = verifiedPolicyMutationPairs.mapNotNull {
+                (mutator, readBackPair) ->
+            val (dpmReadBack, typedReadBack) = readBackPair
+            val text = verifiedMutationSource?.readText().orEmpty()
+            if (
+                !Regex("""\b${Regex.escape(mutator)}\s*\(""").containsMatchIn(text) ||
+                !Regex("""\b${Regex.escape(typedReadBack)}\s*\(""").containsMatchIn(text)
+            ) {
+                "VerifiedPolicyMutation.kt: $mutator must be paired with " +
+                    "$typedReadBack ($dpmReadBack)"
+            } else {
+                null
+            }
+        }
+        val violations = destructiveCalls +
+            policyImportsOutsideBoundary +
+            nonQueryCalls +
+            missingVerificationPairs
         check(violations.isEmpty()) {
             "Only allowlisted DevicePolicyManager queries and mutators are allowed:\n" +
                 violations.joinToString("\n")

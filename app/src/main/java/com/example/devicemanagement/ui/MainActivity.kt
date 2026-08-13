@@ -46,16 +46,16 @@ class MainActivity : Activity() {
         }
 
         fun submit(command: String) {
-            val correlationId = UUID.randomUUID().toString()
+            val callerRequestId = UUID.randomUUID().toString()
             val result = container.sensitiveActions.submit(
                 Trigger(
                     command = command,
-                    requestId = correlationId,
+                    requestId = callerRequestId,
                     expiresAtEpochMillis =
                         System.currentTimeMillis() + REQUEST_LIFETIME_MILLIS,
                 ),
             )
-            operationResultText.text = result.toDisplayText(correlationId)
+            operationResultText.text = result.toDisplayText()
             refreshStatus()
         }
 
@@ -128,7 +128,7 @@ class MainActivity : Activity() {
         """.trimIndent()
     }
 
-    private fun ActionResult.toDisplayText(fallbackCorrelationId: String): String {
+    private fun ActionResult.toDisplayText(): String {
         val result: String
         val reason: String
         val correlationId: String
@@ -142,17 +142,17 @@ class MainActivity : Activity() {
             is ActionResult.Rejected -> {
                 result = "Denied"
                 reason = this.reason
-                correlationId = this.correlationId ?: fallbackCorrelationId
+                correlationId = this.correlationId ?: "unavailable"
             }
             is ActionResult.Failed -> {
                 result = "Failed"
                 reason = this.reason
-                correlationId = this.correlationId ?: fallbackCorrelationId
+                correlationId = this.correlationId ?: "unavailable"
             }
             is ActionResult.Simulated -> {
                 result = "Simulation"
                 reason = message
-                correlationId = fallbackCorrelationId
+                correlationId = this.correlationId
             }
         }
         return """

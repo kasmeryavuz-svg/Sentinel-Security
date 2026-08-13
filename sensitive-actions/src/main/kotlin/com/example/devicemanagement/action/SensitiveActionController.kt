@@ -11,6 +11,7 @@ import com.example.devicemanagement.persistence.ManagementState
 import com.example.devicemanagement.persistence.PolicyBackendStateRepository
 import com.example.devicemanagement.trigger.DefaultTriggerEvaluator
 import com.example.devicemanagement.trigger.Trigger
+import java.util.UUID
 
 /**
  * The sole public entry point for sensitive actions.
@@ -21,12 +22,15 @@ import com.example.devicemanagement.trigger.Trigger
 class SensitiveActionController internal constructor(
     private val decisionEngine: DecisionEngine,
     private val actionExecutor: ActionExecutor,
+    private val correlationIdGenerator: () -> String = { UUID.randomUUID().toString() },
 ) {
     fun submit(trigger: Trigger?): ActionResult {
-        return when (val decision = decisionEngine.decide(trigger)) {
+        val correlationId = correlationIdGenerator()
+        return when (val decision = decisionEngine.decide(trigger, correlationId)) {
             is ActionDecision.Approved -> actionExecutor.execute(decision)
             is ActionDecision.Denied -> ActionResult.Rejected(
                 reason = "decision_denied:${decision.reason.name}",
+                correlationId = correlationId,
             )
         }
     }
@@ -34,6 +38,7 @@ class SensitiveActionController internal constructor(
     companion object {
         fun createFailSafe(logger: StructuredLogger): SensitiveActionController {
             val approvalAuthority = ApprovalAuthority()
+            val registry = SensitiveActionRegistry.failSafe(logger)
             val stateRepository = InMemoryStateRepository(
                 ManagementState(
                     policyServiceAvailable = false,
@@ -47,13 +52,13 @@ class SensitiveActionController internal constructor(
             )
             return SensitiveActionController(
                 decisionEngine = FailSafeDecisionEngine(
-                    triggerEvaluator = DefaultTriggerEvaluator(),
+                    triggerEvaluator = DefaultTriggerEvaluator(registry),
                     stateRepository = stateRepository,
                     approvalAuthority = approvalAuthority,
                     logger = logger,
                 ),
                 actionExecutor = ActionExecutor(
-                    actions = setOf(SafeMockWipeAction(logger)),
+                    registry = registry,
                     approvalAuthority = approvalAuthority,
                     logger = logger,
                 ),
@@ -68,9 +73,10 @@ class SensitiveActionController internal constructor(
                 MonotonicTimeSource { System.nanoTime() / 1_000_000L },
         ): SensitiveActionController {
             val approvalAuthority = ApprovalAuthority()
+            val registry = SensitiveActionRegistry.controlled(backend)
             return SensitiveActionController(
                 decisionEngine = FailSafeDecisionEngine(
-                    triggerEvaluator = DefaultTriggerEvaluator(),
+                    triggerEvaluator = DefaultTriggerEvaluator(registry),
                     stateRepository = PolicyBackendStateRepository(backend),
                     approvalAuthority = approvalAuthority,
                     logger = logger,
@@ -78,28 +84,7 @@ class SensitiveActionController internal constructor(
                     monotonicTimeSource = monotonicTimeSource,
                 ),
                 actionExecutor = ActionExecutor(
-                    actions = setOf(
-                        ScreenCapturePolicyAction(
-                            type = DeviceActionType.DISABLE_SCREEN_CAPTURE,
-                            disabled = true,
-                            backend = backend,
-                        ),
-                        ScreenCapturePolicyAction(
-                            type = DeviceActionType.ENABLE_SCREEN_CAPTURE,
-                            disabled = false,
-                            backend = backend,
-                        ),
-                        CameraPolicyAction(
-                            type = DeviceActionType.DISABLE_CAMERA,
-                            disabled = true,
-                            backend = backend,
-                        ),
-                        CameraPolicyAction(
-                            type = DeviceActionType.ENABLE_CAMERA,
-                            disabled = false,
-                            backend = backend,
-                        ),
-                    ),
+                    registry = registry,
                     approvalAuthority = approvalAuthority,
                     logger = logger,
                     nowEpochMillis = nowEpochMillis,

@@ -31,11 +31,17 @@ internal class ApprovalAuthority {
         val record = issuedApprovals.remove(approval)
             ?: return ApprovalConsumption.Rejected("approval_not_issued_or_already_consumed")
         if (record.request.expiresAtEpochMillis <= nowEpochMillis) {
-            return ApprovalConsumption.Rejected("request_expired_before_execution")
+            return ApprovalConsumption.Rejected(
+                reason = "request_expired_before_execution",
+                correlationId = record.request.correlationId,
+            )
         }
         val approvalAge = nowMonotonicMillis - record.issuedAtMonotonicMillis
         if (approvalAge < 0L || approvalAge > MAX_APPROVAL_AGE_MILLIS) {
-            return ApprovalConsumption.Rejected("approval_stale")
+            return ApprovalConsumption.Rejected(
+                reason = "approval_stale",
+                correlationId = record.request.correlationId,
+            )
         }
         return ApprovalConsumption.Accepted(record.request)
     }
@@ -53,7 +59,10 @@ internal class ApprovalAuthority {
 internal sealed interface ApprovalConsumption {
     data class Accepted(val request: ActionRequest) : ApprovalConsumption
 
-    data class Rejected(val reason: String) : ApprovalConsumption
+    data class Rejected(
+        val reason: String,
+        val correlationId: String? = null,
+    ) : ApprovalConsumption
 }
 
 internal class Approval private constructor() {
