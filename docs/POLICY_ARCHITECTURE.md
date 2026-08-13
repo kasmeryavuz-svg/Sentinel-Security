@@ -28,6 +28,12 @@ simulation exists only in the separate fail-safe registry. Registries are
 immutable, reject duplicate commands and action types, and expose no runtime
 registration API.
 
+Controlled construction is a device-management-only opt-in composition API.
+App production sources are build-guarded from the backend contract, controlled
+factory, and security clock types. The public factory accepts no caller-supplied
+wall or monotonic clock; tests use a module-internal factory for deterministic
+time.
+
 ## Approval lifecycle
 
 The controller creates an authoritative correlation ID inside the trusted
@@ -68,11 +74,17 @@ The only permitted `DevicePolicyManager` mutators are:
 
 Direct `DevicePolicyManager` access is confined to
 `AndroidDeviceManagementInfrastructure.kt`. Build and unit-test guards reject
-other calls or imports outside that boundary.
+references from every Android production source set outside that exact boundary,
+including fully-qualified references. The boundary allowlist derives the typed
+DevicePolicyManager receiver name instead of assuming a variable name.
 
 DeviceAdmin metadata declares exactly `disable-camera`. Screen-capture control
 does not require a `uses-policies` declaration. Metadata tests reject every
 other capability, including `wipe-data`, `reset-password`, and `force-lock`.
+In addition to the source XML test, build verification checks the merged debug
+and release application manifests and decodes each variant's linked resource.
+An app or variant resource override therefore must still resolve to exactly the
+approved metadata.
 
 ## Adding a future capability safely
 
@@ -91,3 +103,6 @@ all of the following explicit source changes:
 
 If any registry, exhaustive dispatch, verification pair, DPM allowlist, or
 metadata allowlist is incomplete, tests or the build must fail closed.
+The verified-mutation completeness test reflects the sealed variant set and
+behaviorally exercises final validation, setter, getter, successful equality,
+and mismatch failure for every variant.

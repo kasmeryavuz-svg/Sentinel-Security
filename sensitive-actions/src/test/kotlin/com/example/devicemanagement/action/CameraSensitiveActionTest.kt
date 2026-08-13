@@ -1,3 +1,5 @@
+@file:OptIn(com.example.devicemanagement.integration.SensitiveActionCompositionApi::class)
+
 package com.example.devicemanagement.action
 
 import com.example.devicemanagement.integration.MonotonicTimeSource
@@ -128,7 +130,7 @@ class CameraSensitiveActionTest {
     }
 
     private fun controller(backend: SensitiveActionPolicyBackend) =
-        SensitiveActionController.createControlled(
+        SensitiveActionController.createControlledInternal(
             backend = backend,
             logger = logger,
             nowEpochMillis = { 1_000L },

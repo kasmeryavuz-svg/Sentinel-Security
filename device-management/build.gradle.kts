@@ -35,6 +35,7 @@ kotlin {
 dependencies {
     implementation(project(":sensitive-actions"))
     testImplementation("junit:junit:4.13.2")
+    testImplementation(kotlin("reflect"))
 }
 
 val destructivePolicyOperations = listOf(
@@ -127,9 +128,23 @@ val checkNoDestructiveDevicePolicyApis by tasks.registering {
             it.name == "VerifiedPolicyMutation.kt"
         }
         val nonQueryCalls = boundarySource?.let { source ->
-            Regex("""\bmanager\s*\.\s*([A-Za-z][A-Za-z0-9_]*)\s*\(""")
-                .findAll(source.readText())
+            val sourceText = source.readText()
+            val dpmReceivers = Regex(
+                """\b(?:val|var)\s+([A-Za-z][A-Za-z0-9_]*)\s*:\s*DevicePolicyManager\b""",
+            ).findAll(sourceText)
                 .map { it.groupValues[1] }
+                .toSet()
+            check(dpmReceivers.isNotEmpty()) {
+                "Authorized boundary must declare a typed DevicePolicyManager receiver"
+            }
+            dpmReceivers.asSequence()
+                .flatMap { receiver ->
+                    Regex(
+                        """\b${Regex.escape(receiver)}\s*\.\s*""" +
+                            """([A-Za-z][A-Za-z0-9_]*)\s*\(""",
+                    ).findAll(sourceText)
+                        .map { it.groupValues[1] }
+                }
                 .filterNot { call ->
                     call in allowedPolicyQueries || call in allowedPolicyMutators
                 }

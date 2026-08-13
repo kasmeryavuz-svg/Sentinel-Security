@@ -4,7 +4,9 @@ package com.example.devicemanagement.management
  * Closed allowlist of real policy mutations.
  *
  * Adding a capability requires a new explicit variant and an exhaustive dispatch
- * branch containing both its typed setter and matching typed read-back.
+ * branch containing both its typed setter and matching typed read-back. The sealed
+ * variant set is reflected by VerifiedPolicyMutationTest, whose exhaustive expected
+ * sequence requires final validation, setter, getter, and mismatch behavior.
  */
 internal sealed interface VerifiedPolicyMutation {
     data class ScreenCapture(val disabled: Boolean) : VerifiedPolicyMutation

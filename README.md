@@ -47,7 +47,9 @@ provisioning intents, and validates an already-provisioned Device Owner using
 read-only package, receiver, ownership, and active-admin checks. Its build
 fails if a non-allowlisted policy operation appears in production source. The
 only mutators are screen-capture and camera disable toggles, each followed by
-an immediate read-back using the expected admin component.
+an immediate read-back using the expected admin component. Repository-wide DPM
+boundary checks and merged debug/release DeviceAdmin metadata checks prevent app
+or variant overrides from widening those allowlists.
 See `docs/DEVICE_OWNER_TEST_DEVICE.md` for the development-only disposable
 test-device workflow and `docs/POLICY_ARCHITECTURE.md` for trust boundaries,
 approval lifecycle, mutation verification, and the safe capability checklist.

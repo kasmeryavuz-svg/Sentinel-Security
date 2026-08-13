@@ -6,6 +6,7 @@ package com.example.devicemanagement.integration
  * Application and UI code must receive only the configured
  * SensitiveActionController, never the real backend implementation.
  */
+@SensitiveActionCompositionApi
 interface SensitiveActionPolicyBackend {
     fun currentAuthorization(): SensitiveActionAuthorization
 
@@ -41,6 +42,6 @@ sealed interface PolicyMutationResult {
     data class Failed(val reason: String) : PolicyMutationResult
 }
 
-fun interface MonotonicTimeSource {
+internal fun interface MonotonicTimeSource {
     fun nowMillis(): Long
 }

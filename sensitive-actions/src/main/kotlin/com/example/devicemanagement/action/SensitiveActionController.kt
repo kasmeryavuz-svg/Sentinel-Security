@@ -4,6 +4,7 @@ import com.example.devicemanagement.decision.ActionDecision
 import com.example.devicemanagement.decision.DecisionEngine
 import com.example.devicemanagement.decision.FailSafeDecisionEngine
 import com.example.devicemanagement.integration.MonotonicTimeSource
+import com.example.devicemanagement.integration.SensitiveActionCompositionApi
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.InMemoryStateRepository
@@ -65,7 +66,16 @@ class SensitiveActionController internal constructor(
             )
         }
 
+        @SensitiveActionCompositionApi
         fun createControlled(
+            backend: SensitiveActionPolicyBackend,
+            logger: StructuredLogger,
+        ): SensitiveActionController {
+            return createControlledInternal(backend = backend, logger = logger)
+        }
+
+        @OptIn(SensitiveActionCompositionApi::class)
+        internal fun createControlledInternal(
             backend: SensitiveActionPolicyBackend,
             logger: StructuredLogger,
             nowEpochMillis: () -> Long = System::currentTimeMillis,

@@ -200,10 +200,24 @@ class DestructivePolicyApiGuardTest {
         assertFalse(verifiedMutationSource.contains("java.lang.reflect"))
         assertFalse(verifiedMutationSource.contains("Function<"))
         assertFalse(verifiedMutationSource.contains("Map<String, Any"))
-        val nonQueryCalls = Regex(
-            """\bmanager\s*\.\s*([A-Za-z][A-Za-z0-9_]*)\s*\(""",
-        ).findAll(boundarySource.readText())
+        val boundaryText = boundarySource.readText()
+        val dpmReceivers = Regex(
+            """\b(?:val|var)\s+([A-Za-z][A-Za-z0-9_]*)\s*:\s*DevicePolicyManager\b""",
+        ).findAll(boundaryText)
             .map { it.groupValues[1] }
+            .toSet()
+        assertTrue(
+            "Authorized boundary must declare a typed DevicePolicyManager receiver",
+            dpmReceivers.isNotEmpty(),
+        )
+        val nonQueryCalls = dpmReceivers.asSequence()
+            .flatMap { receiver ->
+                Regex(
+                    """\b${Regex.escape(receiver)}\s*\.\s*""" +
+                        """([A-Za-z][A-Za-z0-9_]*)\s*\(""",
+                ).findAll(boundaryText)
+                    .map { it.groupValues[1] }
+            }
             .filterNot { it in allowedQueries || it in allowedMutators }
             .map { "non-allowlisted DevicePolicyManager call: $it" }
             .toList()

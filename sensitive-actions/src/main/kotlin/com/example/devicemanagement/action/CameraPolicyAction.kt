@@ -1,3 +1,5 @@
+@file:OptIn(com.example.devicemanagement.integration.SensitiveActionCompositionApi::class)
+
 package com.example.devicemanagement.action
 
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend

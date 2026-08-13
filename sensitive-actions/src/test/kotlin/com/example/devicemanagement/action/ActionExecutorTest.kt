@@ -251,6 +251,21 @@ class ActionExecutorTest {
         )
     }
 
+    @Test
+    fun `public controlled composition accepts no caller supplied security clock`() {
+        val controlledFactory = SensitiveActionController.Companion::class.java
+            .declaredMethods
+            .single { it.name == "createControlled" }
+
+        assertFalse(
+            controlledFactory.parameterTypes.any {
+                it.name.contains("Function0") ||
+                    it.name.contains("MonotonicTimeSource")
+            },
+        )
+        assertEquals(2, controlledFactory.parameterCount)
+    }
+
     private fun enabledController(action: DeviceAction): SensitiveActionController {
         val authority = ApprovalAuthority()
         val registry = registry(setOf(action))

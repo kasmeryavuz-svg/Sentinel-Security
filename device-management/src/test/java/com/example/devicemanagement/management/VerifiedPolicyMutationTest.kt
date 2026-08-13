@@ -97,15 +97,73 @@ class VerifiedPolicyMutationTest {
         assertEquals(listOf("camera-service", "validate"), operations)
     }
 
+    @Test
+    fun `every sealed mutation variant has complete ordered behavioral verification`() {
+        val variants = listOf<VerifiedPolicyMutation>(
+            VerifiedPolicyMutation.ScreenCapture(disabled = true),
+            VerifiedPolicyMutation.Camera(disabled = true),
+        )
+        assertEquals(
+            VerifiedPolicyMutation::class.sealedSubclasses.toSet(),
+            variants.map { it::class }.toSet(),
+        )
+
+        variants.forEach { mutation ->
+            val successOperations = mutableListOf<String>()
+            val success = executor(
+                operations = successOperations,
+                validationProvider = validationProvider(successOperations),
+            ).execute(mutation, CORRELATION_ID)
+
+            assertEquals(PolicyMutation.Applied(true, true), success)
+            assertEquals(expectedOperations(mutation), successOperations)
+
+            val mismatchOperations = mutableListOf<String>()
+            val mismatchPlatform = when (mutation) {
+                is VerifiedPolicyMutation.ScreenCapture -> RecordingPlatform(
+                    operations = mismatchOperations,
+                    ignoreScreenWrites = true,
+                )
+                is VerifiedPolicyMutation.Camera -> RecordingPlatform(
+                    operations = mismatchOperations,
+                    ignoreCameraWrites = true,
+                )
+            }
+            val mismatch = executor(
+                operations = mismatchOperations,
+                validationProvider = validationProvider(mismatchOperations),
+                platform = mismatchPlatform,
+            ).execute(mutation, CORRELATION_ID)
+
+            assertEquals(
+                PolicyMutation.Failed("post_write_read_back_mismatch"),
+                mismatch,
+            )
+            assertEquals(expectedOperations(mutation), mismatchOperations)
+        }
+    }
+
     private fun executor(
         operations: MutableList<String>,
         validationProvider: DeviceOwnerValidationProvider,
+        platform: DevicePolicyPlatform = RecordingPlatform(operations),
     ): VerifiedPolicyMutationExecutor {
         return VerifiedPolicyMutationExecutor(
             deviceOwnerValidationProvider = validationProvider,
-            platform = RecordingPlatform(operations),
+            platform = platform,
             logger = logger,
         )
+    }
+
+    private fun expectedOperations(
+        mutation: VerifiedPolicyMutation,
+    ): List<String> {
+        return when (mutation) {
+            is VerifiedPolicyMutation.ScreenCapture ->
+                listOf("screen-service", "validate", "screen-set:true", "screen-get")
+            is VerifiedPolicyMutation.Camera ->
+                listOf("camera-service", "validate", "camera-set:true", "camera-get")
+        }
     }
 
     private fun validationProvider(
@@ -119,6 +177,8 @@ class VerifiedPolicyMutationTest {
 
     private class RecordingPlatform(
         private val operations: MutableList<String>,
+        private val ignoreScreenWrites: Boolean = false,
+        private val ignoreCameraWrites: Boolean = false,
     ) : DevicePolicyPlatform {
         private var screenDisabled = false
         private var cameraDisabled = false
@@ -135,7 +195,9 @@ class VerifiedPolicyMutationTest {
 
                 override fun setScreenCaptureDisabled(disabled: Boolean) {
                     operations += "screen-set:$disabled"
-                    screenDisabled = disabled
+                    if (!ignoreScreenWrites) {
+                        screenDisabled = disabled
+                    }
                 }
             }
         }
@@ -150,7 +212,9 @@ class VerifiedPolicyMutationTest {
 
                 override fun setCameraDisabled(disabled: Boolean) {
                     operations += "camera-set:$disabled"
-                    cameraDisabled = disabled
+                    if (!ignoreCameraWrites) {
+                        cameraDisabled = disabled
+                    }
                 }
             }
         }
