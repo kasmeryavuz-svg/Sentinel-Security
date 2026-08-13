@@ -6,6 +6,7 @@ import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.management.DeviceManagementDiagnostics
 import com.example.devicemanagement.management.DeviceManagementLogger
 import com.example.devicemanagement.management.DeviceManagementStatusProvider
+import com.example.devicemanagement.management.DeviceOwnerValidationProvider
 import com.example.devicemanagement.management.ProvisioningReadinessProvider
 
 class AppContainer(
@@ -21,6 +22,12 @@ class AppContainer(
 
     val provisioningReadiness: ProvisioningReadinessProvider =
         DeviceManagementDiagnostics.createProvisioningReadiness(
+            context,
+            deviceManagementLogger,
+        )
+
+    val deviceOwnerValidation: DeviceOwnerValidationProvider =
+        DeviceManagementDiagnostics.createDeviceOwnerValidation(
             context,
             deviceManagementLogger,
         )

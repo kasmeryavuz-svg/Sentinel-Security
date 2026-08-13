@@ -9,6 +9,7 @@ class DestructivePolicyApiGuardTest {
     @Test
     fun `DevicePolicyManager wrapper exposes query operations only`() {
         val exposedOperations = DevicePolicyReadService::class.java.declaredMethods
+            .filterNot { it.isSynthetic }
             .map { it.name }
             .toSet()
 
@@ -19,6 +20,7 @@ class DestructivePolicyApiGuardTest {
                 "isExpectedAdminActive",
                 "isDeviceOwnerProvisioningAllowed",
                 "isProfileOwnerProvisioningAllowed",
+                "activeAdminComponentNames",
             ),
             exposedOperations,
         )
@@ -41,7 +43,27 @@ class DestructivePolicyApiGuardTest {
             "logoutUser",
             "lockNow",
             "setLockTaskPackages",
+            "setLockTaskFeatures",
             "setFactoryResetProtectionPolicy",
+            "installPackage",
+            "installExistingPackage",
+            "uninstallPackage",
+            "setApplicationHidden",
+            "setPackagesSuspended",
+            "setUninstallBlocked",
+            "setAccountManagementDisabled",
+            "setAlwaysOnVpnPackage",
+            "setRecommendedGlobalProxy",
+            "setNetworkLoggingEnabled",
+            "setSecurityLoggingEnabled",
+            "addUserRestriction",
+            "clearUserRestriction",
+            "setPermissionGrantState",
+            "createAndManageUser",
+            "switchUser",
+            "setProfileEnabled",
+            "transferOwnership",
+            "setDeviceOwner",
         )
         val sourceFiles = sourceDirectory.walkTopDown()
             .filter { it.isFile && it.extension in setOf("kt", "java") }
