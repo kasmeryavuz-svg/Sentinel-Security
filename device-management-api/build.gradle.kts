@@ -15,6 +15,10 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+dependencies {
+    api(project(":sensitive-actions-api"))
+}
+
 sourceSets.configureEach {
     if (!name.contains("test", ignoreCase = true)) {
         val sourceSet = this
@@ -22,7 +26,7 @@ sourceSets.configureEach {
             "check${name.replaceFirstChar { it.uppercaseChar() }}ProductionBytecodePolicy",
         ) {
             group = "verification"
-            description = "Verifies compiled $name sensitive-action API classes."
+            description = "Verifies compiled $name device-management API classes."
             artifactPath.set(project.path)
             additionalClassFiles.from(sourceSet.output.classesDirs)
             productionFiles.from(fileTree("src/${sourceSet.name}"))

@@ -49,7 +49,7 @@ internal class ActionExecutor(
                     "action" to request.type.name,
                     "correlation_id" to request.correlationId,
                     "caller_request_id" to request.callerRequestId,
-                    "result" to result::class.simpleName,
+                    "result" to result.javaClass.simpleName,
                 ),
             )
             result
@@ -64,7 +64,7 @@ internal class ActionExecutor(
                 throwable = error,
             )
             ActionResult.Failed(
-                reason = error::class.simpleName ?: "unknown_error",
+                reason = error.javaClass.simpleName.ifEmpty { "unknown_error" },
                 correlationId = request.correlationId,
             )
         }

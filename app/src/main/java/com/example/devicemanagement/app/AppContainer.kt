@@ -4,9 +4,7 @@ import android.content.Context
 import com.example.devicemanagement.action.SensitiveActionController
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.management.CameraPolicyStatusProvider
-import com.example.devicemanagement.management.DeviceManagementLogger
-import com.example.devicemanagement.management.DeviceManagementDiagnostics
-import com.example.devicemanagement.management.DeviceManagementSensitiveActions
+import com.example.devicemanagement.management.DeviceManagement
 import com.example.devicemanagement.management.DeviceManagementStatusProvider
 import com.example.devicemanagement.management.DeviceOwnerValidationProvider
 import com.example.devicemanagement.management.ProvisioningReadinessProvider
@@ -14,40 +12,27 @@ import com.example.devicemanagement.management.ScreenCapturePolicyStatusProvider
 
 class AppContainer(
     context: Context,
-    sensitiveActionLogger: StructuredLogger,
-    deviceManagementLogger: DeviceManagementLogger,
+    logger: StructuredLogger,
 ) {
-    val sensitiveActions: SensitiveActionController =
-        DeviceManagementSensitiveActions.create(
+    private val services =
+        DeviceManagement.create(
             context = context,
-            sensitiveActionLogger = sensitiveActionLogger,
-            deviceManagementLogger = deviceManagementLogger,
+            logger = logger,
         )
+
+    val sensitiveActions: SensitiveActionController = services.sensitiveActions
 
     val deviceManagementStatus: DeviceManagementStatusProvider =
-        DeviceManagementDiagnostics.create(context, deviceManagementLogger)
+        services.deviceManagementStatus
 
     val provisioningReadiness: ProvisioningReadinessProvider =
-        DeviceManagementDiagnostics.createProvisioningReadiness(
-            context,
-            deviceManagementLogger,
-        )
+        services.provisioningReadiness
 
     val deviceOwnerValidation: DeviceOwnerValidationProvider =
-        DeviceManagementDiagnostics.createDeviceOwnerValidation(
-            context,
-            deviceManagementLogger,
-        )
+        services.deviceOwnerValidation
 
     val screenCapturePolicyStatus: ScreenCapturePolicyStatusProvider =
-        DeviceManagementDiagnostics.createScreenCapturePolicyStatus(
-            context,
-            deviceManagementLogger,
-        )
+        services.screenCapturePolicyStatus
 
-    val cameraPolicyStatus: CameraPolicyStatusProvider =
-        DeviceManagementDiagnostics.createCameraPolicyStatus(
-            context,
-            deviceManagementLogger,
-        )
+    val cameraPolicyStatus: CameraPolicyStatusProvider = services.cameraPolicyStatus
 }

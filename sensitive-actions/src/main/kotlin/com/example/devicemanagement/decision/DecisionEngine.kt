@@ -47,7 +47,7 @@ internal class FailSafeDecisionEngine(
             )
             ActionDecision.Denied(
                 reason = DecisionReason.EVALUATION_ERROR,
-                detail = error::class.simpleName,
+                detail = error.javaClass.simpleName,
             )
         }
     }

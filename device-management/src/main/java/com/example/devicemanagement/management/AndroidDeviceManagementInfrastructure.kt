@@ -188,7 +188,7 @@ internal class AndroidDevicePolicyCameraService(
     }
 }
 
-object DeviceManagementDiagnostics {
+internal object DeviceManagementDiagnostics {
     fun create(
         context: Context,
         logger: DeviceManagementLogger,

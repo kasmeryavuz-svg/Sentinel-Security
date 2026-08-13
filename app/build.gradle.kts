@@ -1,4 +1,6 @@
 import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.artifact.ScopedArtifact
+import com.android.build.api.variant.ScopedArtifacts
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -63,38 +65,22 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
-val checkNoSensitiveActionComposition by tasks.registering {
+val kotlinCompileNegativeCompiler by configurations.creating
+
+dependencies {
+    kotlinCompileNegativeCompiler("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
+}
+
+val checkAppDependencyIsolation by tasks.registering {
     group = "verification"
-    description = "Prevents app source from constructing controlled sensitive actions."
-    val productionSources = fileTree("src") {
-        include("**/*.kt", "**/*.java")
-        exclude("test/**", "androidTest/**", "testFixtures/**")
-    }
-    inputs.files(productionSources)
+    description =
+        "Proves mutation implementations are absent from app compile classpaths and packaged at runtime."
 
     doLast {
-        val forbiddenTokens = setOf(
-            "DeviceManagementSensitiveActionControllerFactory",
-            "SensitiveActionPolicyBackend",
-            "SensitiveActionAuthorization",
-            "PolicyMutationResult",
-            "MonotonicTimeSource",
-            "createControlled",
-            "createControlledInternal",
+        val forbiddenCompileProjects = setOf(
+            ":device-management-impl",
+            ":sensitive-actions",
         )
-        val violations = productionSources.files.flatMap { source ->
-            forbiddenTokens.mapNotNull { token ->
-                if (source.readText().contains(token)) {
-                    "${source.relativeTo(projectDir)}: forbidden composition token $token"
-                } else {
-                    null
-                }
-            }
-        }
-        check(violations.isEmpty()) {
-            "App production source must use DeviceManagementSensitiveActions only:\n" +
-                violations.joinToString("\n")
-        }
         val implementationLeaks = configurations
             .filter {
                 it.isCanBeResolved &&
@@ -102,17 +88,127 @@ val checkNoSensitiveActionComposition by tasks.registering {
             }
             .flatMap { configuration ->
                 configuration.incoming.resolutionResult.allComponents.mapNotNull { component ->
-                    val identifier = component.id as? ProjectComponentIdentifier
-                    if (identifier?.projectPath == ":sensitive-actions") {
-                        "${configuration.name}: ${identifier.projectPath}"
+                    val projectPath =
+                        (component.id as? ProjectComponentIdentifier)?.projectPath
+                    if (projectPath in forbiddenCompileProjects) {
+                        "${configuration.name}: $projectPath"
                     } else {
                         null
                     }
                 }
             }
         check(implementationLeaks.isEmpty()) {
-            "Sensitive-action implementation leaked onto app compile classpath:\n" +
+            "Mutation implementation leaked onto app compile classpath:\n" +
                 implementationLeaks.joinToString("\n")
+        }
+        configurations
+            .filter {
+                it.isCanBeResolved &&
+                    it.name.endsWith("CompileClasspath", ignoreCase = true)
+            }
+            .forEach { configuration ->
+                val visibleProjects = configuration.incoming.resolutionResult.allComponents
+                    .mapNotNull {
+                        (it.id as? ProjectComponentIdentifier)?.projectPath
+                    }
+                    .filterNot { it == project.path }
+                    .toSet()
+                val expectedProjects = setOf(
+                    ":device-management",
+                    ":device-management-api",
+                    ":sensitive-actions-api",
+                )
+                check(visibleProjects == expectedProjects) {
+                    "${configuration.name} has unexpected project API surface; " +
+                        "expected $expectedProjects, found $visibleProjects"
+                }
+            }
+
+        val runtimeProjects = configurations.named("debugRuntimeClasspath").get()
+            .incoming.resolutionResult.allComponents.mapNotNull {
+                (it.id as? ProjectComponentIdentifier)?.projectPath
+            }
+            .toSet()
+        val missingRuntime = forbiddenCompileProjects - runtimeProjects
+        check(missingRuntime.isEmpty()) {
+            "Runtime packaging is missing implementation artifacts: $missingRuntime"
+        }
+    }
+}
+
+val checkAppApiCompileNegative by tasks.registering {
+    group = "verification"
+    description = "Compiles adversarial Java and Kotlin app snippets against the app compile classpath."
+    val javaNegative = fileTree("src/compileNegative/java") { include("**/*.java") }
+    val kotlinNegative = fileTree("src/compileNegative/kotlin") { include("**/*.kt") }
+    val javaPositive = fileTree("src/compilePositive/java") { include("**/*.java") }
+    val appClasspath = configurations.named("debugCompileClasspath")
+    inputs.files(javaNegative, kotlinNegative, javaPositive, appClasspath)
+
+    doLast {
+        val compileClasspath = (
+            appClasspath.get().files + android.bootClasspath
+            ).joinToString(File.pathSeparator) { it.absolutePath }
+        val outputRoot = layout.buildDirectory.dir("compile-negative").get().asFile
+        outputRoot.deleteRecursively()
+        outputRoot.mkdirs()
+        val javac = File(System.getProperty("java.home"), "bin/javac")
+
+        fun compileJava(source: File): Pair<Int, String> {
+            val output = ByteArrayOutputStream()
+            val result = project.exec {
+                commandLine(
+                    javac.absolutePath,
+                    "-proc:none",
+                    "-source",
+                    "17",
+                    "-target",
+                    "17",
+                    "-classpath",
+                    compileClasspath,
+                    "-d",
+                    File(outputRoot, source.nameWithoutExtension).absolutePath,
+                    source.absolutePath,
+                )
+                standardOutput = output
+                errorOutput = output
+                isIgnoreExitValue = true
+            }
+            return result.exitValue to output.toString(Charsets.UTF_8)
+        }
+
+        javaPositive.files.forEach { source ->
+            val (exitCode, output) = compileJava(source)
+            check(exitCode == 0) {
+                "Public facade control failed to compile: ${source.path}\n$output"
+            }
+        }
+        javaNegative.files.forEach { source ->
+            val (exitCode, output) = compileJava(source)
+            check(exitCode != 0) {
+                "Forbidden Java app composition unexpectedly compiled: ${source.path}\n$output"
+            }
+        }
+        kotlinNegative.files.forEach { source ->
+            val output = ByteArrayOutputStream()
+            val result = project.javaexec {
+                classpath = kotlinCompileNegativeCompiler
+                mainClass.set("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
+                args(
+                    "-classpath",
+                    compileClasspath,
+                    "-d",
+                    File(outputRoot, source.nameWithoutExtension).absolutePath,
+                    source.absolutePath,
+                )
+                standardOutput = output
+                errorOutput = output
+                isIgnoreExitValue = true
+            }
+            check(result.exitValue != 0) {
+                "Forbidden Kotlin app composition unexpectedly compiled: ${source.path}\n" +
+                    output.toString(Charsets.UTF_8)
+            }
         }
     }
 }
@@ -132,6 +228,31 @@ androidComponents {
     onVariants(selector().all()) { variant ->
         val variantName = variant.name
         val capitalized = variantName.replaceFirstChar { it.uppercaseChar() }
+        val policyGuard = tasks.register<ProductionBytecodePolicyTask>(
+            "check${capitalized}ProductionBytecodePolicy",
+        ) {
+            group = "verification"
+            description =
+                "Verifies compiled $variantName app classes against production policy boundaries."
+            artifactPath.set(project.path)
+            mergedNativeLibraries.set(
+                variant.artifacts.get(SingleArtifact.MERGED_NATIVE_LIBS),
+            )
+            productionFiles.from(fileTree("src") {
+                exclude("test/**", "androidTest/**", "testFixtures/**")
+            })
+        }
+        variant.artifacts
+            .forScope(ScopedArtifacts.Scope.PROJECT)
+            .use(policyGuard)
+            .toGet(
+                ScopedArtifact.CLASSES,
+                ProductionBytecodePolicyTask::classJars,
+                ProductionBytecodePolicyTask::classDirectories,
+            )
+        rootProject.tasks.named("checkProductionBytecodePolicy").configure {
+            dependsOn(policyGuard)
+        }
         val mergedManifestArtifact =
             variant.artifacts.get(SingleArtifact.MERGED_MANIFEST)
         val guardTask = tasks.register(
@@ -161,6 +282,28 @@ androidComponents {
                     "Merged $variantName manifest is unavailable at $mergedManifest"
                 }
                 val manifest = secureDocument(mergedManifest)
+                val deviceAdminReceivers = manifest.getElementsByTagName("receiver")
+                    .elements()
+                    .filter { candidate ->
+                        candidate.getAttributeNS(androidNamespace, "permission") ==
+                            "android.permission.BIND_DEVICE_ADMIN" ||
+                            candidate.getElementsByTagName("meta-data")
+                                .elements()
+                                .any {
+                                    it.getAttributeNS(androidNamespace, "name") ==
+                                        "android.app.device_admin"
+                                } ||
+                            candidate.getElementsByTagName("action")
+                                .elements()
+                                .any {
+                                    it.getAttributeNS(androidNamespace, "name") ==
+                                        "android.app.action.DEVICE_ADMIN_ENABLED"
+                                }
+                    }
+                check(deviceAdminReceivers.size == 1) {
+                    "Effective $variantName manifest must contain exactly one " +
+                        "DeviceAdmin receiver; found ${deviceAdminReceivers.size}"
+                }
                 val metadataElements = manifest.getElementsByTagName("meta-data")
                     .elements()
                     .filter {
@@ -183,6 +326,32 @@ androidComponents {
                 ) {
                     "Effective $variantName DeviceAdmin metadata resolved to " +
                         "an unexpected receiver"
+                }
+                check(receiver == deviceAdminReceivers.single()) {
+                    "Effective $variantName DeviceAdmin metadata belongs to an " +
+                        "unapproved receiver"
+                }
+                check(
+                    receiver.getAttributeNS(androidNamespace, "permission") ==
+                        "android.permission.BIND_DEVICE_ADMIN",
+                ) {
+                    "Effective $variantName DeviceAdmin receiver permission changed"
+                }
+                check(
+                    receiver.getAttributeNS(androidNamespace, "exported") == "true" &&
+                        receiver.getAttributeNS(androidNamespace, "enabled") != "false",
+                ) {
+                    "Effective $variantName DeviceAdmin receiver is disabled or not exported"
+                }
+                val enableActions = receiver.getElementsByTagName("action")
+                    .elements()
+                    .map { it.getAttributeNS(androidNamespace, "name") }
+                check(
+                    enableActions ==
+                        listOf("android.app.action.DEVICE_ADMIN_ENABLED"),
+                ) {
+                    "Effective $variantName DeviceAdmin receiver actions changed: " +
+                        enableActions
                 }
                 check(
                     metadata.getAttributeNS(androidNamespace, "resource") ==
@@ -259,15 +428,16 @@ androidComponents {
         tasks.matching {
             it.name == "assemble$capitalized" ||
                 it.name == "test${capitalized}UnitTest" ||
+                it.name == "check$capitalized" ||
                 it.name == "check"
         }.configureEach {
-            dependsOn(guardTask)
+            dependsOn(guardTask, policyGuard)
         }
     }
 }
 
 tasks.withType<Test>().configureEach {
-    dependsOn(checkNoSensitiveActionComposition)
+    dependsOn(checkAppDependencyIsolation, checkAppApiCompileNegative)
     systemProperty(
         "appSourceDir",
         layout.projectDirectory.dir("src").asFile.absolutePath,
@@ -275,9 +445,9 @@ tasks.withType<Test>().configureEach {
 }
 
 tasks.matching { it.name == "check" }.configureEach {
-    dependsOn(checkNoSensitiveActionComposition)
+    dependsOn(checkAppDependencyIsolation, checkAppApiCompileNegative)
 }
 
 tasks.matching { it.name == "preBuild" }.configureEach {
-    dependsOn(checkNoSensitiveActionComposition)
+    dependsOn(checkAppDependencyIsolation, checkAppApiCompileNegative)
 }

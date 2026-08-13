@@ -103,7 +103,8 @@ internal class DefaultDeviceOwnerValidationProvider(
             )
             CheckResult(value = value, success = true)
         } catch (error: Throwable) {
-            errors += "$capability check failed: ${error::class.simpleName ?: "error"}"
+            errors +=
+                "$capability check failed: ${error.javaClass.simpleName.ifEmpty { "error" }}"
             logger.error(
                 event = "device_owner_validation_check",
                 fields = mapOf(

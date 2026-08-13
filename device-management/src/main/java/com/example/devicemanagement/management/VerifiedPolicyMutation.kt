@@ -84,7 +84,7 @@ internal class VerifiedPolicyMutationExecutor(
         } catch (error: Throwable) {
             fail(
                 "screen_capture",
-                "unexpected_exception:${error::class.simpleName ?: "unknown"}",
+                "unexpected_exception:${error.javaClass.simpleName.ifEmpty { "unknown" }}",
                 correlationId,
                 error,
             )
@@ -125,7 +125,7 @@ internal class VerifiedPolicyMutationExecutor(
         } catch (error: Throwable) {
             fail(
                 "camera",
-                "unexpected_exception:${error::class.simpleName ?: "unknown"}",
+                "unexpected_exception:${error.javaClass.simpleName.ifEmpty { "unknown" }}",
                 correlationId,
                 error,
             )

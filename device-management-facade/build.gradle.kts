@@ -1,7 +1,6 @@
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.artifact.ScopedArtifact
 import com.android.build.api.variant.ScopedArtifacts
-import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -10,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.devicemanagement.management"
+    namespace = "com.example.devicemanagement.facade"
     compileSdk = 36
 
     defaultConfig {
@@ -21,12 +20,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    testOptions {
-        unitTests.all {
-            it.useJUnit()
-        }
-    }
 }
 
 kotlin {
@@ -36,10 +29,8 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":device-management-api"))
-    implementation(project(":sensitive-actions"))
-    testImplementation("junit:junit:4.13.2")
-    testImplementation(kotlin("reflect"))
+    api(project(":device-management-api"))
+    implementation(project(":device-management-impl"))
 }
 
 androidComponents {
@@ -50,7 +41,7 @@ androidComponents {
         ) {
             group = "verification"
             description =
-                "Verifies compiled ${variant.name} implementation classes against policy boundaries."
+                "Verifies compiled ${variant.name} facade classes against policy boundaries."
             artifactPath.set(project.path)
             mergedNativeLibraries.set(
                 variant.artifacts.get(SingleArtifact.MERGED_NATIVE_LIBS),
@@ -79,18 +70,4 @@ androidComponents {
             dependsOn(policyGuard)
         }
     }
-}
-
-tasks.withType<Test>().configureEach {
-    systemProperty(
-        "deviceManagementSourceDir",
-        layout.projectDirectory.dir("src/main").asFile.absolutePath,
-    )
-    systemProperty(
-        "deviceAdminMetadataFile",
-        layout.projectDirectory
-            .file("src/main/res/xml/device_admin_receiver.xml")
-            .asFile
-            .absolutePath,
-    )
 }

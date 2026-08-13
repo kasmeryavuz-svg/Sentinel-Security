@@ -1,20 +1,5 @@
 package com.example.devicemanagement.management
 
-enum class CameraPolicyState {
-    DISABLED,
-    ENABLED,
-    UNAVAILABLE,
-}
-
-data class CameraPolicyStatus(
-    val state: CameraPolicyState,
-    val reasons: List<String>,
-)
-
-fun interface CameraPolicyStatusProvider {
-    fun currentStatus(): CameraPolicyStatus
-}
-
 internal class DefaultCameraPolicyStatusProvider(
     private val deviceOwnerValidationProvider: DeviceOwnerValidationProvider,
     private val platform: DevicePolicyPlatform,
@@ -51,7 +36,7 @@ internal class DefaultCameraPolicyStatusProvider(
             unavailable(
                 listOf(
                     "Camera policy status unavailable: " +
-                        (error::class.simpleName ?: "unexpected error"),
+                        (error.javaClass.simpleName.ifEmpty { "unexpected error" }),
                 ),
             )
         }

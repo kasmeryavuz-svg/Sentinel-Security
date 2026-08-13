@@ -8,8 +8,50 @@ import com.example.devicemanagement.integration.SensitiveActionAuthorization
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
 import com.example.devicemanagement.logging.StructuredLogger
 
-object DeviceManagementSensitiveActions {
+internal object DeviceManagementComposition {
     fun create(
+        context: Context,
+        logger: StructuredLogger,
+    ): DeviceManagementServices {
+        val deviceManagementLogger = StructuredDeviceManagementLogger(logger)
+        val sensitiveActions = createSensitiveActions(
+                context = context,
+                sensitiveActionLogger = logger,
+                deviceManagementLogger = deviceManagementLogger,
+            )
+        val deviceManagementStatus =
+            DeviceManagementDiagnostics.create(context, deviceManagementLogger)
+        val provisioningReadiness =
+            DeviceManagementDiagnostics.createProvisioningReadiness(
+                context,
+                deviceManagementLogger,
+            )
+        val deviceOwnerValidation =
+            DeviceManagementDiagnostics.createDeviceOwnerValidation(
+                context,
+                deviceManagementLogger,
+            )
+        val screenCapturePolicyStatus =
+            DeviceManagementDiagnostics.createScreenCapturePolicyStatus(
+                context,
+                deviceManagementLogger,
+            )
+        val cameraPolicyStatus =
+            DeviceManagementDiagnostics.createCameraPolicyStatus(
+                context,
+                deviceManagementLogger,
+            )
+        return object : DeviceManagementServices {
+            override val sensitiveActions = sensitiveActions
+            override val deviceManagementStatus = deviceManagementStatus
+            override val provisioningReadiness = provisioningReadiness
+            override val deviceOwnerValidation = deviceOwnerValidation
+            override val screenCapturePolicyStatus = screenCapturePolicyStatus
+            override val cameraPolicyStatus = cameraPolicyStatus
+        }
+    }
+
+    private fun createSensitiveActions(
         context: Context,
         sensitiveActionLogger: StructuredLogger,
         deviceManagementLogger: DeviceManagementLogger,

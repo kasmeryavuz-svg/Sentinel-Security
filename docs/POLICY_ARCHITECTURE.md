@@ -28,13 +28,15 @@ simulation exists only in the separate fail-safe registry. Registries are
 immutable, reject duplicate commands and action types, and expose no runtime
 registration API.
 
-The app compiles only against the submit-only `sensitive-actions-api` module.
-Controlled construction and the backend contract live in the separate
-`sensitive-actions` implementation module, which is an implementation-only
-dependency of device-management and is rejected from the app compile classpath.
-Device-management owns the production factory and returns an already-composed
-controller. Tests inside the implementation module use internal factories for
-deterministic time.
+The app has one direct project dependency: the `device-management` facade.
+That facade exposes contracts from `device-management-api` and
+`sensitive-actions-api`, while depending on `device-management-impl` with
+Gradle `implementation`. The implementation artifact in turn owns the Android
+policy infrastructure and has an implementation-only dependency on
+`sensitive-actions`. Neither implementation artifact is present on any app
+compile classpath; both remain on the runtime classpath for Android packaging.
+The facade returns an already-composed `DeviceManagementServices` interface.
+Its only mutation surface is the submit-only `SensitiveActionController`.
 
 ## Approval lifecycle
 
@@ -74,22 +76,29 @@ The only permitted `DevicePolicyManager` mutators are:
   `getScreenCaptureDisabled(expectedAdmin)`;
 - `setCameraDisabled`, verified by `getCameraDisabled(expectedAdmin)`.
 
-Direct `DevicePolicyManager` access is confined to
-`AndroidDeviceManagementInfrastructure.kt`. Build and unit-test guards reject
-references from every Android production source set outside that exact boundary,
-including fully-qualified references, and reject reflection, method handles, and
-dynamic class loading in production. Compiled class-file verification resolves
-actual DevicePolicyManager method owners, so aliases and inferred receiver names
-cannot evade the exact method allowlist.
+Direct `DevicePolicyManager` access is confined to four explicitly named classes
+compiled from `AndroidDeviceManagementInfrastructure.kt` in
+`device-management-impl`. An Android Components guard consumes the final project
+class artifacts for every discovered production variant. JVM production source
+sets are also registered dynamically, and a repository coverage task fails when
+a production module has no compiled-output guard. ASM verification resolves
+actual class, method, field, descriptor, and method-handle owners; source names,
+imports, aliases, filenames, and token spelling are irrelevant.
+
+The same compiled-output gate rejects Java/Kotlin reflection, method handles,
+`invokedynamic`, class loaders, runtime compilation, process execution, native
+load calls, and native/JNI methods. Android variants also inspect merged native
+libraries, while production source inputs reject native code and libraries.
 
 DeviceAdmin metadata declares exactly `disable-camera`. Screen-capture control
 does not require a `uses-policies` declaration. Metadata tests reject every
 other capability, including `wipe-data`, `reset-password`, and `force-lock`.
 In addition to the source XML test, Android Components registers verification
 for every application variant. Each variant's assemble, unit-test, and check
-lifecycle validates the merged manifest and decodes the linked resource. New
-flavors and build types inherit the guard automatically; an app or variant
-override must still resolve to exactly the approved metadata.
+lifecycle validates the merged manifest, requires one exact DeviceAdmin receiver,
+and decodes the linked resource. New flavors and build types inherit the guard
+automatically; alternate receivers and manifest or resource overrides must still
+resolve to exactly the approved metadata.
 
 ## Adding a future capability safely
 

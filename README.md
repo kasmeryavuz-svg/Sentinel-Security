@@ -20,10 +20,10 @@ UI -> SensitiveActionController -> TriggerEvaluator -> DecisionEngine
 ```
 
 Invalid, missing, expired, unavailable, disabled, or exceptional states are
-denied. The Android app can access only `SensitiveActionController.submit`,
-which accepts trigger input. Decisions, approval capabilities, device actions,
-and the executor are internal to the separate `sensitive-actions` implementation
-module. App code compiles only against the submit-only `sensitive-actions-api`.
+denied. The Android app depends only on the `device-management` facade and can
+access only `SensitiveActionController.submit` plus read-only status providers.
+The `device-management-impl` and `sensitive-actions` implementation artifacts are
+absent from every app compile classpath and are packaged only at runtime.
 Approvals are identity-bound, single-use, and accepted only by the executor
 paired with the issuing decision engine. Authoritative correlation IDs are
 created inside the controller; caller request IDs are diagnostic input only.
@@ -35,22 +35,26 @@ created inside the controller; caller request IDs are diagnostic input only.
 - `decision`: centralized, fail-safe sensitive-action decisions.
 - `action`: public trigger-based controller, internal controlled executor, and
   safe mock action.
-- `device-management`: typed, allowlisted device-policy boundary.
+- `device-management`: minimal public Android facade.
+- `device-management-api`: facade contracts and read-only status models.
+- `device-management-impl`: typed, allowlisted Android policy implementation.
 - `persistence`: state storage boundary and in-memory implementation.
 - `logging`: structured logging abstraction and Android implementation.
 - `app`: dependency wiring and application entry point.
 
-The `app` module contains Android UI and dependency wiring. The
-`device-management` module exposes a read-only status model and contains all
-direct `DevicePolicyManager` queries. It also reports Device Owner and Profile
+The `app` module contains Android UI and facade wiring. The
+`device-management-impl` module contains all direct `DevicePolicyManager`
+queries. It also reports Device Owner and Profile
 Owner provisioning readiness without starting provisioning or exposing
 provisioning intents, and validates an already-provisioned Device Owner using
 read-only package, receiver, ownership, and active-admin checks. Its build
-fails if a non-allowlisted policy operation appears in production source. The
+fails if a non-allowlisted policy operation appears in compiled production
+bytecode. The
 only mutators are screen-capture and camera disable toggles, each followed by
 an immediate read-back using the expected admin component. Repository-wide DPM
-boundary checks and merged debug/release DeviceAdmin metadata checks prevent app
-or variant overrides from widening those allowlists.
+boundary checks, dynamic/reflection/native guards, and per-variant effective
+DeviceAdmin metadata checks prevent app or variant overrides from widening those
+allowlists.
 See `docs/DEVICE_OWNER_TEST_DEVICE.md` for the development-only disposable
 test-device workflow and `docs/POLICY_ARCHITECTURE.md` for trust boundaries,
 approval lifecycle, mutation verification, and the safe capability checklist.

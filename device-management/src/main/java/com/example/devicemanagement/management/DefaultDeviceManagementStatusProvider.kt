@@ -81,7 +81,8 @@ internal class DefaultDeviceManagementStatusProvider(
             )
             CheckResult(value = value, success = true)
         } catch (error: Throwable) {
-            val diagnostic = "$capability check failed: ${error::class.simpleName ?: "error"}"
+            val diagnostic =
+                "$capability check failed: ${error.javaClass.simpleName.ifEmpty { "error" }}"
             errors += diagnostic
             logger.error(
                 event = "device_management_capability_check",
