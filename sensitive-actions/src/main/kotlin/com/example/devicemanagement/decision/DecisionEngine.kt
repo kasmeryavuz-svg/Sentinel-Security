@@ -1,6 +1,7 @@
 package com.example.devicemanagement.decision
 
 import com.example.devicemanagement.action.ApprovalAuthority
+import com.example.devicemanagement.integration.MonotonicTimeSource
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.StateRepository
 import com.example.devicemanagement.trigger.Trigger
@@ -17,6 +18,8 @@ internal class FailSafeDecisionEngine(
     private val approvalAuthority: ApprovalAuthority,
     private val logger: StructuredLogger,
     private val nowEpochMillis: () -> Long = System::currentTimeMillis,
+    private val monotonicTimeSource: MonotonicTimeSource =
+        MonotonicTimeSource { System.nanoTime() / 1_000_000L },
 ) : DecisionEngine {
     override fun decide(trigger: Trigger?): ActionDecision {
         return try {
@@ -43,8 +46,23 @@ internal class FailSafeDecisionEngine(
     private fun decideForValidTrigger(evaluation: TriggerEvaluation.Valid): ActionDecision {
         val state = stateRepository.load()
             ?: return deny(DecisionReason.MISSING_STATE)
-        if (!state.serviceAvailable) {
+        if (!state.policyServiceAvailable) {
             return deny(DecisionReason.SERVICE_UNAVAILABLE)
+        }
+        if (!state.managementStateConsistent) {
+            return deny(DecisionReason.INCONSISTENT_MANAGEMENT_STATE)
+        }
+        if (state.profileOwner) {
+            return deny(DecisionReason.PROFILE_OWNER_NOT_ALLOWED)
+        }
+        if (!state.expectedAdminReceiverRegistered) {
+            return deny(DecisionReason.ADMIN_RECEIVER_NOT_REGISTERED)
+        }
+        if (!state.expectedAdminActive) {
+            return deny(DecisionReason.ADMIN_NOT_ACTIVE)
+        }
+        if (!state.verifiedDeviceOwner) {
+            return deny(DecisionReason.DEVICE_OWNER_NOT_VERIFIED)
         }
         if (!state.sensitiveActionsEnabled) {
             return deny(DecisionReason.SENSITIVE_ACTIONS_DISABLED)
@@ -60,7 +78,10 @@ internal class FailSafeDecisionEngine(
             ),
         )
         return ActionDecision.Approved(
-            approval = approvalAuthority.issue(evaluation.request),
+            approval = approvalAuthority.issue(
+                request = evaluation.request,
+                issuedAtMonotonicMillis = monotonicTimeSource.nowMillis(),
+            ),
         )
     }
 

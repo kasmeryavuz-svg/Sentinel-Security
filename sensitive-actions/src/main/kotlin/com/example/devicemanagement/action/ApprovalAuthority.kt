@@ -7,17 +7,53 @@ import java.util.IdentityHashMap
  * request. The executor never trusts request data supplied with a decision.
  */
 internal class ApprovalAuthority {
-    private val issuedApprovals = IdentityHashMap<Approval, ActionRequest>()
+    private val issuedApprovals = IdentityHashMap<Approval, ApprovalRecord>()
 
     @Synchronized
-    fun issue(request: ActionRequest): Approval {
+    fun issue(
+        request: ActionRequest,
+        issuedAtMonotonicMillis: Long,
+    ): Approval {
         return Approval.create().also { approval ->
-            issuedApprovals[approval] = request
+            issuedApprovals[approval] = ApprovalRecord(
+                request = request,
+                issuedAtMonotonicMillis = issuedAtMonotonicMillis,
+            )
         }
     }
 
     @Synchronized
-    fun consume(approval: Approval): ActionRequest? = issuedApprovals.remove(approval)
+    fun consume(
+        approval: Approval,
+        nowEpochMillis: Long,
+        nowMonotonicMillis: Long,
+    ): ApprovalConsumption {
+        val record = issuedApprovals.remove(approval)
+            ?: return ApprovalConsumption.Rejected("approval_not_issued_or_already_consumed")
+        if (record.request.expiresAtEpochMillis <= nowEpochMillis) {
+            return ApprovalConsumption.Rejected("request_expired_before_execution")
+        }
+        val approvalAge = nowMonotonicMillis - record.issuedAtMonotonicMillis
+        if (approvalAge < 0L || approvalAge > MAX_APPROVAL_AGE_MILLIS) {
+            return ApprovalConsumption.Rejected("approval_stale")
+        }
+        return ApprovalConsumption.Accepted(record.request)
+    }
+
+    private data class ApprovalRecord(
+        val request: ActionRequest,
+        val issuedAtMonotonicMillis: Long,
+    )
+
+    private companion object {
+        const val MAX_APPROVAL_AGE_MILLIS = 5_000L
+    }
+}
+
+internal sealed interface ApprovalConsumption {
+    data class Accepted(val request: ActionRequest) : ApprovalConsumption
+
+    data class Rejected(val reason: String) : ApprovalConsumption
 }
 
 internal class Approval private constructor() {

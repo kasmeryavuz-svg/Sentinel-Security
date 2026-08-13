@@ -1,12 +1,16 @@
 package com.example.devicemanagement.action
 
 import com.example.devicemanagement.decision.ActionDecision
+import com.example.devicemanagement.integration.MonotonicTimeSource
 import com.example.devicemanagement.logging.StructuredLogger
 
 internal class ActionExecutor(
     actions: Set<DeviceAction>,
     private val approvalAuthority: ApprovalAuthority,
     private val logger: StructuredLogger,
+    private val nowEpochMillis: () -> Long = System::currentTimeMillis,
+    private val monotonicTimeSource: MonotonicTimeSource =
+        MonotonicTimeSource { System.nanoTime() / 1_000_000L },
 ) {
     private val actionsByType = actions.associateBy(DeviceAction::type)
 
@@ -15,8 +19,16 @@ internal class ActionExecutor(
             return reject("decision_not_approved")
         }
 
-        val request = approvalAuthority.consume(decision.approval)
-            ?: return reject("approval_not_issued_or_already_consumed")
+        val request = when (
+            val consumption = approvalAuthority.consume(
+                approval = decision.approval,
+                nowEpochMillis = nowEpochMillis(),
+                nowMonotonicMillis = monotonicTimeSource.nowMillis(),
+            )
+        ) {
+            is ApprovalConsumption.Accepted -> consumption.request
+            is ApprovalConsumption.Rejected -> return reject(consumption.reason)
+        }
         val action = actionsByType[request.type]
             ?: return reject(
                 reason = "action_not_registered",
@@ -46,7 +58,10 @@ internal class ActionExecutor(
                 ),
                 throwable = error,
             )
-            ActionResult.Failed(error::class.simpleName ?: "unknown_error")
+            ActionResult.Failed(
+                reason = error::class.simpleName ?: "unknown_error",
+                correlationId = request.requestId,
+            )
         }
     }
 

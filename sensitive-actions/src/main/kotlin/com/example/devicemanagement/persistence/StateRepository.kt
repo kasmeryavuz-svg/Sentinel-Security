@@ -1,8 +1,13 @@
 package com.example.devicemanagement.persistence
 
 internal data class ManagementState(
-    val serviceAvailable: Boolean,
+    val policyServiceAvailable: Boolean,
     val sensitiveActionsEnabled: Boolean,
+    val verifiedDeviceOwner: Boolean,
+    val profileOwner: Boolean,
+    val expectedAdminReceiverRegistered: Boolean,
+    val expectedAdminActive: Boolean,
+    val managementStateConsistent: Boolean,
 )
 
 internal fun interface StateRepository {
