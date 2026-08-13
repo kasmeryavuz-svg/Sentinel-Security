@@ -37,6 +37,10 @@ android {
     testOptions {
         unitTests.all {
             it.useJUnit()
+            it.systemProperty(
+                "appMainSourceDir",
+                layout.projectDirectory.dir("src/main").asFile.absolutePath,
+            )
         }
     }
 }
@@ -48,5 +52,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":device-management"))
     implementation(project(":sensitive-actions"))
+    testImplementation("junit:junit:4.13.2")
 }

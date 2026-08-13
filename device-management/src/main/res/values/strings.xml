@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="device_admin_diagnostics_label">Management diagnostics</string>
+    <string name="device_admin_diagnostics_description">Passive component used to report device-management status.</string>
+</resources>

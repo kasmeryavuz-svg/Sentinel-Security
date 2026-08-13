@@ -1,10 +1,11 @@
 package com.example.devicemanagement.logging
 
 import android.util.Log
+import com.example.devicemanagement.management.DeviceManagementLogger
 
 class AndroidStructuredLogger(
     private val tag: String = "DeviceManagement",
-) : StructuredLogger {
+) : StructuredLogger, DeviceManagementLogger {
     override fun info(event: String, fields: Map<String, Any?>) {
         Log.i(tag, format(event, fields))
     }

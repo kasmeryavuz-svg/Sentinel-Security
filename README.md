@@ -4,9 +4,10 @@ Minimal, fail-safe Android device-management skeleton.
 
 ## Safety
 
-This project contains no real wipe, factory-reset, deletion, Device Admin,
-Device Owner provisioning, accessibility, shell, or ADB functionality. The
-only wipe-shaped action is `SafeMockWipeAction`; it logs
+This project contains no real wipe, factory-reset, deletion, Device Owner
+provisioning, accessibility, shell, or ADB functionality. Its passive
+`DeviceAdminReceiver` declares no policies or callbacks and exists only for
+registration diagnostics. The only wipe-shaped action is `SafeMockWipeAction`; it logs
 `WIPE WOULD EXECUTE` and returns a simulated result.
 
 All sensitive-action requests follow one controlled path:
@@ -35,8 +36,12 @@ paired with the issuing decision engine.
 - `logging`: structured logging abstraction and Android implementation.
 - `app`: dependency wiring and application entry point.
 
-The `app` module contains Android UI and platform adapters. The pure Kotlin
-`sensitive-actions` module owns the decision and execution security boundary.
+The `app` module contains Android UI and dependency wiring. The
+`device-management` module exposes a read-only status model and contains all
+direct `DevicePolicyManager` queries. Its build fails if a known destructive
+policy operation appears in production source. The pure Kotlin
+`sensitive-actions` module independently owns the decision and execution
+security boundary.
 
 ## Build
 
