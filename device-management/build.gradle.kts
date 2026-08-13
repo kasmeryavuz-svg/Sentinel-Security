@@ -73,6 +73,7 @@ androidComponents {
         }
         tasks.matching {
             it.name == "assemble$capitalized" ||
+                it.name == "bundle${capitalized}Aar" ||
                 it.name == "test${capitalized}UnitTest" ||
                 it.name == "check$capitalized" ||
                 it.name == "check"

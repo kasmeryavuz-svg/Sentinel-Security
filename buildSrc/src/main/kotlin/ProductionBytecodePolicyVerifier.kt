@@ -17,6 +17,15 @@ internal data class PolicyVerificationTarget(
 internal object ProductionBytecodePolicyVerifier {
     private const val DPM = "android/app/admin/DevicePolicyManager"
 
+    private data class InvocationOrigin(
+        val className: String,
+        val methodName: String,
+        val methodDescriptor: String,
+    )
+
+    private fun origins(vararg origins: InvocationOrigin): Set<InvocationOrigin> =
+        origins.toSet()
+
     private val authorizedDpmCallers = setOf(
         "com/example/devicemanagement/management/AndroidDevicePolicyPlatform",
         "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
@@ -24,16 +33,59 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/management/AndroidDevicePolicyCameraService",
     )
 
-    private val allowedDpmInvocations = setOf(
-        "isDeviceOwnerApp(Ljava/lang/String;)Z",
-        "isProfileOwnerApp(Ljava/lang/String;)Z",
-        "isAdminActive(Landroid/content/ComponentName;)Z",
-        "isProvisioningAllowed(Ljava/lang/String;)Z",
-        "getActiveAdmins()Ljava/util/List;",
-        "getScreenCaptureDisabled(Landroid/content/ComponentName;)Z",
-        "getCameraDisabled(Landroid/content/ComponentName;)Z",
-        "setScreenCaptureDisabled(Landroid/content/ComponentName;Z)V",
-        "setCameraDisabled(Landroid/content/ComponentName;Z)V",
+    private val allowedDpmInvocations = mapOf(
+        "isDeviceOwnerApp(Ljava/lang/String;)Z" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
+            "isDeviceOwnerApp",
+            "()Z",
+        )),
+        "isProfileOwnerApp(Ljava/lang/String;)Z" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
+            "isProfileOwnerApp",
+            "()Z",
+        )),
+        "isAdminActive(Landroid/content/ComponentName;)Z" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
+            "isExpectedAdminActive",
+            "()Z",
+        )),
+        "isProvisioningAllowed(Ljava/lang/String;)Z" to origins(
+            InvocationOrigin(
+                "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
+                "isDeviceOwnerProvisioningAllowed",
+                "()Z",
+            ),
+            InvocationOrigin(
+                "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
+                "isProfileOwnerProvisioningAllowed",
+                "()Z",
+            ),
+        ),
+        "getActiveAdmins()Ljava/util/List;" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
+            "activeAdminComponentNames",
+            "()Ljava/util/Set;",
+        )),
+        "getScreenCaptureDisabled(Landroid/content/ComponentName;)Z" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyScreenCaptureService",
+            "isScreenCaptureDisabled",
+            "()Z",
+        )),
+        "getCameraDisabled(Landroid/content/ComponentName;)Z" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyCameraService",
+            "isCameraDisabled",
+            "()Z",
+        )),
+        "setScreenCaptureDisabled(Landroid/content/ComponentName;Z)V" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyScreenCaptureService",
+            "setScreenCaptureDisabled",
+            "(Z)V",
+        )),
+        "setCameraDisabled(Landroid/content/ComponentName;Z)V" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyCameraService",
+            "setCameraDisabled",
+            "(Z)V",
+        )),
     )
 
     private val forbiddenLoaderOwners = setOf(
@@ -43,6 +95,26 @@ internal object ProductionBytecodePolicyVerifier {
         "dalvik/system/DexClassLoader",
         "dalvik/system/PathClassLoader",
         "dalvik/system/InMemoryDexClassLoader",
+        "dalvik/system/DexFile",
+    )
+
+    private val verifiedMutationOrigins = mapOf(
+        "com/example/devicemanagement/management/DevicePolicyScreenCaptureService." +
+            "setScreenCaptureDisabled(Z)V" to InvocationOrigin(
+                "com/example/devicemanagement/management/VerifiedPolicyMutationExecutor",
+                "executeScreenCapture",
+                "(Lcom/example/devicemanagement/management/VerifiedPolicyMutation" +
+                    "\$ScreenCapture;Ljava/lang/String;)" +
+                    "Lcom/example/devicemanagement/management/PolicyMutation;",
+            ),
+        "com/example/devicemanagement/management/DevicePolicyCameraService." +
+            "setCameraDisabled(Z)V" to InvocationOrigin(
+                "com/example/devicemanagement/management/VerifiedPolicyMutationExecutor",
+                "executeCamera",
+                "(Lcom/example/devicemanagement/management/VerifiedPolicyMutation" +
+                    "\$Camera;Ljava/lang/String;)" +
+                    "Lcom/example/devicemanagement/management/PolicyMutation;",
+            ),
     )
 
     fun verify(targets: Iterable<PolicyVerificationTarget>): List<String> {
@@ -182,6 +254,7 @@ internal object ProductionBytecodePolicyVerifier {
                 isInterface: Boolean,
             ) {
                 checkDpmInvocation(owner, name, descriptor, location)
+                checkVerifiedMutationInvocation(owner, name, descriptor, location)
                 checkForbiddenOwner(owner, name, location)
                 checkDescriptor(descriptor, "$location invocation")
             }
@@ -241,18 +314,49 @@ internal object ProductionBytecodePolicyVerifier {
         ) {
             if (owner != DPM) return
             val invocation = "$name$descriptor"
-            if (
-                target.artifactPath != ":device-management-impl" ||
-                className !in authorizedDpmCallers
-            ) {
+            val actualOrigin = InvocationOrigin(className, methodName(location), methodDescriptor(location))
+            val approvedOrigins = allowedDpmInvocations[invocation].orEmpty()
+            if (target.artifactPath != ":device-management-impl" || actualOrigin !in approvedOrigins) {
                 violation(
                     "$location invokes $DPM.$invocation outside the explicitly " +
-                        "authorized implementation classes",
+                        "authorized implementation method",
                 )
             }
-            if (invocation !in allowedDpmInvocations) {
+            if (invocation !in allowedDpmInvocations.keys) {
                 violation("$location invokes non-allowlisted $DPM.$invocation")
             }
+        }
+
+        private fun checkVerifiedMutationInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            val invocation = "$owner.$name$descriptor"
+            val approvedOrigin = verifiedMutationOrigins[invocation] ?: return
+            val actualOrigin = InvocationOrigin(
+                className,
+                methodName(location),
+                methodDescriptor(location),
+            )
+            if (
+                target.artifactPath != ":device-management-impl" ||
+                actualOrigin != approvedOrigin
+            ) {
+                violation(
+                    "$location invokes narrow policy mutation $invocation outside " +
+                        "VerifiedPolicyMutationExecutor",
+                )
+            }
+        }
+
+        private fun methodName(location: String): String {
+            return location.removePrefix("$className.").substringBefore('(')
+        }
+
+        private fun methodDescriptor(location: String): String {
+            return location.substringAfter("$className.${methodName(location)}")
         }
 
         private fun checkDpmOwner(owner: String, location: String) {
@@ -300,6 +404,8 @@ internal object ProductionBytecodePolicyVerifier {
                 owner == "java/lang/Class" &&
                     name in setOf(
                         "forName",
+                        "newInstance",
+                        "getClassLoader",
                         "getMethod",
                         "getMethods",
                         "getDeclaredMethod",

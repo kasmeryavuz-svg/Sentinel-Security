@@ -2,13 +2,21 @@ import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.artifact.ScopedArtifact
 import com.android.build.api.variant.ScopedArtifacts
 import org.gradle.api.tasks.testing.Test
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.gradle.api.tasks.compile.JavaCompile
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.w3c.dom.Element
 import java.io.ByteArrayOutputStream
+import java.util.jar.JarFile
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
+
+fun String.isVerificationClasspath(): Boolean {
+    return contains("UnitTest") ||
+        contains("AndroidTest") ||
+        contains("TestFixtures")
+}
 
 plugins {
     id("com.android.application")
@@ -67,10 +75,10 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
-val kotlinCompileNegativeCompiler by configurations.creating
+val testKotlinCompileNegativeCompiler by configurations.creating
 
 dependencies {
-    kotlinCompileNegativeCompiler("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
+    testKotlinCompileNegativeCompiler("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.4.10")
 }
 
 val checkAppDependencyIsolation by tasks.registering {
@@ -83,11 +91,13 @@ val checkAppDependencyIsolation by tasks.registering {
             ":device-management-impl",
             ":sensitive-actions",
         )
-        val implementationLeaks = configurations
+        val productionCompileConfigurations = configurations
             .filter {
                 it.isCanBeResolved &&
-                    it.name.endsWith("CompileClasspath", ignoreCase = true)
+                    it.name.endsWith("CompileClasspath", ignoreCase = true) &&
+                    !it.name.isVerificationClasspath()
             }
+        val implementationLeaks = productionCompileConfigurations
             .flatMap { configuration ->
                 configuration.incoming.resolutionResult.allComponents.mapNotNull { component ->
                     val projectPath =
@@ -103,12 +113,7 @@ val checkAppDependencyIsolation by tasks.registering {
             "Mutation implementation leaked onto app compile classpath:\n" +
                 implementationLeaks.joinToString("\n")
         }
-        configurations
-            .filter {
-                it.isCanBeResolved &&
-                    it.name.endsWith("CompileClasspath", ignoreCase = true)
-            }
-            .forEach { configuration ->
+        productionCompileConfigurations.forEach { configuration ->
                 val visibleProjects = configuration.incoming.resolutionResult.allComponents
                     .mapNotNull {
                         (it.id as? ProjectComponentIdentifier)?.projectPath
@@ -126,15 +131,48 @@ val checkAppDependencyIsolation by tasks.registering {
                 }
             }
 
-        val runtimeProjects = configurations.named("debugRuntimeClasspath").get()
-            .incoming.resolutionResult.allComponents.mapNotNull {
-                (it.id as? ProjectComponentIdentifier)?.projectPath
-            }
-            .toSet()
-        val missingRuntime = forbiddenCompileProjects - runtimeProjects
-        check(missingRuntime.isEmpty()) {
-            "Runtime packaging is missing implementation artifacts: $missingRuntime"
+        val expectedRuntimeProjects = setOf(
+            ":device-management",
+            ":device-management-api",
+            ":device-management-impl",
+            ":sensitive-actions-api",
+            ":sensitive-actions",
+        )
+        val productionRuntimeConfigurations = configurations.filter {
+            it.isCanBeResolved &&
+                it.name.endsWith("RuntimeClasspath", ignoreCase = true) &&
+                !it.name.isVerificationClasspath()
         }
+        productionRuntimeConfigurations.forEach { configuration ->
+            val runtimeProjects = configuration.incoming.resolutionResult.allComponents
+                .mapNotNull {
+                    (it.id as? ProjectComponentIdentifier)?.projectPath
+                }
+                .filterNot { it == project.path }
+                .toSet()
+            check(runtimeProjects == expectedRuntimeProjects) {
+                "${configuration.name} runtime project surface changed; " +
+                    "expected $expectedRuntimeProjects, found $runtimeProjects"
+            }
+        }
+
+        val allowedExternalModules = setOf(
+            "org.jetbrains.kotlin:kotlin-stdlib",
+            "org.jetbrains:annotations",
+        )
+        (productionCompileConfigurations + productionRuntimeConfigurations)
+            .forEach { configuration ->
+                val externalModules = configuration.incoming.resolutionResult.allComponents
+                    .mapNotNull {
+                        val id = it.id as? ModuleComponentIdentifier
+                        id?.let { module -> "${module.group}:${module.module}" }
+                    }
+                    .toSet()
+                check(externalModules == allowedExternalModules) {
+                    "${configuration.name} has unapproved external production artifacts; " +
+                        "expected $allowedExternalModules, found $externalModules"
+                }
+            }
     }
 }
 
@@ -153,13 +191,64 @@ val checkAppApiCompileNegative by tasks.registering {
     )
 
     doLast {
-        val compileClasspath = (
-            debugJavaCompile.get().classpath.files + android.bootClasspath
-            ).joinToString(File.pathSeparator) { it.absolutePath }
+        val compileFiles = debugJavaCompile.get().classpath.files
+        val compileClasspath = (compileFiles + android.bootClasspath)
+            .joinToString(File.pathSeparator) { it.absolutePath }
         val outputRoot = layout.buildDirectory.dir("compile-negative").get().asFile
         outputRoot.deleteRecursively()
         outputRoot.mkdirs()
         val javac = File(System.getProperty("java.home"), "bin/javac")
+
+        val approvedTopLevelClasses = setOf(
+            "com/example/devicemanagement/logging/StructuredLogger",
+            "com/example/devicemanagement/action/ActionResult",
+            "com/example/devicemanagement/action/SensitiveActionOperation",
+            "com/example/devicemanagement/action/SensitiveActionController",
+            "com/example/devicemanagement/trigger/SensitiveActionCommands",
+            "com/example/devicemanagement/trigger/Trigger",
+            "com/example/devicemanagement/management/DeviceManagement",
+            "com/example/devicemanagement/management/DeviceManagementServices",
+            "com/example/devicemanagement/management/ManagementMode",
+            "com/example/devicemanagement/management/ManagementCapability",
+            "com/example/devicemanagement/management/DeviceManagementStatus",
+            "com/example/devicemanagement/management/DeviceManagementStatusProvider",
+            "com/example/devicemanagement/management/ProvisioningAvailability",
+            "com/example/devicemanagement/management/ProvisioningOption",
+            "com/example/devicemanagement/management/ProvisioningReadiness",
+            "com/example/devicemanagement/management/ProvisioningReadinessProvider",
+            "com/example/devicemanagement/management/DeviceOwnerValidationResult",
+            "com/example/devicemanagement/management/DeviceOwnerValidation",
+            "com/example/devicemanagement/management/DeviceOwnerValidationProvider",
+            "com/example/devicemanagement/management/ScreenCapturePolicyState",
+            "com/example/devicemanagement/management/ScreenCapturePolicyStatus",
+            "com/example/devicemanagement/management/ScreenCapturePolicyStatusProvider",
+            "com/example/devicemanagement/management/CameraPolicyState",
+            "com/example/devicemanagement/management/CameraPolicyStatus",
+            "com/example/devicemanagement/management/CameraPolicyStatusProvider",
+            "com/example/devicemanagement/facade/R",
+        )
+        val appVisibleProjectClasses = compileFiles.flatMap { root ->
+            when {
+                root.isDirectory -> root.walkTopDown()
+                    .filter { it.isFile && it.extension == "class" }
+                    .map { it.relativeTo(root).invariantSeparatorsPath.removeSuffix(".class") }
+                    .toList()
+                root.isFile && root.extension == "jar" -> JarFile(root).use { jar ->
+                    jar.entries().asSequence()
+                        .filter { !it.isDirectory && it.name.endsWith(".class") }
+                        .map { it.name.removeSuffix(".class") }
+                        .toList()
+                }
+                else -> emptyList()
+            }
+        }.filter { it.startsWith("com/example/devicemanagement/") }
+        val unapprovedClasses = appVisibleProjectClasses.filter { className ->
+            className.substringBefore('$') !in approvedTopLevelClasses
+        }
+        check(unapprovedClasses.isEmpty()) {
+            "App compile classpath exposes non-allowlisted JVM classes:\n" +
+                unapprovedClasses.sorted().joinToString("\n")
+        }
 
         fun compileJava(source: File): Pair<Int, String> {
             val output = ByteArrayOutputStream()
@@ -199,7 +288,7 @@ val checkAppApiCompileNegative by tasks.registering {
         kotlinNegative.files.forEach { source ->
             val output = ByteArrayOutputStream()
             val result = project.javaexec {
-                classpath = kotlinCompileNegativeCompiler
+                classpath = testKotlinCompileNegativeCompiler
                 mainClass.set("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
                 args(
                     "-classpath",
@@ -434,6 +523,8 @@ androidComponents {
 
         tasks.matching {
             it.name == "assemble$capitalized" ||
+                it.name == "bundle$capitalized" ||
+                it.name == "package$capitalized" ||
                 it.name == "test${capitalized}UnitTest" ||
                 it.name == "check$capitalized" ||
                 it.name == "check"

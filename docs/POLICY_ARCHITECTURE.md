@@ -86,9 +86,11 @@ actual class, method, field, descriptor, and method-handle owners; source names,
 imports, aliases, filenames, and token spelling are irrelevant.
 
 The same compiled-output gate rejects Java/Kotlin reflection, method handles,
-`invokedynamic`, class loaders, runtime compilation, process execution, native
-load calls, and native/JNI methods. Android variants also inspect merged native
-libraries, while production source inputs reject native code and libraries.
+non-string-concatenation `invokedynamic`, class loaders, runtime compilation,
+process execution, native load calls, and native/JNI methods. Kotlin lambdas and
+SAM conversions are compiled as classes rather than LambdaMetafactory call sites.
+Android variants also inspect merged native libraries, while production source
+inputs reject native code and libraries.
 
 DeviceAdmin metadata declares exactly `disable-camera`. Screen-capture control
 does not require a `uses-policies` declaration. Metadata tests reject every

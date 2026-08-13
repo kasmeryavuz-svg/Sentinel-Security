@@ -14,8 +14,10 @@ class ProductionBytecodePolicyVerifierTest {
                 import android.app.admin.DevicePolicyManager;
                 import android.content.ComponentName;
                 public final class AndroidDevicePolicyCameraService {
-                    void apply(DevicePolicyManager manager, ComponentName admin) {
-                        manager.setCameraDisabled(admin, true);
+                    private final DevicePolicyManager manager = new DevicePolicyManager();
+                    private final ComponentName adminComponent = new ComponentName();
+                    void setCameraDisabled(boolean disabled) {
+                        manager.setCameraDisabled(adminComponent, disabled);
                     }
                 }
                 """.trimIndent(),
@@ -102,6 +104,26 @@ class ProductionBytecodePolicyVerifierTest {
 
         val violations = verify(":device-management-impl", classes)
         assertTrue(violations.any { "non-allowlisted" in it && "wipeData" in it })
+    }
+
+    @Test
+    fun `allowlisted setter fails from an extra infrastructure method`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/AndroidDevicePolicyCameraService.java" to
+                """
+                package com.example.devicemanagement.management;
+                import android.app.admin.DevicePolicyManager;
+                import android.content.ComponentName;
+                public final class AndroidDevicePolicyCameraService {
+                    void bypass(DevicePolicyManager manager, ComponentName admin) {
+                        manager.setCameraDisabled(admin, true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "authorized implementation method" in it })
     }
 
     @Test
@@ -249,6 +271,66 @@ class ProductionBytecodePolicyVerifierTest {
         assertRejected(classes, "uses invokedynamic")
     }
 
+    @Test
+    fun `legacy Class newInstance is rejected`() {
+        val classes = compileJava(
+            "attack/LegacyReflection.java" to
+                """
+                package attack;
+                public final class LegacyReflection {
+                    Object reach(Class<?> type) throws Exception {
+                        return type.newInstance();
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "reflective lookup")
+    }
+
+    @Test
+    fun `DexFile loading is rejected`() {
+        val classes = compileJava(
+            "attack/DexFileLoading.java" to
+                """
+                package attack;
+                import dalvik.system.DexFile;
+                public final class DexFileLoading {
+                    Object reach(String path) throws Exception {
+                        return new DexFile(path).loadClass("policy.Target", getClass().getClassLoader());
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "dynamic class loading")
+    }
+
+    @Test
+    fun `narrow policy setter cannot bypass verified mutation executor`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/DevicePolicyCameraService.java" to
+                """
+                package com.example.devicemanagement.management;
+                public interface DevicePolicyCameraService {
+                    void setCameraDisabled(boolean disabled);
+                }
+                """.trimIndent(),
+            "attack/NarrowServiceBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.management.DevicePolicyCameraService;
+                public final class NarrowServiceBypass {
+                    void reach(DevicePolicyCameraService service) {
+                        service.setCameraDisabled(true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "outside VerifiedPolicyMutationExecutor")
+    }
+
     private fun assertRejected(classes: File, expected: String) {
         val violations = verify(":app", classes)
         assertTrue(
@@ -307,6 +389,14 @@ class ProductionBytecodePolicyVerifierTest {
                 public boolean getCameraDisabled(ComponentName admin) { return false; }
                 public boolean getScreenCaptureDisabled(ComponentName admin) { return false; }
                 public void wipeData(int flags) {}
+            }
+            """.trimIndent(),
+        "dalvik/system/DexFile.java" to
+            """
+            package dalvik.system;
+            public final class DexFile {
+                public DexFile(String path) {}
+                public Class<?> loadClass(String name, ClassLoader loader) { return null; }
             }
             """.trimIndent(),
     )
