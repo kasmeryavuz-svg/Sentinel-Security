@@ -3,6 +3,7 @@ import com.android.build.api.artifact.ScopedArtifact
 import com.android.build.api.variant.ScopedArtifacts
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import org.gradle.api.tasks.compile.JavaCompile
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.w3c.dom.Element
 import java.io.ByteArrayOutputStream
@@ -142,12 +143,17 @@ val checkAppApiCompileNegative by tasks.registering {
     val javaNegative = fileTree("src/compileNegative/java") { include("**/*.java") }
     val kotlinNegative = fileTree("src/compileNegative/kotlin") { include("**/*.kt") }
     val javaPositive = fileTree("src/compilePositive/java") { include("**/*.java") }
-    val appClasspath = configurations.named("debugCompileClasspath")
-    inputs.files(javaNegative, kotlinNegative, javaPositive, appClasspath)
+    val debugJavaCompile = tasks.named<JavaCompile>("compileDebugJavaWithJavac")
+    inputs.files(
+        javaNegative,
+        kotlinNegative,
+        javaPositive,
+        debugJavaCompile.map { it.classpath },
+    )
 
     doLast {
         val compileClasspath = (
-            appClasspath.get().files + android.bootClasspath
+            debugJavaCompile.get().classpath.files + android.bootClasspath
             ).joinToString(File.pathSeparator) { it.absolutePath }
         val outputRoot = layout.buildDirectory.dir("compile-negative").get().asFile
         outputRoot.deleteRecursively()
