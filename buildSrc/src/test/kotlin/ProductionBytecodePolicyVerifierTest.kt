@@ -214,6 +214,41 @@ class ProductionBytecodePolicyVerifierTest {
         assertTrue(violations.any { "java/lang/Runtime.load" in it })
     }
 
+    @Test
+    fun `compiler intrinsic string concatenation is not treated as dynamic policy access`() {
+        val classes = compileJava(
+            "safe/StringDescription.java" to
+                """
+                package safe;
+                public final class StringDescription {
+                    String describe(String value, int count) {
+                        return "value=" + value + ", count=" + count;
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":app", classes)
+        assertTrue(violations.isEmpty(), violations.joinToString("\n"))
+    }
+
+    @Test
+    fun `lambda invokedynamic remains rejected`() {
+        val classes = compileJava(
+            "attack/DynamicLambda.java" to
+                """
+                package attack;
+                public final class DynamicLambda {
+                    Runnable create() {
+                        return () -> System.out.println("dynamic");
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "uses invokedynamic")
+    }
+
     private fun assertRejected(classes: File, expected: String) {
         val violations = verify(":app", classes)
         assertTrue(

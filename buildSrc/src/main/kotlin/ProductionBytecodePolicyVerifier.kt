@@ -192,6 +192,18 @@ internal object ProductionBytecodePolicyVerifier {
                 bootstrapMethodHandle: Handle,
                 vararg bootstrapMethodArguments: Any,
             ) {
+                val isCompilerStringConcatenation =
+                    bootstrapMethodHandle.owner == "java/lang/invoke/StringConcatFactory" &&
+                        bootstrapMethodHandle.name in
+                        setOf("makeConcat", "makeConcatWithConstants") &&
+                        bootstrapMethodArguments.none { it is Handle }
+                if (isCompilerStringConcatenation) {
+                    checkDescriptor(descriptor, "$location string concatenation")
+                    bootstrapMethodArguments.forEach {
+                        checkConstant(it, "$location string concatenation argument")
+                    }
+                    return
+                }
                 violation("$location uses invokedynamic ($name$descriptor)")
                 checkHandle(bootstrapMethodHandle, location)
                 bootstrapMethodArguments.forEach {
