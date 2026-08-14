@@ -15,6 +15,7 @@ sync dependency.
 - Bounded local retention (8,000 records; oldest rows pruned first)
 - Crash/restart persistence of already-committed events
 - Read-only dashboard presentation, including interrupted sequences
+- Read-only recovery inspection of interrupted correlation IDs after restart
 
 ## What this does not provide
 
@@ -38,6 +39,7 @@ may use only:
 
 - `AuditHistoryProvider`
 - `AuditStorageStatusProvider`
+- `RecoveryInspectionProvider`
 
 The writer, SQLite helper, database filename/table identity, and database
 mutation types are implementation artifacts. They are absent from the app
@@ -75,7 +77,10 @@ Interrupted / Outcome unknown, and audit health becomes degraded.
    event stays visible as Interrupted / Outcome unknown. Sentinel does not
    fabricate the missing terminal record and does not retry the action.
 5. After process death, incomplete `REQUESTED` events remain incomplete.
-   Restart never infers Applied.
+   Restart never infers Applied. Recovery inspection classifies those rows as
+   interrupted evidence and has no execution capability. Sentinel does not
+   automatically retry, resume, replay, or continue the original request.
+   See `docs/LIFECYCLE.md`.
 
 Wall-clock time stored on events is presentation metadata only. It is never
 used for authorization, freshness, cooldowns, or replay protection.

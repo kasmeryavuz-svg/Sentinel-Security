@@ -19,6 +19,8 @@ class AuditAuthorizationIsolationGuardTest {
             assertFalse(source.contains("AuditStorageHealth"))
             assertFalse(source.contains("AuditHistory"))
             assertFalse(source.contains("SensitiveActionAuditWriter"))
+            assertFalse(source.contains("RecoveryInspection"))
+            assertFalse(source.contains("AuditRecoveryInspector"))
         }
         assertTrue(controller.contains("AuditEventPhase.REQUESTED"))
         assertTrue(

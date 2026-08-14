@@ -53,6 +53,8 @@ class ProvisioningManifestGuardTest {
             .map { it.getAttributeNS(androidNamespace, "name") }
         assertFalse(allActions.contains("android.app.action.PROVISION_MANAGED_DEVICE"))
         assertFalse(allActions.contains("android.app.action.PROVISION_MANAGED_PROFILE"))
+        assertFalse(allActions.contains("android.intent.action.BOOT_COMPLETED"))
+        assertFalse(allActions.contains("android.intent.action.LOCKED_BOOT_COMPLETED"))
         assertEquals(3, activities.size)
     }
 

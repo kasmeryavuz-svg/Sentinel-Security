@@ -306,6 +306,39 @@ internal object ProductionBytecodePolicyVerifier {
      * instantiate SqliteAuditRecordStore and mutate rows while SQLite itself
      * remains allowlisted inside that adapter.
      */
+    private const val RECOVERY_PACKAGE = "com/example/devicemanagement/recovery/"
+
+    private val recoveryForbiddenTypeOwners = setOf(
+        "com/example/devicemanagement/action/ApprovalAuthority",
+        "com/example/devicemanagement/action/ActionExecutor",
+        "com/example/devicemanagement/action/SensitiveActionController",
+        "com/example/devicemanagement/action/DefaultSensitiveActionController",
+        "com/example/devicemanagement/integration/SensitiveActionPolicyBackend",
+        DPM,
+        "com/example/devicemanagement/audit/SensitiveActionAuditWriter",
+        "com/example/devicemanagement/audit/DurableAuditRepository",
+        "com/example/devicemanagement/audit/AuditRecordStore",
+        "com/example/devicemanagement/audit/SqliteAuditRecordStore",
+        "com/example/devicemanagement/audit/InMemoryAuditRecordStore",
+        "com/example/devicemanagement/audit/UnavailableAuditRecordStore",
+    )
+
+    private val recoveryForbiddenMethods = setOf(
+        "submit",
+        "issue",
+        "consume",
+        "execute",
+        "append",
+        "insert",
+        "deleteOldest",
+        "applyScreenCaptureDisabled",
+        "applyCameraDisabled",
+        "applyStatusBarDisabled",
+        "setScreenCaptureDisabled",
+        "setCameraDisabled",
+        "setStatusBarDisabled",
+    )
+
     private val trustedAuditStoreMutationOrigins = mapOf(
         "com/example/devicemanagement/audit/AuditRecordStore." +
             "insert(Lcom/example/devicemanagement/audit/NewAuditRecord;)J" to
@@ -449,6 +482,7 @@ internal object ProductionBytecodePolicyVerifier {
 
             override fun visitTypeInsn(opcode: Int, type: String) {
                 checkType(type, "$location type instruction")
+                checkRecoveryIsolation(type, "<type>", location)
                 checkForbiddenOwner(type, "<type>", location)
             }
 
@@ -459,6 +493,7 @@ internal object ProductionBytecodePolicyVerifier {
                 descriptor: String,
             ) {
                 checkDpmOwner(owner, "$location field $name")
+                checkRecoveryIsolation(owner, name, "$location field $name")
                 checkSqliteOwner(owner, "$location field $name")
                 checkDatabaseUtilsOwner(owner, "$location field $name")
                 checkLowLevelFileApi(owner, name, "$location field $name")
@@ -477,6 +512,7 @@ internal object ProductionBytecodePolicyVerifier {
                 checkVerifiedMutationInvocation(owner, name, descriptor, location)
                 checkTrustedAuditAppendInvocation(owner, name, descriptor, location)
                 checkTrustedAuditStoreMutationInvocation(owner, name, descriptor, location)
+                checkRecoveryIsolation(owner, name, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
                 checkContextDatabaseInvocation(owner, name, location)
                 checkDatabaseUtilsOwner(owner, "$location invocation $owner.$name$descriptor")
@@ -548,6 +584,7 @@ internal object ProductionBytecodePolicyVerifier {
                 handle.desc,
                 "$location method handle",
             )
+            checkRecoveryIsolation(handle.owner, handle.name, "$location method handle")
             checkSqliteInvocation(
                 handle.owner,
                 handle.name,
@@ -634,6 +671,24 @@ internal object ProductionBytecodePolicyVerifier {
             }
         }
 
+        private fun isRecoveryClass(): Boolean = className.startsWith(RECOVERY_PACKAGE)
+
+        private fun checkRecoveryIsolation(owner: String, name: String, location: String) {
+            if (!isRecoveryClass()) {
+                return
+            }
+            if (owner in recoveryForbiddenTypeOwners) {
+                violation(
+                    "$location recovery code references forbidden type $owner",
+                )
+            }
+            if (name in recoveryForbiddenMethods) {
+                violation(
+                    "$location recovery code invokes forbidden method $owner.$name",
+                )
+            }
+        }
+
         private fun checkTrustedAuditStoreMutationInvocation(
             owner: String,
             name: String,
@@ -681,6 +736,7 @@ internal object ProductionBytecodePolicyVerifier {
         private fun checkType(type: String?, location: String) {
             if (type == null) return
             checkDpmOwner(type, location)
+            checkRecoveryIsolation(type, "<type>", location)
             checkSqliteOwner(type, location)
             checkDatabaseUtilsOwner(type, location)
             checkLowLevelFileApi(type, "<type>", location)
@@ -691,6 +747,11 @@ internal object ProductionBytecodePolicyVerifier {
         private fun checkDescriptor(descriptor: String, location: String) {
             if (descriptor.contains("L$DPM;")) {
                 checkDpmOwner(DPM, location)
+            }
+            recoveryForbiddenTypeOwners.forEach { owner ->
+                if (descriptor.contains("L$owner;")) {
+                    checkRecoveryIsolation(owner, "<type>", location)
+                }
             }
             sqliteTypesIn(descriptor).forEach { owner ->
                 checkSqliteOwner(owner, location)

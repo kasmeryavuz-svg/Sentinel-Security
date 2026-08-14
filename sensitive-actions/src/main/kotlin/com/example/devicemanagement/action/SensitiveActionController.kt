@@ -150,6 +150,12 @@ internal fun createFailSafeController(
     )
 }
 
+/**
+ * Trusted composition always creates a brand-new process-local
+ * [ApprovalAuthority]. Restart or recreation cannot reuse, persist, or
+ * consume a pre-restart approval. A later process must submit a fresh
+ * trigger through this path.
+ */
 internal fun createControlledController(
     backend: SensitiveActionPolicyBackend,
     logger: StructuredLogger,

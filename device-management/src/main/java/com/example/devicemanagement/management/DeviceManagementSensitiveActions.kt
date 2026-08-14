@@ -11,6 +11,7 @@ import com.example.devicemanagement.integration.PolicyMutationResult
 import com.example.devicemanagement.integration.SensitiveActionAuthorization
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
 import com.example.devicemanagement.logging.StructuredLogger
+import com.example.devicemanagement.recovery.DeviceManagementRecoveryInspectionFactory
 
 internal object DeviceManagementComposition {
     fun create(
@@ -19,6 +20,10 @@ internal object DeviceManagementComposition {
     ): DeviceManagementServices {
         val deviceManagementLogger = StructuredDeviceManagementLogger(logger)
         val audit = AndroidAuditPersistence.create(context, logger)
+        val recoveryInspection = DeviceManagementRecoveryInspectionFactory.create(
+            history = audit,
+            logger = logger,
+        )
         val sensitiveActions = createSensitiveActions(
                 context = context,
                 sensitiveActionLogger = logger,
@@ -62,6 +67,7 @@ internal object DeviceManagementComposition {
             override val statusBarPolicyStatus = statusBarPolicyStatus
             override val auditHistory = audit
             override val auditStorageStatus = audit
+            override val recoveryInspection = recoveryInspection
         }
     }
 
