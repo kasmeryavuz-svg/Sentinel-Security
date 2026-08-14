@@ -222,7 +222,7 @@ class MainActivity : Activity() {
                     resources.getDimension(R.dimen.text_secondary),
                 )
                 setPadding(0, 0, 0, resources.getDimensionPixelSize(R.dimen.spacing_m))
-                textIsSelectable = true
+                setTextIsSelectable(true)
                 contentDescription = text
             }
             sessionList.addView(row)
