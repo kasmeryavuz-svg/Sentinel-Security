@@ -60,12 +60,20 @@ val checkProductionPolicyCoverage by tasks.registering {
         }
 
         val approvedExternalModules = setOf("org.jetbrains.kotlin:kotlin-stdlib")
+        val workstationOnlyExternalModules = mapOf(
+            ":provisioning-qr" to setOf(
+                "org.jetbrains.kotlin:kotlin-stdlib",
+                "com.android.tools.build:apksig",
+            ),
+        )
         val unapprovedExternalDependencies =
             productionConfigurations.flatMap { (project, configuration) ->
                 configuration.dependencies.withType(ExternalModuleDependency::class.java)
                     .mapNotNull { dependency ->
                         val coordinate = "${dependency.group}:${dependency.name}"
-                        if (coordinate !in approvedExternalModules) {
+                        val approved = workstationOnlyExternalModules[project.path]
+                            ?: approvedExternalModules
+                        if (coordinate !in approved) {
                             "${project.path}:${configuration.name}:$coordinate"
                         } else {
                             null

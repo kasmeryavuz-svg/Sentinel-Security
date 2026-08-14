@@ -16,6 +16,16 @@
     <string name="label_owner_validation">Device Owner validation: %1$s</string>
     <string name="label_device_owner_provisioning">Device Owner provisioning: %1$s</string>
     <string name="label_profile_owner_provisioning">Profile Owner provisioning: %1$s</string>
+    <string name="label_enrollment_contract">Fully-managed Device Owner provisioning contract: declared for Android 12+</string>
+    <string name="label_enrollment_mode">Provisioning mode selection: fully-managed Device Owner only</string>
+    <string name="label_enrollment_qr">QR enrollment is generated on a developer workstation from a signed APK. Sentinel does not host or upload APKs.</string>
+    <string name="compliance_title">Sentinel Security enrollment</string>
+    <string name="compliance_success">Device Owner verified</string>
+    <string name="compliance_failure">Enrollment cannot complete</string>
+    <string name="compliance_success_detail">Sentinel Device Owner is verified. No policy changes are applied during enrollment.</string>
+    <string name="compliance_not_owner_detail">This device is not a verified Sentinel Device Owner.</string>
+    <string name="compliance_configuration_detail">Device Owner configuration could not be verified.</string>
+    <string name="compliance_unavailable_detail">Device Owner validation is unavailable.</string>
     <string name="mode_device_owner">Device Owner</string>
     <string name="mode_profile_owner">Profile Owner</string>
     <string name="mode_ordinary_app">Ordinary app</string>

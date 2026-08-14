@@ -53,6 +53,33 @@ compile classpath; both remain on the runtime classpath for Android packaging.
 The facade returns an already-composed `DeviceManagementServices` interface.
 Its only mutation surface is the submit-only `SensitiveActionController`.
 
+## Fully-managed provisioning
+
+Android 12+ setup may invoke Sentinel's provisioning activities:
+
+- `GetProvisioningModeActivity` handles `GET_PROVISIONING_MODE`, selects only
+  fully-managed Device Owner mode, and returns immediately.
+- `AdminPolicyComplianceActivity` handles `ADMIN_POLICY_COMPLIANCE` and
+  returns success only when the existing read-only Device Owner validation
+  reports `VERIFIED_DEVICE_OWNER`.
+
+Those activities are exported only for the platform provisioning contract and
+are protected with `BIND_DEVICE_ADMIN`. They do not call
+`DevicePolicyManager` mutators, `VerifiedPolicyMutationExecutor`, policy
+writers, `ApprovalAuthority`, `ActionExecutor`, or
+`SensitiveActionPolicyBackend`. After Device Owner establishment, camera,
+screen-capture, and status-bar changes still go only through
+`SensitiveActionController`.
+
+`SentinelDeviceAdminReceiver.onProfileProvisioningComplete` is log-only. It
+does not persist state or change policy. DeviceAdmin metadata remains exactly
+`disable-camera`.
+
+QR JSON generation lives in the separate `:provisioning-qr` workstation
+module. It is not an Android app dependency and does not enter the production
+APK. See `docs/QR_PROVISIONING.md`. GrapheneOS production QR enrollment is
+not yet confirmed; see `docs/GRAPHENEOS_ENROLLMENT.md`.
+
 ## Approval lifecycle
 
 The controller creates an authoritative correlation ID inside the trusted

@@ -7,3 +7,10 @@ build/
 captures/
 .externalNativeBuild/
 .cxx/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pk8
+*.apk
+*.aab

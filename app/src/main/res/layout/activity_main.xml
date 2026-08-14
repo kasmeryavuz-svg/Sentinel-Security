@@ -98,6 +98,33 @@
                 android:textColor="@color/dashboard_text_primary"
                 android:textSize="@dimen/text_body" />
 
+            <TextView
+                android:id="@+id/management_enrollment_contract"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_m"
+                android:text="@string/label_enrollment_contract"
+                android:textColor="@color/dashboard_text_secondary"
+                android:textSize="@dimen/text_secondary" />
+
+            <TextView
+                android:id="@+id/management_enrollment_mode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_s"
+                android:text="@string/label_enrollment_mode"
+                android:textColor="@color/dashboard_text_secondary"
+                android:textSize="@dimen/text_secondary" />
+
+            <TextView
+                android:id="@+id/management_enrollment_qr"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_s"
+                android:text="@string/label_enrollment_qr"
+                android:textColor="@color/dashboard_text_secondary"
+                android:textSize="@dimen/text_secondary" />
+
             <Button
                 android:id="@+id/management_details_toggle"
                 android:layout_width="match_parent"
