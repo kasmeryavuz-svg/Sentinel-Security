@@ -30,7 +30,7 @@ class SessionActivityStoreTest {
         assertEquals(1, store.entries().size)
         assertEquals("authoritative-1", store.entries().single().correlationId)
         assertEquals(1_700L, store.entries().single().sessionTimestampMillis)
-        assertTrue(SessionActivityStore { 0L }.entries().isEmpty())
+        assertTrue(SessionActivityStore(sessionTimestampMillis = { 0L }).entries().isEmpty())
     }
 
     @Test
