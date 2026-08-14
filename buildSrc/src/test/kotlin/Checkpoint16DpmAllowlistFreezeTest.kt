@@ -1,36 +1,45 @@
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class Checkpoint16DpmAllowlistFreezeTest {
     @Test
-    fun `production DPM mutator allowlist remains exactly the three reversible setters`() {
+    fun `production DPM invocation allowlist is the exact complete key set`() {
         val source = File("src/main/kotlin/ProductionBytecodePolicyVerifier.kt").readText()
         val allowlistBlock = source
             .substringAfter("private val allowedDpmInvocations = mapOf(")
             .substringBefore("private val forbiddenLoaderOwners")
-        val allowedMethods = Regex("\"([a-zA-Z]+)\\(")
+        val allowedKeys = Regex("\"([^\"]+\\([^\"]*\\)[^\"]*)\"\\s+to\\s+origins")
             .findAll(allowlistBlock)
             .map { it.groupValues[1] }
             .toSet()
-        val allowedMutators = allowedMethods.filter { it.startsWith("set") }.toSet()
 
+        val expectedKeys = setOf(
+            "isDeviceOwnerApp(Ljava/lang/String;)Z",
+            "isProfileOwnerApp(Ljava/lang/String;)Z",
+            "isAdminActive(Landroid/content/ComponentName;)Z",
+            "isProvisioningAllowed(Ljava/lang/String;)Z",
+            "getActiveAdmins()Ljava/util/List;",
+            "getScreenCaptureDisabled(Landroid/content/ComponentName;)Z",
+            "getCameraDisabled(Landroid/content/ComponentName;)Z",
+            "isStatusBarDisabled()Z",
+            "setScreenCaptureDisabled(Landroid/content/ComponentName;Z)V",
+            "setCameraDisabled(Landroid/content/ComponentName;Z)V",
+            "setStatusBarDisabled(Landroid/content/ComponentName;Z)Z",
+        )
+
+        assertEquals(expectedKeys, allowedKeys)
+
+        val writeKeys = allowedKeys.filter { it.startsWith("set") }.toSet()
         assertEquals(
             setOf(
-                "setScreenCaptureDisabled",
-                "setCameraDisabled",
-                "setStatusBarDisabled",
+                "setScreenCaptureDisabled(Landroid/content/ComponentName;Z)V",
+                "setCameraDisabled(Landroid/content/ComponentName;Z)V",
+                "setStatusBarDisabled(Landroid/content/ComponentName;Z)Z",
             ),
-            allowedMutators,
+            writeKeys,
         )
-        assertFalse("wipeData" in allowedMethods)
-        assertFalse("wipeDevice" in allowedMethods)
-        assertFalse("lockNow" in allowedMethods)
-        assertFalse("resetPassword" in allowedMethods)
-        assertFalse(allowlistBlock.contains("wipeData"))
-        assertFalse(allowlistBlock.contains("wipeDevice"))
     }
 
     @Test

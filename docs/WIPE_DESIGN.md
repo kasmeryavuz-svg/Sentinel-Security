@@ -69,8 +69,8 @@ from audit history.
 | `ASSESSED` | Eligibility and target snapshot recorded in memory | Assessment only |
 | `ARMED` | Process-local arming token active | Arming only; not authorization |
 | `AUTHORIZED` | Process-local destructive capability issued | Single-use capability; not yet executable |
-| `FINAL_VALIDATION` | Execution-time revalidation in progress | Capability consumed or reserved; DPM not yet called |
-| `EXECUTION_COMMITTED` | Pre-execution audit written; about to invoke the destructive wrapper | Last pre-call state |
+| `FINAL_VALIDATION` | Execution-time revalidation in progress inside the executor | Not a reusable allow result; DPM not yet called |
+| `EXECUTION_COMMITTED` | Pre-execution audit written; same synchronous chain as invocation | Last pre-call state; not independently resumable |
 
 ### 2.2 Terminal outcomes
 
@@ -113,20 +113,26 @@ ARMED
   -- process_death --> OUTCOME_UNKNOWN
 
 AUTHORIZED
-  -- begin_final_validation --> FINAL_VALIDATION
+  -- enter_executor_sync_chain --> FINAL_VALIDATION
   -- expire / cancel --> EXPIRED or CANCELLED
   -- process_death --> OUTCOME_UNKNOWN
 
 FINAL_VALIDATION
-  -- all_checks_ok_and_pre_exec_audit_ok --> EXECUTION_COMMITTED
+  -- same_stack_all_checks_ok_and_pre_exec_audit_ok --> EXECUTION_COMMITTED
   -- any_mismatch_or_uncertainty --> FAILED_PRE_EXECUTION
   -- process_death --> OUTCOME_UNKNOWN
 
 EXECUTION_COMMITTED
-  -- destructive_api_invoked --> EXECUTION_INITIATED
+  -- same_stack_destructive_api_invoked --> EXECUTION_INITIATED
   -- invoke_throws_before_call_or_aborted --> FAILED_PRE_EXECUTION
   -- process_death_before_invoke --> OUTCOME_UNKNOWN
 ```
+
+`FINAL_VALIDATION` and `EXECUTION_COMMITTED` are logical phases of
+**one synchronous trusted execution chain** inside the destructive
+executor. They are not independently schedulable states. The executor
+must not return a Boolean “allowed” to UI, a callback, a queue, or
+persistence and later invoke DPM. See §6.
 
 Rules:
 
@@ -141,6 +147,8 @@ Rules:
   request
 - `EXECUTION_INITIATED` is not success. It is “the call was made; local
   outcome cannot be proven”
+- The deny-only cooldown marker survives process death and reboot and
+  is never authorization
 
 ### 2.4 Interruption at each boundary
 
@@ -151,8 +159,8 @@ Rules:
 | `ASSESSED` | In-memory snapshot gone. Same as interrupted REQUESTED evidence. New request required. |
 | `ARMED` | Arming token gone. Disarmed by death. New request required. |
 | `AUTHORIZED` | Destructive capability gone. Cannot be consumed. New request required. |
-| `FINAL_VALIDATION` | No DPM call. `FAILED_PRE_EXECUTION` or interrupted evidence. No retry. |
-| `EXECUTION_COMMITTED` before invoke | Pre-execution row may exist. Treat as `OUTCOME_UNKNOWN`. **Do not** invoke on restart. |
+| `FINAL_VALIDATION` | No DPM call. `FAILED_PRE_EXECUTION` or interrupted evidence. No retry. Any in-memory permit is dead. Cooldown marker remains. |
+| `EXECUTION_COMMITTED` before invoke | Pre-execution row may exist. Treat as `OUTCOME_UNKNOWN`. **Do not** invoke on restart. Cooldown marker remains. |
 | After invoke | Device may be resetting. If the app still runs, state is `EXECUTION_INITIATED` / `OUTCOME_UNKNOWN`. Never retry. |
 
 ## 3. Explicit target binding
@@ -327,8 +335,10 @@ Checkpoint 16 does **not** implement an arming executor.
 
 ## 6. Final pre-wipe validation
 
-Immediately before any future destructive call, a dedicated
-`DestructiveFinalValidator` must freshly re-check:
+Immediately before any future destructive call, the destructive
+executor must freshly re-check the following. This is
+`DestructiveFinalValidator` work, but it is **not** a standalone
+allow/deny API that other components may call and later honor.
 
 1. Device Owner: `VERIFIED_DEVICE_OWNER`
 2. Expected admin component equals the bound component
@@ -339,14 +349,51 @@ Immediately before any future destructive call, a dedicated
 6. Destructive capability freshness (monotonic)
 7. Single-use status (consume succeeds exactly once)
 8. Arming freshness and identity
-9. Cooldown / rate-limit state (deny if locked or uncertain)
+9. Cooldown / rate-limit / circuit-breaker state (deny if locked or
+   uncertain)
 10. Audit precondition: required pre-execution append succeeded
 11. Policy service / DPM availability; any exception is denial
 
 Any mismatch, uncertainty, exception, unavailable service, stale state,
-or failed check: **NO WIPE** (`FAILED_PRE_EXECUTION`).
+expiry, or failed check: **NO WIPE** (`FAILED_PRE_EXECUTION`).
 
 Decision-time authorization never substitutes for this step.
+
+### 6.1 No TOCTOU gap after “allowed”
+
+Forbidden:
+
+- A reusable Boolean “allowed” / `true` result
+- A cached or persisted final-validation result
+- Returning validation success to UI, an async callback, a work queue,
+  or another process
+- Any persistence, Intent, or Binder boundary between validation and
+  the destructive API invocation
+
+Required: final validation and the narrow DPM wrapper call occur in
+**one synchronous trusted execution chain** inside the destructive
+executor. The executor performs the checks and, only if they all pass
+in that same stack, invokes the wrapper immediately.
+
+### 6.2 Optional internal `FinalExecutionPermit`
+
+If Checkpoint 17 splits helper functions inside that chain, the only
+acceptable hand-off is an opaque `FinalExecutionPermit` that:
+
+- is process-local
+- is bound to action type, authoritative correlation ID, target
+  package/admin/Device Owner expectation, and wipe scope
+- has an extremely short monotonic lifetime (far shorter than arming
+  or authorization; recommended starting point: a few milliseconds,
+  reviewed in Checkpoint 17)
+- is consumable exactly once, and only by the paired destructive
+  executor
+- cannot be serialized, parceled, persisted, or reconstructed
+- is never accepted from UI or another authority instance
+
+The executor must consume this permit immediately before calling the
+narrow DPM wrapper. Any state mismatch, expiry, or change after issue
+is NO WIPE. A Boolean is not a permit.
 
 Unlike reversible policies, there is **no** post-write read-back that
 can prove a factory reset. The current
@@ -435,45 +482,73 @@ Additional wipe rules:
   log-only
 - A future read-only boot receiver, if ever proposed, still cannot
   submit, arm, authorize, or execute
+- Process death and reboot must not shorten or clear the deny-only
+  destructive cooldown (see §9)
 
 See §2.4 for per-state interruption behavior.
 
 ## 9. Rate limiting / cooldown
 
-No rate limiter exists today. Checkpoint 17 must add fail-closed
-protection against:
+No rate limiter exists today. Checkpoint 16 does **not** implement one.
+Checkpoint 17 **must** add fail-closed protection against:
 
 - Rapid repeated attempts
 - Button double-taps
 - Duplicated Intents / events
 - Repeated malicious triggers
 - Repeated failed authorization or arming attempts
+- Repeated crash, force-stop, or reboot intended to reset in-memory
+  counters (T19)
 
-### 9.1 Process-local state (required)
+Process-local counters alone are insufficient. The threat model
+permits an attacker to kill or reboot the app and thereby clear
+in-memory state. A **mandatory** cross-process / reboot deny-only
+circuit breaker is therefore a Checkpoint 17 entry criterion.
+
+### 9.1 Process-local state (required, not sufficient)
 
 Safe to keep in memory only:
 
 - In-flight latch (one live destructive request)
 - Failed-attempt counter
 - Last-attempt monotonic timestamp
-- Armed / authorized identity for the live request
+- Armed / authorized / permit identity for the live request
 
-This state dies with the process. That is intended.
+This state dies with the process. That is intended for authorization
+and arming. It is **not** acceptable as the only cooldown.
 
-### 9.2 Persisted state (optional, deny-only)
+### 9.2 Mandatory persisted deny-only circuit breaker
 
-If a persisted cooldown is added later:
+Checkpoint 17 must persist a cooldown-required marker after a
+destructive attempt (including failed authorization or arming
+attempts that should count). Requirements:
 
-- It may only cause **denial**
-- It must never be read as authorization, arming, or a capability
-- Corruption, missing file, or clock uncertainty → deny wipe, or ignore
-  the persist and still apply process-local limits; never “fail open”
-- Do not store approvals, nonces, or “resume wipe” flags
-- Do not key cooldown by caller `requestId`
+- Process death or reboot must **never shorten or clear** destructive
+  cooldown
+- Persisted state may **only deny**. It can never arm, authorize,
+  resume, or execute
+- Persist **no** approvals, capabilities, nonces, executor permits,
+  `FinalExecutionPermit`s, or resume flags
+- Do not rely on attacker-controlled wall clock for authorization or
+  remaining cooldown
+- A safe accepted design: the persisted value is only
+  “cooldown required.” After every process start or reboot, a present
+  marker causes a **fresh full** monotonic cooldown before any new
+  destructive request may proceed. Restarting therefore cannot help
+  an attacker; it restarts the full wait
+- Corruption, unreadable store, missing expected record after an
+  attempt, or any uncertainty: **fail closed** (NO WIPE)
+- Do not key the marker by caller `requestId`
 
-Wall-clock persisted cooldowns are attacker-influenced (T17). Prefer
-monotonic process-local limits. A persisted “recent attempt” marker is
-evidence for operators, not a permit.
+The marker is not a permit to continue a previous request. After
+restart the process is `IDLE` and still denied until the new
+monotonic window elapses.
+
+### 9.3 What must remain process-local
+
+Arming tokens, destructive capabilities, and `FinalExecutionPermit`
+objects remain process-local and die with the process. Only the
+deny-only cooldown marker may persist.
 
 ## 10. Android destructive API boundary (research only)
 
@@ -503,16 +578,25 @@ Public documentation states:
   `targetSdk` is 36, so a future device-wide wipe cannot use
   `wipeData` on the primary user.
 - Apps that want to wipe the entire device should use `wipeDevice`.
-- `wipeDevice` requires the caller to be a Device Owner or
-  organization-owned Profile Owner that requested
-  `DeviceAdminInfo.USES_POLICY_WIPE_DATA` (`wipe-data` metadata), or
-  to hold `MASTER_CLEAR`, or both `MANAGE_DEVICE_POLICY_WIPE_DATA` and
-  `MANAGE_DEVICE_POLICY_ACROSS_USERS`. Otherwise `SecurityException`.
+- The public API also documents alternative privileged permission
+  paths (`MASTER_CLEAR`, or `MANAGE_DEVICE_POLICY_WIPE_DATA` together
+  with `MANAGE_DEVICE_POLICY_ACROSS_USERS`). Those are **not**
+  Sentinel’s intended authorization path and must not be depended on.
 - Sentinel is a fully-managed Device Owner DPC, not a Profile Owner.
   Profile-owner “relinquish device” wipe is out of scope.
 - `USES_POLICY_WIPE_DATA` is declared by a `wipe-data` tag under
   `uses-policies`. Current metadata must stay exactly `disable-camera`
   until Checkpoint 17 explicitly reviews a metadata change.
+
+**Intended future Sentinel path (frozen):**
+
+1. Freshly verified active Device Owner
+2. Explicitly reviewed DeviceAdmin `USES_POLICY_WIPE_DATA` /
+   `<wipe-data>` metadata
+3. The documented Device Owner + `wipe-data` API contract
+
+Do not add, request, or rely on `MANAGE_DEVICE_POLICY_*` or
+`MASTER_CLEAR` grants.
 
 ### 10.3 Flags / scope (documented)
 
@@ -546,27 +630,29 @@ WIPE**.
 
 1. **GrapheneOS behavior** of `wipeDevice` / `wipeData`, including any
    additional policy, FRP, or eUICC restrictions on supported Pixels.
-   Not proven in this repository.
-2. Whether a Device Owner on GrapheneOS is automatically granted
-   `MANAGE_DEVICE_POLICY_WIPE_DATA` / `MANAGE_DEVICE_POLICY_ACROSS_USERS`,
-   or whether `wipe-data` metadata is the only supported path.
-3. Exact interaction of `WIPE_RESET_PROTECTION_DATA` with GrapheneOS
+   Not proven in this repository. Keep this unresolved until verified
+   on disposable GrapheneOS Pixel hardware.
+2. Exact interaction of `WIPE_RESET_PROTECTION_DATA` with GrapheneOS
    owner-binding / installer verification.
-4. Whether `WIPE_EUICC` is appropriate or even effective on the
+3. Whether `WIPE_EUICC` is appropriate or even effective on the
    production Pixel target.
-5. Whether any Sentinel product policy should ever allow
+4. Whether any Sentinel product policy should ever allow
    `WIPE_SILENTLY`. This design recommends **forbidding** silent wipe
    unless a later review explicitly accepts it.
-6. Whether a user-scoped wipe (secondary user) is ever in scope.
+5. Whether a user-scoped wipe (secondary user) is ever in scope.
    Current product is fully-managed Device Owner. Default: out of scope.
-7. Behavior on API 26–33 devices if a wipe were ever attempted there.
+6. Behavior on API 26–33 devices if a wipe were ever attempted there.
    `wipeDevice` does not exist before API 34. Default: unsupported,
    fail closed.
-8. Whether PackageManager signing-info binding should be added to the
+7. Whether PackageManager signing-info binding should be added to the
    target record.
-9. Whether any hardware-backed confirmation (for example a future
+8. Whether any hardware-backed confirmation (for example a future
    system confirmation dialog) exists and is available without inventing
    APIs this project does not use today.
+
+Privileged `MANAGE_DEVICE_POLICY_*` / `MASTER_CLEAR` grants are
+**not** an unresolved Sentinel requirement. They are alternative
+platform paths that this design refuses to depend on.
 
 ## 11. Architecture boundary for Checkpoint 17
 
@@ -581,10 +667,11 @@ grants execution capability.
 | Destructive assessor | Read current DO/admin/status; build target snapshot | Arm, authorize, execute |
 | `DestructiveArmingAuthority` | Issue / cancel process-local arming tokens | Authorize or execute |
 | `DestructiveAuthorizationAuthority` | Issue / consume target-bound capabilities | Call DPM; accept reversible `Approval` |
-| `DestructiveFinalValidator` | Fresh DO/admin/target/freshness/rate-limit/audit checks | Call DPM on success beyond returning allow/deny |
+| `DestructiveFinalValidator` | Run fresh DO/admin/target/freshness/rate-limit/audit checks **inside** the executor chain | Return a reusable Boolean allow; cache or persist a result; expose an API to UI |
+| `FinalExecutionPermit` | Optional opaque in-chain hand-off to the paired executor | Be serialized, delayed, queued, or accepted from UI |
 | Narrow destructive DPM service | The single future wrapper method, bytecode-bound | Be reachable from UI, recovery, audit, or reversible executor |
 | Sealed destructive mutation type | Isolated from `VerifiedPolicyMutation` | Share dispatch with camera/screen/status-bar |
-| Destructive executor | Invoke the wrapper only after consume + final allow | Be the reversible `ActionExecutor` or `VerifiedPolicyMutationExecutor` |
+| Destructive executor | Perform or consume final validation and immediately invoke the wrapper in one synchronous trusted chain | Accept a Boolean allow, a delayed callback, or a persisted permit; be the reversible `ActionExecutor` or `VerifiedPolicyMutationExecutor` |
 | Audit writer | Append evidence from the trusted controller | Authorize, replay, or execute |
 | `RecoveryInspectionProvider` | Classify interrupted evidence | Submit, approve, retry, or mutate |
 
@@ -612,7 +699,12 @@ is allowed. Partial completion is not permission to add
 - [ ] Anti-replay complete in a **separate** destructive authorization
       domain
 - [ ] Arming design implemented as a non-executing, process-local phase
-- [ ] Final validation complete and fail-closed
+- [ ] Final validation complete and fail-closed, with no Boolean allow
+      result and no UI/async/queue/persistence gap before invocation
+      (synchronous executor chain or single-use `FinalExecutionPermit`)
+- [ ] Mandatory cross-process / reboot deny-only circuit breaker /
+      cooldown implemented: process death and reboot never shorten or
+      clear it; persisted state denies only; corruption fails closed
 - [ ] Audit semantics implemented: pre-execution append required;
       no false `APPLIED`; no audit replay
 - [ ] Lifecycle behavior complete: no boot path, no recovery execution,
@@ -621,6 +713,9 @@ is allowed. Partial completion is not permission to add
       (GrapheneOS Pixel and documented API 34+ `wipeDevice` rules),
       with every §10.5 item resolved or explicitly accepted as
       out-of-scope fail-closed
+- [ ] Intended path remains verified Device Owner plus explicitly
+      reviewed `wipe-data` metadata; no `MANAGE_DEVICE_POLICY_*` or
+      `MASTER_CLEAR` dependency
 - [ ] Build-time DPM allowlist change explicitly reviewed
 - [ ] DeviceAdmin metadata change (`wipe-data`) explicitly reviewed if
       required by the chosen API
@@ -628,8 +723,13 @@ is allowed. Partial completion is not permission to add
       production paths
 - [ ] Destructive tests restricted to disposable dedicated test
       hardware (`docs/DEVICE_OWNER_TEST_DEVICE.md`)
-- [ ] Exact signed artifact verification
-      (`PRODUCTION_SIGNED` / Checkpoint 15 signing boundary)
+- [ ] Exact **test-artifact** certificate / hash verification for the
+      APK installed on that disposable device. This is not the
+      Checkpoint 15 production-distribution signing gate and must not
+      require exposing or using the production signing key
+- [ ] Production distribution, if ever shipped with wipe capability,
+      still requires the separate Checkpoint 15 `PRODUCTION_SIGNED`
+      gate
 - [ ] Explicit human approval before any destructive hardware test
 - [ ] Controlled production registry still does not contain
       `MOCK_WIPE`

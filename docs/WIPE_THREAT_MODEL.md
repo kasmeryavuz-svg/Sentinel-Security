@@ -43,6 +43,7 @@ entry criteria.
 | Process-local destructive authorization and arming tokens | These are the only objects that may ever permit a future executor to proceed |
 | Authoritative correlation / request identity | Caller-controlled IDs must never become authority |
 | Durable audit evidence | Operators need a pre-execution record; the log must not become an authorization or replay source |
+| Deny-only destructive cooldown marker | Process death or reboot must not reset repeated-attempt protection |
 | Production signing and build allowlists | A widened DPM/metadata/registry boundary would create wipe capability without a reviewed design |
 | Reversible policy executor and current `ApprovalAuthority` | Mixing reversible and destructive authority would let a camera/status-bar path become a wipe path |
 | Recovery / lifecycle reconstruction | Restart must reconstruct services from current device state, never resume a wipe |
@@ -68,8 +69,10 @@ destructive arming authority          <-- process-local, short-lived
 destructive authorization authority   <-- separate domain from ApprovalAuthority
   |  single-use, target-bound, process-local
   v
-destructive final validator           <-- fresh DO / admin / target / freshness
-  |  decision-time auth is insufficient
+destructive executor                  <-- one synchronous trusted chain
+  |  final validation + optional FinalExecutionPermit
+  |  no Boolean allow, no UI/async/queue gap
+  |  immediately invokes the narrow wrapper
   v
 narrow destructive DPM service        <-- isolated from reversible policy services
   |  future Checkpoint 17 only; absent now
@@ -99,9 +102,12 @@ Cross-boundary rules:
 - Assessment may read current Device Owner / admin / policy status
 - Arming may create and cancel a process-local arming token only
 - Authorization may issue and consume a destructive capability only
-- Final validation may deny or allow the already-authorized executor
+- Final validation is not a reusable allow/deny result. It occurs only
+  inside the destructive executor’s synchronous trusted chain, or
+  produces an opaque single-use `FinalExecutionPermit` that that
+  executor consumes immediately
 - The executor is the only future component that may call a destructive
-  DPM wrapper
+  DPM wrapper, and only in the same chain as final validation
 - Audit may record evidence and must never approve, arm, or execute
 - Recovery may classify interrupted evidence and must never continue a
   wipe
@@ -199,9 +205,9 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 | Field | Content |
 | --- | --- |
 | Threat | The process dies after REQUESTED, ASSESSED, ARMED, or AUTHORIZED. Restart reconstructs authorization from memory leftovers, audit rows, or saved instance state and continues the wipe. |
-| Required invariant | Destructive authorization and arming cannot survive process death. A new process requires a new destructive request. Persisted records are evidence only. |
-| Mitigation | Keep arming and authorization strictly in memory, created by trusted composition. `createControlledController` already constructs a fresh `ApprovalAuthority`; a future destructive authority must do the same and must not be persisted. Recovery inspection classifies unmatched REQUESTED rows and has no execution capability. |
-| Failure behavior | Interrupted evidence only (`OUTCOME_UNKNOWN` classification). NO automatic wipe. |
+| Required invariant | Destructive authorization and arming cannot survive process death. A new process requires a new destructive request. Persisted records are evidence only. Process death must not shorten or clear the destructive cooldown. |
+| Mitigation | Keep arming, authorization, and any `FinalExecutionPermit` strictly in memory. Persist only a deny-only cooldown-required marker (see T19). Recovery inspection classifies unmatched REQUESTED rows and has no execution capability. |
+| Failure behavior | Interrupted evidence only (`OUTCOME_UNKNOWN` classification). Cooldown remains in force. NO automatic wipe. |
 
 ### T8. Crash during the pipeline
 
@@ -218,8 +224,8 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 | --- | --- |
 | Threat | A reboot receiver, locked-boot receiver, or startup reconstruction resumes a wipe. |
 | Required invariant | No `BOOT_COMPLETED`, `LOCKED_BOOT_COMPLETED`, or `QUICKBOOT_POWERON` wipe path. Startup reconstructs read-only status and a fresh controller only. |
-| Mitigation | Preserve Checkpoint 14/15 manifest and bytecode guards. Do not add a boot receiver for wipe. Monotonic clocks reset across reboot; any future persisted cooldown must fail closed rather than authorize. |
-| Failure behavior | Services reconstructed. Previous request dead. NO WIPE. |
+| Mitigation | Preserve Checkpoint 14/15 manifest and bytecode guards. Do not add a boot receiver for wipe. Monotonic clocks reset across reboot. The mandatory deny-only cooldown marker survives reboot and starts a fresh full monotonic cooldown; it never authorizes. |
+| Failure behavior | Services reconstructed. Previous request dead. Cooldown remains in force. NO WIPE. |
 
 ### T10. Interrupted execution after a future destructive call
 
@@ -252,9 +258,9 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 
 | Field | Content |
 | --- | --- |
-| Threat | TOCTOU: state changes after assessment/authorization and before the destructive call. |
-| Required invariant | Decision-time authorization never substitutes for execution-time validation. The executor must re-check Device Owner, admin, target binding, approval freshness, single-use status, arming freshness, and rate-limit state. |
-| Mitigation | Explicit `FINAL_VALIDATION` state. Any mismatch, exception, or unavailable service aborts before the DPM wrapper is invoked. |
+| Threat | TOCTOU: state changes after assessment/authorization and before the destructive call. A Boolean “allowed” result, cached validator output, UI callback, async task, queue, or persisted permit is reused or delayed after Device Owner, admin, target, arming, or cooldown state has changed. |
+| Required invariant | Decision-time authorization never substitutes for execution-time validation. There is no reusable Boolean allow result, no cached or persisted final-validation result, and no UI, async, callback, queue, or persistence boundary between final validation and the destructive API invocation. Final validation and invocation occur in one synchronous trusted execution chain. If an internal permit is used, it is an opaque process-local `FinalExecutionPermit`: target/scope/correlation-bound, extremely short monotonic lifetime, consumable exactly once only by the paired destructive executor, and not serializable. The executor performs or consumes this final validation immediately before calling the narrow DPM wrapper. |
+| Mitigation | Keep `FINAL_VALIDATION` and the DPM wrapper call inside the destructive executor’s single trusted method. Do not return “allowed” to UI or another component. Any mismatch, expiry, state change, exception, or unavailable service is NO WIPE. |
 | Failure behavior | `FAILED_PRE_EXECUTION`. NO WIPE. |
 
 ### T14. Audit failure before execution
@@ -290,7 +296,7 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 | --- | --- |
 | Threat | An attacker sets wall-clock backward to revive an expired trigger, or forward to skip a cooldown that was stored as wall-clock. |
 | Required invariant | Wall-clock is presentation metadata only. Authorization freshness, arming freshness, and destructive cooldowns must use the existing monotonic clock (`SystemClock.elapsedRealtime()` in production). Negative monotonic deltas fail closed. |
-| Mitigation | Do not use `presentationWallClockMillis` or trigger `expiresAtEpochMillis` as the sole destructive freshness control. Trigger wall-clock expiry may remain a first-pass rejection for untrusted input, but execution freshness is monotonic. Persisted cooldown, if any, must not become authorization when the clock is untrusted. |
+| Mitigation | Do not use `presentationWallClockMillis` or trigger `expiresAtEpochMillis` as the sole destructive freshness control. Trigger wall-clock expiry may remain a first-pass rejection for untrusted input, but execution freshness is monotonic. The mandatory persisted cooldown marker must not encode attacker-controlled wall-clock remaining time as authorization. After process start, a present marker starts a fresh full monotonic cooldown. |
 | Failure behavior | `EXPIRED` / `REJECTED`. NO WIPE. |
 
 ### T18. Accidental operator activation
@@ -306,9 +312,9 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 
 | Field | Content |
 | --- | --- |
-| Threat | Rapid repeated triggers, failed authorization loops, or scripted submits try to brute-force a race or exhaust operator attention. |
-| Required invariant | Fail-closed rate limiting and cooldown. Rate-limit state is never authorization. |
-| Mitigation | Process-local attempt counters and monotonic cooldown. Optional persisted cooldown may only deny, never allow. Uncertainty in limiter state denies. |
+| Threat | Rapid repeated triggers, failed authorization loops, or scripted submits try to brute-force a race or exhaust operator attention. The attacker also crashes, force-stops, or reboots the app to reset process-local counters and immediately retry. |
+| Required invariant | Fail-closed rate limiting and a **mandatory** cross-process / reboot deny-only circuit breaker. Process death or reboot must never shorten or clear destructive cooldown. Rate-limit and cooldown state is never authorization, arming, resume, or an executor permit. |
+| Mitigation | Keep an in-process latch and monotonic counter for double-taps. Persist only a cooldown-required marker with no approvals, capabilities, nonces, executor permits, or resume flags. After every process start or reboot, a present marker starts a **fresh full** monotonic cooldown. Do not rely on attacker-controlled wall clock. Corruption, unreadable store, or uncertainty fails closed (deny). Checkpoint 16 does not implement the limiter. |
 | Failure behavior | `REJECTED`. NO WIPE. |
 
 ### T20. Downgrade / rollback of a future wipe-capable artifact
@@ -326,7 +332,7 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 | --- | --- |
 | Threat | Same-UID or backup-restore attacker inserts a fake REQUESTED/AUTHORIZED row, a fake cooldown, or a serialized approval and expects execution. |
 | Required invariant | No persisted reusable approval. Backup and device-to-device transfer remain disabled / excluded. Persisted rows never authorize. Corrupt or unknown persisted state fails closed. |
-| Mitigation | Preserve `allowBackup=false` and extraction-exclusion rules. Do not persist arming or destructive capabilities. Treat unknown audit phases as corruption. If a future cooldown file is added, corruption denies wipe rather than skipping the limiter. |
+| Mitigation | Preserve `allowBackup=false` and extraction-exclusion rules. Do not persist arming, destructive capabilities, or `FinalExecutionPermit` objects. Treat unknown audit phases as corruption. The mandatory cooldown-required marker, if corrupt or unreadable, denies wipe rather than skipping the limiter. |
 | Failure behavior | `REJECTED` or interrupted evidence only. NO WIPE. |
 
 ### T22. Recovery-path abuse
@@ -370,7 +376,7 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 | Field | Content |
 | --- | --- |
 | Threat | Future code lets assessment, UI, recovery, or audit invoke the destructive DPM service directly. |
-| Required invariant | Trigger → assessment → arming → authorization → final validation → executor. No component holds more authority than required. The executor accepts only a just-consumed destructive capability plus a fresh validator result. |
+| Required invariant | Trigger → assessment → arming → authorization → executor-owned final validation → immediate DPM wrapper call. No component holds more authority than required. The executor does not accept a Boolean allow flag or a delayed validator result from UI, a queue, or persistence. |
 | Mitigation | Isolate the future destructive DPM service from the reversible `VerifiedPolicyMutationExecutor`. Do not place the executor on the app compile classpath. Bytecode-bind the future setter the same way reversible setters are bound today. |
 | Failure behavior | Build reject or runtime DENY. NO WIPE. |
 
