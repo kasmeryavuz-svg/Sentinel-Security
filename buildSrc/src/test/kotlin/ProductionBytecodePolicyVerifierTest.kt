@@ -812,6 +812,27 @@ class ProductionBytecodePolicyVerifierTest {
         assertTrue(violations.any { "trusted audit SQLite implementation" in it })
     }
 
+    @Test
+    fun `trusted audit identity class may embed the audit database filename`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/audit/AuditSqliteIdentity.java" to
+                """
+                package com.example.devicemanagement.audit;
+                public final class AuditSqliteIdentity {
+                    public static final String DATABASE_NAME = "sentinel_audit.db";
+                    public static final String TABLE_NAME = "audit_events";
+                    private AuditSqliteIdentity() {}
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(
+            violations.none { "sentinel_audit.db" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
     private fun concreteCameraServiceStub(
         implementInterface: Boolean = false,
     ): Pair<String, String> {
