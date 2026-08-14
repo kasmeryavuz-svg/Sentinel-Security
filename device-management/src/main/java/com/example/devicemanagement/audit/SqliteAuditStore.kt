@@ -74,10 +74,11 @@ internal class SqliteAuditRecordStore(
             put("action_name", record.actionName)
             put("phase", record.phase.name)
             put("presentation_wall_clock_millis", record.presentationWallClockMillis)
-            if (record.reasonCode == null) {
+            val reasonCode = record.reasonCode
+            if (reasonCode == null) {
                 putNull("reason_code")
             } else {
-                put("reason_code", record.reasonCode.name)
+                put("reason_code", reasonCode.name)
             }
         }
         db.beginTransaction()
