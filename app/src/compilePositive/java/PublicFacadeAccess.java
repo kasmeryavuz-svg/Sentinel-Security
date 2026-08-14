@@ -5,6 +5,7 @@ import com.example.devicemanagement.audit.AuditHistoryProvider;
 import com.example.devicemanagement.audit.AuditStorageStatusProvider;
 import com.example.devicemanagement.management.DeviceManagementServices;
 import com.example.devicemanagement.management.DeviceManagementStatusProvider;
+import com.example.devicemanagement.recovery.RecoveryInspectionProvider;
 
 final class PublicFacadeAccess {
     SensitiveActionController controller(DeviceManagementServices services) {
@@ -21,5 +22,9 @@ final class PublicFacadeAccess {
 
     AuditStorageStatusProvider auditStatus(DeviceManagementServices services) {
         return services.getAuditStorageStatus();
+    }
+
+    RecoveryInspectionProvider recoveryInspection(DeviceManagementServices services) {
+        return services.getRecoveryInspection();
     }
 }

@@ -35,6 +35,9 @@ class DeviceAdminReceiverProvisioningGuardTest {
         assertFalse(source.contains("openFileOutput"))
         assertFalse(source.contains("VerifiedPolicyMutationExecutor"))
         assertFalse(source.contains("SensitiveActionController"))
+        assertFalse(source.contains("BOOT_COMPLETED"))
+        assertFalse(source.contains("ApprovalAuthority"))
+        assertFalse(source.contains("ActionExecutor"))
     }
 
     @Test

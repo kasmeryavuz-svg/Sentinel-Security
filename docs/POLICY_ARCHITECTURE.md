@@ -52,6 +52,14 @@ actions, call DevicePolicyManager, or bypass the existing backend. Unknown
 persisted audit phases are storage corruption, not fabricated terminal
 outcomes.
 
+`RecoveryInspectionProvider` is a second read-only evidence API. It classifies
+unmatched `REQUESTED` events as interrupted after a later process start. App
+and UI code may inspect interrupted correlation IDs, count, and health. They
+cannot obtain the recovery implementation, an audit writer, store mutation
+APIs, `ApprovalAuthority`, `ActionExecutor`, or `DevicePolicyManager`.
+Recovery never submits, approves, retries, or mutates policy. See
+`docs/LIFECYCLE.md`.
+
 The app has one direct project dependency: the `device-management` facade.
 That facade exposes contracts from `device-management-api` and
 `sensitive-actions-api`, while depending on `device-management-impl` with
@@ -100,6 +108,13 @@ asks its paired `ApprovalAuthority` to issue an identity-bound capability. The
 authority retains the authoritative action request. The executor consumes that
 capability exactly once and rejects forged, foreign, replayed, expired, or
 monotonically stale approvals.
+
+Approvals are process-local and are never persisted. `createControlledController`
+always constructs a fresh `ApprovalAuthority`. After process death, crash,
+force-stop, or reboot, a previously issued approval cannot be consumed. A later
+process must submit a new trigger through this same trusted path. Device Owner
+and backend authorization are re-read on every decision; they are not cached in
+persistent storage.
 
 ## Final mutation authorization
 
@@ -184,6 +199,9 @@ returns Applied and the terminal audit append then fails, the action result
 stays Applied. Audit health becomes degraded/unavailable, the unmatched
 `REQUESTED` event remains visible as interrupted / outcome unknown, and later
 mutations fail closed until a `REQUESTED` append can be written again.
+Recovery inspection classifies that unmatched `REQUESTED` record as interrupted
+evidence. It does not rewrite the row, fabricate a terminal event, or retry
+the action. There is no `BOOT_COMPLETED` policy execution path.
 
 Wall-clock timestamps are presentation metadata only. Authorization freshness
 continues to use the existing monotonic clock. Local retention prunes the oldest

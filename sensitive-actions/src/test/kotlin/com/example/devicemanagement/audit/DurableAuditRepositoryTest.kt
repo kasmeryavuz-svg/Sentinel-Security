@@ -190,6 +190,7 @@ class DurableAuditRepositoryTest {
         val types = listOf(
             AuditHistoryProvider::class.java,
             AuditStorageStatusProvider::class.java,
+            com.example.devicemanagement.recovery.RecoveryInspectionProvider::class.java,
         )
         types.forEach { type ->
             val names = type.methods
