@@ -53,6 +53,11 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(uiSources.contains("setStatusBarDisabled"))
         assertFalse(uiSources.contains("ActionExecutor"))
         assertFalse(uiSources.contains("ApprovalAuthority"))
+        assertFalse(uiSources.contains("SensitiveActionAuditWriter"))
+        assertFalse(uiSources.contains("DurableAuditRepository"))
+        assertFalse(uiSources.contains("SqliteAuditRecordStore"))
+        assertFalse(uiSources.contains("SentinelAuditOpenHelper"))
+        assertFalse(uiSources.contains("AuditRecordStore"))
         assertFalse(uiSources.contains("DeviceAction"))
         assertFalse(uiSources.contains("wipeData"))
         assertFalse(uiSources.contains("lockNow"))
@@ -94,6 +99,11 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(appSources.contains("apksig"))
         assertFalse(appSources.contains("ApkVerifier"))
         assertTrue(appSources.contains("SensitiveActionController"))
+        assertTrue(appSources.contains("AuditHistoryProvider"))
+        assertTrue(appSources.contains("AuditStorageStatusProvider"))
+        assertFalse(appSources.contains("SensitiveActionAuditWriter"))
+        assertFalse(appSources.contains("DurableAuditRepository"))
+        assertFalse(appSources.contains("SqliteAuditRecordStore"))
     }
 
     @Test

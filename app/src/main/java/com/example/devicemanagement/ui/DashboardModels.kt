@@ -1,5 +1,6 @@
 package com.example.devicemanagement.ui
 
+import com.example.devicemanagement.audit.AuditStorageHealth
 import com.example.devicemanagement.management.CameraPolicyStatus
 import com.example.devicemanagement.management.DeviceManagementStatus
 import com.example.devicemanagement.management.DeviceOwnerValidation
@@ -32,6 +33,8 @@ enum class OperationOutcomePresentation {
     APPLIED,
     DENIED,
     FAILED,
+    SIMULATED,
+    INTERRUPTED,
 }
 
 enum class ManagementModePresentation {
@@ -102,6 +105,23 @@ data class DashboardViewState(
     val screenCapture: PolicyCardViewState,
     val camera: PolicyCardViewState,
     val statusBar: PolicyCardViewState,
-    val sessionActivity: List<SessionActivityEntry>,
+    val auditLog: List<AuditLogRow>,
+    val auditStorageHealth: AuditStorageHealth,
     val operationInProgress: Boolean,
 )
+
+data class AuditLogRow(
+    val timestampMillis: Long,
+    val actionName: String,
+    val status: AuditLogStatus,
+    val correlationId: String,
+    val reasonCode: String?,
+)
+
+enum class AuditLogStatus {
+    APPLIED,
+    REJECTED,
+    FAILED,
+    SIMULATED,
+    INTERRUPTED,
+}

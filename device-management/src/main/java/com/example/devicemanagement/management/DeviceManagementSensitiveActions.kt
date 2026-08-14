@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.SystemClock
 import com.example.devicemanagement.action.SensitiveActionController
 import com.example.devicemanagement.action.DeviceManagementSensitiveActionControllerFactory
+import com.example.devicemanagement.audit.AndroidAuditPersistence
+import com.example.devicemanagement.audit.DurableAuditRepository
 import com.example.devicemanagement.integration.MonotonicTimeSource
 import com.example.devicemanagement.integration.PolicyMutationResult
 import com.example.devicemanagement.integration.SensitiveActionAuthorization
@@ -16,10 +18,12 @@ internal object DeviceManagementComposition {
         logger: StructuredLogger,
     ): DeviceManagementServices {
         val deviceManagementLogger = StructuredDeviceManagementLogger(logger)
+        val audit = AndroidAuditPersistence.create(context, logger)
         val sensitiveActions = createSensitiveActions(
                 context = context,
                 sensitiveActionLogger = logger,
                 deviceManagementLogger = deviceManagementLogger,
+                auditWriter = audit,
             )
         val deviceManagementStatus =
             DeviceManagementDiagnostics.create(context, deviceManagementLogger)
@@ -56,6 +60,8 @@ internal object DeviceManagementComposition {
             override val screenCapturePolicyStatus = screenCapturePolicyStatus
             override val cameraPolicyStatus = cameraPolicyStatus
             override val statusBarPolicyStatus = statusBarPolicyStatus
+            override val auditHistory = audit
+            override val auditStorageStatus = audit
         }
     }
 
@@ -63,6 +69,7 @@ internal object DeviceManagementComposition {
         context: Context,
         sensitiveActionLogger: StructuredLogger,
         deviceManagementLogger: DeviceManagementLogger,
+        auditWriter: DurableAuditRepository,
     ): SensitiveActionController {
         val platform = AndroidDevicePolicyPlatform(context.applicationContext)
         val validationProvider = DeviceManagementDiagnostics.createDeviceOwnerValidationProvider(
@@ -95,6 +102,7 @@ internal object DeviceManagementComposition {
             backend = backend,
             logger = sensitiveActionLogger,
             monotonicTimeSource = AndroidElapsedRealtimeMonotonicTimeSource,
+            auditWriter = auditWriter,
         )
     }
 }

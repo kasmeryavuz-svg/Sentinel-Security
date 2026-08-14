@@ -57,6 +57,14 @@ class ProvisioningManifestGuardTest {
     }
 
     @Test
+    fun `application backup remains disabled`() {
+        val manifest = parse(File(requireNotNull(System.getProperty("appMainSourceDir")), "AndroidManifest.xml"))
+        val androidNamespace = "http://schemas.android.com/apk/res/android"
+        val application = manifest.getElementsByTagName("application").asElements().single()
+        assertEquals("false", application.getAttributeNS(androidNamespace, "allowBackup"))
+    }
+
+    @Test
     fun `enrollment diagnostics remain static read-only copy`() {
         val strings = File(
             requireNotNull(System.getProperty("appMainSourceDir")),

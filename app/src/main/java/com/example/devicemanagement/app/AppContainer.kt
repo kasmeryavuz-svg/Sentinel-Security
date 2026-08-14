@@ -2,6 +2,8 @@ package com.example.devicemanagement.app
 
 import android.content.Context
 import com.example.devicemanagement.action.SensitiveActionController
+import com.example.devicemanagement.audit.AuditHistoryProvider
+import com.example.devicemanagement.audit.AuditStorageStatusProvider
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.management.CameraPolicyStatusProvider
 import com.example.devicemanagement.management.DeviceManagement
@@ -39,4 +41,8 @@ class AppContainer(
 
     val statusBarPolicyStatus: StatusBarPolicyStatusProvider =
         services.statusBarPolicyStatus
+
+    val auditHistory: AuditHistoryProvider = services.auditHistory
+
+    val auditStorageStatus: AuditStorageStatusProvider = services.auditStorageStatus
 }

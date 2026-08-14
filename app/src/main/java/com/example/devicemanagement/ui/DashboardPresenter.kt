@@ -1,6 +1,13 @@
 package com.example.devicemanagement.ui
 
 import com.example.devicemanagement.action.SensitiveActionController
+import com.example.devicemanagement.audit.AuditHistory
+import com.example.devicemanagement.audit.AuditHistoryProvider
+import com.example.devicemanagement.audit.AuditReasonCode
+import com.example.devicemanagement.audit.AuditSchema
+import com.example.devicemanagement.audit.AuditStorageHealth
+import com.example.devicemanagement.audit.AuditStorageStatus
+import com.example.devicemanagement.audit.AuditStorageStatusProvider
 import com.example.devicemanagement.trigger.Trigger
 import java.util.UUID
 
@@ -10,12 +17,14 @@ import java.util.UUID
  * Mutation requests are submitted only through [SensitiveActionController].
  * This class does not approve, write, or verify policy changes.
  *
- * Session activity recorded here is NON-PERSISTENT in-memory history.
+ * Audit history is loaded only from the read-only durable audit providers.
+ * The presenter never appends audit events or infers Applied from a button press.
  */
 class DashboardPresenter(
     private val readSnapshot: () -> DashboardSnapshot,
     private val sensitiveActions: SensitiveActionController,
-    private val sessionActivity: SessionActivityStore,
+    private val auditHistory: AuditHistoryProvider,
+    private val auditStorageStatus: AuditStorageStatusProvider,
     private val requestLifetimeMillis: Long = REQUEST_LIFETIME_MILLIS,
     private val nowEpochMillis: () -> Long = System::currentTimeMillis,
     private val requestIdGenerator: () -> String = { UUID.randomUUID().toString() },
@@ -25,7 +34,8 @@ class DashboardPresenter(
     fun currentState(): DashboardViewState {
         return DashboardStateMapper.map(
             snapshot = readSnapshot(),
-            sessionEntries = sessionActivity.entries(),
+            auditHistory = readAuditHistory(),
+            auditStatus = readAuditStatus(),
             pendingCapability = pendingCapability,
         )
     }
@@ -34,8 +44,8 @@ class DashboardPresenter(
      * Submits one trusted enable/disable command.
      *
      * [onPending] receives the in-progress presentation before the controller
-     * returns. Success is never published from this method until the controller
-     * result has been recorded.
+     * returns. Audit results are never published from this method; they are
+     * read back from the durable audit provider after the controller returns.
      */
     fun submitAction(
         capability: PolicyCapability,
@@ -47,20 +57,38 @@ class DashboardPresenter(
         }
         pendingCapability = capability
         onPending(currentState())
-        val result = sensitiveActions.submit(
+        sensitiveActions.submit(
             Trigger(
                 command = DashboardCommands.command(capability, disable),
                 requestId = requestIdGenerator(),
                 expiresAtEpochMillis = nowEpochMillis() + requestLifetimeMillis,
             ),
         )
-        sessionActivity.record(
-            capability = capability,
-            requestedDisabled = disable,
-            result = result,
-        )
         pendingCapability = null
         return currentState()
+    }
+
+    private fun readAuditHistory(): AuditHistory {
+        return try {
+            auditHistory.latest(AuditSchema.DASHBOARD_LIMIT * 2)
+        } catch (_: Throwable) {
+            AuditHistory(
+                events = emptyList(),
+                storedCount = 0,
+                retentionBound = AuditSchema.RETENTION_BOUND,
+            )
+        }
+    }
+
+    private fun readAuditStatus(): AuditStorageStatus {
+        return try {
+            auditStorageStatus.currentStatus()
+        } catch (_: Throwable) {
+            AuditStorageStatus(
+                health = AuditStorageHealth.UNAVAILABLE,
+                reasonCode = AuditReasonCode.AUDIT_PERSISTENCE_UNAVAILABLE,
+            )
+        }
     }
 
     private companion object {

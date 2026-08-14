@@ -191,7 +191,7 @@
             android:layout_marginTop="@dimen/spacing_m" />
 
         <LinearLayout
-            android:id="@+id/session_card"
+            android:id="@+id/audit_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_l"
@@ -203,31 +203,31 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/section_session_activity"
+                android:text="@string/section_audit_log"
                 android:textColor="@color/dashboard_text_primary"
                 android:textSize="@dimen/text_section"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/session_notice"
+                android:id="@+id/audit_status"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_s"
-                android:text="@string/session_activity_notice"
+                android:text="@string/audit_notice"
                 android:textColor="@color/dashboard_text_secondary"
                 android:textSize="@dimen/text_secondary" />
 
             <TextView
-                android:id="@+id/session_empty"
+                android:id="@+id/audit_empty"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_m"
-                android:text="@string/session_activity_empty"
+                android:text="@string/audit_empty"
                 android:textColor="@color/dashboard_text_secondary"
                 android:textSize="@dimen/text_body" />
 
             <LinearLayout
-                android:id="@+id/session_list"
+                android:id="@+id/audit_list"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/spacing_m"

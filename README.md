@@ -38,9 +38,8 @@ created inside the controller; caller request IDs are diagnostic input only.
 ## Packages
 
 - `ui`: product Device Owner security dashboard. It reads status through
-  public providers and submits only the six trusted commands through
-  `SensitiveActionController`. Session activity is NON-PERSISTENT
-  in-memory history for the current app session.
+  public providers, including the read-only durable audit log, and submits
+  only the six trusted commands through `SensitiveActionController`.
 - `provisioning`: Android 12+ `GET_PROVISIONING_MODE` and
   `ADMIN_POLICY_COMPLIANCE` activities. Fully-managed Device Owner only;
   no policy mutation.
@@ -73,7 +72,8 @@ uses `isStatusBarDisabled()` and requires API 34+). Repository-wide DPM
 boundary checks, dynamic/reflection/native guards, and per-variant effective
 DeviceAdmin metadata checks prevent app or variant overrides from widening those
 allowlists.
-See `docs/GRAPHENEOS_ENROLLMENT.md` for GrapheneOS enrollment status (QR is
+See `docs/AUDIT.md` for durable local audit persistence and its tamper-evidence
+limits, `docs/GRAPHENEOS_ENROLLMENT.md` for GrapheneOS enrollment status (QR is
 standards-ready, not yet confirmed on GrapheneOS SetupWizard2),
 `docs/QR_PROVISIONING.md` for local QR JSON generation,
 `docs/DEVICE_OWNER_TEST_DEVICE.md` for the development-only disposable

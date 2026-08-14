@@ -1,5 +1,10 @@
 package com.example.devicemanagement.ui
 
+import com.example.devicemanagement.audit.AuditActionNames
+import com.example.devicemanagement.audit.AuditEventPhase
+import com.example.devicemanagement.audit.AuditReasonCode
+import com.example.devicemanagement.audit.AuditStorageHealth
+import com.example.devicemanagement.audit.AuditStorageStatus
 import com.example.devicemanagement.management.CameraPolicyState
 import com.example.devicemanagement.management.DeviceOwnerValidationResult
 import com.example.devicemanagement.management.ManagementMode
@@ -8,6 +13,7 @@ import com.example.devicemanagement.management.ScreenCapturePolicyState
 import com.example.devicemanagement.management.StatusBarPolicyState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -17,7 +23,8 @@ class DashboardStateMapperTest {
     fun `verified Device Owner maps to verified dashboard header and management`() {
         val state = DashboardStateMapper.map(
             snapshot = DashboardTestFixtures.snapshot(),
-            sessionEntries = emptyList(),
+            auditHistory = DashboardTestFixtures.history(),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = null,
         )
 
@@ -52,7 +59,8 @@ class DashboardStateMapperTest {
                 statusBar = StatusBarPolicyState.UNAVAILABLE,
                 screenCaptureReasons = listOf("not owner"),
             ),
-            sessionEntries = emptyList(),
+            auditHistory = DashboardTestFixtures.history(),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = null,
         )
 
@@ -74,7 +82,8 @@ class DashboardStateMapperTest {
             snapshot = DashboardTestFixtures.snapshot(
                 validationResult = DeviceOwnerValidationResult.CONFIGURATION_ERROR,
             ),
-            sessionEntries = emptyList(),
+            auditHistory = DashboardTestFixtures.history(),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = null,
         )
         val unavailable = DashboardStateMapper.map(
@@ -83,7 +92,8 @@ class DashboardStateMapperTest {
                 mode = ManagementMode.UNAVAILABLE,
                 isPolicyServiceAvailable = false,
             ),
-            sessionEntries = emptyList(),
+            auditHistory = DashboardTestFixtures.history(),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = null,
         )
 
@@ -100,21 +110,21 @@ class DashboardStateMapperTest {
     }
 
     @Test
-    fun `policy cards copy provider state and do not infer from last result`() {
+    fun `policy cards copy provider state and do not infer from last audit result`() {
         val state = DashboardStateMapper.map(
             snapshot = DashboardTestFixtures.snapshot(
                 screenCapture = ScreenCapturePolicyState.ENABLED,
                 camera = CameraPolicyState.DISABLED,
                 statusBar = StatusBarPolicyState.ENABLED,
             ),
-            sessionEntries = listOf(
-                DashboardTestFixtures.sessionEntry(
-                    capability = PolicyCapability.SCREEN_CAPTURE,
-                    requestedDisabled = true,
-                    outcome = OperationOutcomePresentation.APPLIED,
+            auditHistory = DashboardTestFixtures.history(
+                DashboardTestFixtures.auditEvent(
+                    actionName = AuditActionNames.DISABLE_SCREEN_CAPTURE,
+                    phase = AuditEventPhase.APPLIED,
                     correlationId = "screen-applied",
                 ),
             ),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = null,
         )
 
@@ -130,25 +140,29 @@ class DashboardStateMapperTest {
     fun `Applied Denied and Failed outcomes are presented distinctly`() {
         val state = DashboardStateMapper.map(
             snapshot = DashboardTestFixtures.snapshot(),
-            sessionEntries = listOf(
-                DashboardTestFixtures.sessionEntry(
-                    capability = PolicyCapability.SCREEN_CAPTURE,
-                    outcome = OperationOutcomePresentation.APPLIED,
+            auditHistory = DashboardTestFixtures.history(
+                DashboardTestFixtures.auditEvent(
+                    actionName = AuditActionNames.DISABLE_SCREEN_CAPTURE,
+                    phase = AuditEventPhase.APPLIED,
                     correlationId = "applied-id",
+                    sequence = 3,
                 ),
-                DashboardTestFixtures.sessionEntry(
-                    capability = PolicyCapability.CAMERA,
-                    outcome = OperationOutcomePresentation.DENIED,
+                DashboardTestFixtures.auditEvent(
+                    actionName = AuditActionNames.DISABLE_CAMERA,
+                    phase = AuditEventPhase.REJECTED,
                     correlationId = "denied-id",
-                    reason = "decision_denied:DEVICE_OWNER_NOT_VERIFIED",
+                    sequence = 2,
+                    reason = AuditReasonCode.DEVICE_OWNER_NOT_VERIFIED,
                 ),
-                DashboardTestFixtures.sessionEntry(
-                    capability = PolicyCapability.STATUS_BAR,
-                    outcome = OperationOutcomePresentation.FAILED,
+                DashboardTestFixtures.auditEvent(
+                    actionName = AuditActionNames.DISABLE_STATUS_BAR,
+                    phase = AuditEventPhase.FAILED,
                     correlationId = "failed-id",
-                    reason = "post_write_read_back_mismatch",
+                    sequence = 1,
+                    reason = AuditReasonCode.POST_WRITE_READ_BACK_MISMATCH,
                 ),
             ),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = null,
         )
 
@@ -156,25 +170,71 @@ class DashboardStateMapperTest {
         assertNull(state.screenCapture.latestOutcomeDetail)
         assertEquals(OperationOutcomePresentation.DENIED, state.camera.latestOutcome)
         assertEquals(
-            "decision_denied:DEVICE_OWNER_NOT_VERIFIED",
+            AuditReasonCode.DEVICE_OWNER_NOT_VERIFIED.name,
             state.camera.latestOutcomeDetail,
         )
         assertEquals(OperationOutcomePresentation.FAILED, state.statusBar.latestOutcome)
-        assertEquals("post_write_read_back_mismatch", state.statusBar.latestOutcomeDetail)
+        assertEquals(
+            AuditReasonCode.POST_WRITE_READ_BACK_MISMATCH.name,
+            state.statusBar.latestOutcomeDetail,
+        )
         assertEquals("failed-id", state.statusBar.latestCorrelationId)
+    }
+
+    @Test
+    fun `incomplete REQUESTED is Interrupted and never Applied`() {
+        val state = DashboardStateMapper.map(
+            snapshot = DashboardTestFixtures.snapshot(),
+            auditHistory = DashboardTestFixtures.history(
+                DashboardTestFixtures.auditEvent(
+                    actionName = AuditActionNames.DISABLE_CAMERA,
+                    phase = AuditEventPhase.REQUESTED,
+                    correlationId = "interrupted",
+                ),
+            ),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
+            pendingCapability = null,
+        )
+
+        assertEquals(AuditLogStatus.INTERRUPTED, state.auditLog.single().status)
+        assertEquals(OperationOutcomePresentation.INTERRUPTED, state.camera.latestOutcome)
+        assertNotEquals(AuditLogStatus.APPLIED, state.auditLog.single().status)
+        assertNotEquals(OperationOutcomePresentation.APPLIED, state.camera.latestOutcome)
+        assertEquals("interrupted", state.auditLog.single().correlationId)
+    }
+
+    @Test
+    fun `SIMULATED is never presented as Applied`() {
+        val state = DashboardStateMapper.map(
+            snapshot = DashboardTestFixtures.snapshot(),
+            auditHistory = DashboardTestFixtures.history(
+                DashboardTestFixtures.auditEvent(
+                    actionName = AuditActionNames.MOCK_WIPE,
+                    phase = AuditEventPhase.SIMULATED,
+                    correlationId = "sim",
+                    reason = AuditReasonCode.SIMULATED,
+                ),
+            ),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
+            pendingCapability = null,
+        )
+
+        assertEquals(AuditLogStatus.SIMULATED, state.auditLog.single().status)
+        assertNotEquals(AuditLogStatus.APPLIED, state.auditLog.single().status)
     }
 
     @Test
     fun `pending capability shows pending and disables all actions before a result`() {
         val state = DashboardStateMapper.map(
             snapshot = DashboardTestFixtures.snapshot(),
-            sessionEntries = listOf(
-                DashboardTestFixtures.sessionEntry(
-                    capability = PolicyCapability.CAMERA,
-                    outcome = OperationOutcomePresentation.APPLIED,
+            auditHistory = DashboardTestFixtures.history(
+                DashboardTestFixtures.auditEvent(
+                    actionName = AuditActionNames.DISABLE_CAMERA,
+                    phase = AuditEventPhase.APPLIED,
                     correlationId = "old-applied",
                 ),
             ),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = PolicyCapability.CAMERA,
         )
 
@@ -196,7 +256,8 @@ class DashboardStateMapperTest {
                         "for verified setter/read-back.",
                 ),
             ),
-            sessionEntries = emptyList(),
+            auditHistory = DashboardTestFixtures.history(),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = null,
         )
 
@@ -216,7 +277,8 @@ class DashboardStateMapperTest {
                 statusBar = StatusBarPolicyState.UNAVAILABLE,
                 statusBarReasons = listOf("Device Owner is not verified."),
             ),
-            sessionEntries = emptyList(),
+            auditHistory = DashboardTestFixtures.history(),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = null,
         )
 
@@ -233,7 +295,8 @@ class DashboardStateMapperTest {
                 deviceOwnerProvisioning = ProvisioningAvailability.ALLOWED,
                 profileOwnerProvisioning = ProvisioningAvailability.UNAVAILABLE,
             ),
-            sessionEntries = emptyList(),
+            auditHistory = DashboardTestFixtures.history(),
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = null,
         )
 
@@ -249,10 +312,10 @@ class DashboardStateMapperTest {
     }
 
     @Test
-    fun `session activity is attached without treating it as current policy`() {
-        val entries = listOf(
-            DashboardTestFixtures.sessionEntry(
-                capability = PolicyCapability.CAMERA,
+    fun `audit history is attached without treating it as current policy`() {
+        val history = DashboardTestFixtures.history(
+            DashboardTestFixtures.auditEvent(
+                actionName = AuditActionNames.DISABLE_CAMERA,
                 correlationId = "keep-me",
             ),
         )
@@ -260,12 +323,39 @@ class DashboardStateMapperTest {
             snapshot = DashboardTestFixtures.snapshot(
                 camera = CameraPolicyState.ENABLED,
             ),
-            sessionEntries = entries,
+            auditHistory = history,
+            auditStatus = DashboardTestFixtures.healthyStatus(),
             pendingCapability = null,
         )
 
-        assertEquals(entries, state.sessionActivity)
+        assertEquals("keep-me", state.auditLog.single().correlationId)
         assertEquals(PolicyPresentationState.ENABLED, state.camera.state)
         assertEquals("keep-me", state.camera.latestCorrelationId)
+        assertEquals(AuditStorageHealth.HEALTHY, state.auditStorageHealth)
+    }
+
+    @Test
+    fun `degraded and unavailable audit health are visible presentation states`() {
+        val degraded = DashboardStateMapper.map(
+            snapshot = DashboardTestFixtures.snapshot(),
+            auditHistory = DashboardTestFixtures.history(),
+            auditStatus = AuditStorageStatus(
+                health = AuditStorageHealth.DEGRADED,
+                reasonCode = AuditReasonCode.AUDIT_PERSISTENCE_UNAVAILABLE,
+            ),
+            pendingCapability = null,
+        )
+        val unavailable = DashboardStateMapper.map(
+            snapshot = DashboardTestFixtures.snapshot(),
+            auditHistory = DashboardTestFixtures.history(),
+            auditStatus = AuditStorageStatus(
+                health = AuditStorageHealth.UNAVAILABLE,
+                reasonCode = AuditReasonCode.AUDIT_PERSISTENCE_UNAVAILABLE,
+            ),
+            pendingCapability = null,
+        )
+
+        assertEquals(AuditStorageHealth.DEGRADED, degraded.auditStorageHealth)
+        assertEquals(AuditStorageHealth.UNAVAILABLE, unavailable.auditStorageHealth)
     }
 }

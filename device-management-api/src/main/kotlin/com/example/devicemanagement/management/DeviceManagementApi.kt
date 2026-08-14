@@ -1,12 +1,15 @@
 package com.example.devicemanagement.management
 
 import com.example.devicemanagement.action.SensitiveActionController
+import com.example.devicemanagement.audit.AuditHistoryProvider
+import com.example.devicemanagement.audit.AuditStorageStatusProvider
 
 /**
  * The complete JVM-visible device-management surface available to application code.
  *
  * It intentionally contains one mutation entry point, [sensitiveActions], and only
- * read-only providers besides it.
+ * read-only providers besides it. Audit providers are evidence/presentation only
+ * and cannot authorize, approve, or mutate policy.
  */
 interface DeviceManagementServices {
     val sensitiveActions: SensitiveActionController
@@ -16,6 +19,8 @@ interface DeviceManagementServices {
     val screenCapturePolicyStatus: ScreenCapturePolicyStatusProvider
     val cameraPolicyStatus: CameraPolicyStatusProvider
     val statusBarPolicyStatus: StatusBarPolicyStatusProvider
+    val auditHistory: AuditHistoryProvider
+    val auditStorageStatus: AuditStorageStatusProvider
 }
 
 enum class ManagementMode {

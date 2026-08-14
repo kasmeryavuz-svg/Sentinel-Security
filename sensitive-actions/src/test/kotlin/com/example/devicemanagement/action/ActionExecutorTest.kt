@@ -279,6 +279,11 @@ class ActionExecutorTest {
                 nowEpochMillis = { 1_000 },
                 monotonicTimeSource = MonotonicTimeSource { 100L },
             ),
+            auditWriter = com.example.devicemanagement.audit.DurableAuditRepository(
+                com.example.devicemanagement.audit.InMemoryAuditRecordStore(),
+                logger,
+            ),
+            logger = logger,
             correlationIdGenerator = { "authoritative-correlation" },
         )
     }

@@ -10,6 +10,7 @@ backends.
 ```text
 untrusted UI trigger
   -> SensitiveActionController (creates authoritative correlation ID)
+  -> durable REQUESTED audit append (fail closed if it cannot be written)
   -> immutable SensitiveActionRegistry / TriggerEvaluator
   -> DecisionEngine
   -> identity-bound ApprovalAuthority
@@ -20,6 +21,7 @@ untrusted UI trigger
   -> closed VerifiedPolicyMutation
   -> capability-specific DevicePolicyManager service
   -> DevicePolicyManager
+  -> durable terminal audit append (APPLIED / REJECTED / FAILED / SIMULATED)
 ```
 
 The controlled registry is fixed in source and contains exactly six commands:
@@ -32,16 +34,18 @@ registration API.
 ## Presentation dashboard
 
 The Android UI is a presentation layer only. It reads Device Owner,
-management, provisioning, and policy status through the public read-only
-providers and submits the six trusted commands through
+management, provisioning, policy status, and durable audit history through
+the public read-only providers and submits the six trusted commands through
 `SensitiveActionController`. It does not receive or construct
 `DevicePolicyManager`, policy writers, mutation executors, approval
-authorities, action executors, policy backends, or authorization clocks.
+authorities, action executors, policy backends, authorization clocks, or
+audit writers.
 
-Session activity shown on the dashboard is **NON-PERSISTENT** in-memory
-history for the current process. It is cleared when the app restarts and
-is not durable audit storage. `StructuredLogger` remains a logging
-abstraction and is not an audit subsystem.
+The dashboard **Audit log** is loaded from the read-only `AuditHistoryProvider`.
+It is durable app-private SQLite evidence, not an authorization source and not
+cryptographically tamper-proof archival. `StructuredLogger` remains a logging
+abstraction and is not an audit subsystem. Audit persistence cannot approve
+actions, call DevicePolicyManager, or bypass the existing backend.
 
 The app has one direct project dependency: the `device-management` facade.
 That facade exposes contracts from `device-management-api` and
@@ -154,6 +158,28 @@ mutation requires `setStatusBarDisabled` followed immediately by
 mutations fail closed without calling the setter. Status-bar disabling does not
 apply on the lock screen. LockTask is a separate Android capability and is not
 part of this policy surface.
+
+## Durable local audit log
+
+Checkpoint 13 persists append-only audit events in Sentinel's private
+application SQLite database (`sentinel_audit.db`, schema version 1).
+
+The trusted controller writes a durable `REQUESTED` event before any policy
+mutation. If that append fails, execution fails closed and DevicePolicyManager
+is not called. After the existing trusted path returns, exactly one terminal
+event is appended: `APPLIED`, `REJECTED`, `FAILED`, or `SIMULATED`.
+
+SQLite and DevicePolicyManager are not one atomic transaction. If a mutation
+returns Applied and the terminal audit append then fails, the action result
+stays Applied. Audit health becomes degraded/unavailable, the unmatched
+`REQUESTED` event remains visible as interrupted / outcome unknown, and later
+mutations fail closed until a `REQUESTED` append can be written again.
+
+Wall-clock timestamps are presentation metadata only. Authorization freshness
+continues to use the existing monotonic clock. Local retention prunes the oldest
+records after 8,000 events and does not reset sequence numbers. This is not
+cryptographically tamper-proof, anti-rollback, or remotely archived. See
+`docs/AUDIT.md`.
 
 ## Adding a future capability safely
 
