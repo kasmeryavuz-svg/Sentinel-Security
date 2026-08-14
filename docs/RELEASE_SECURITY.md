@@ -153,7 +153,12 @@ Classification is fail-closed:
 - signed and fingerprint does not match the configured production
   identity → `TEST_SIGNED` or `UNKNOWN`, never `PRODUCTION_SIGNED`
 - signed and fingerprint exactly matches the configured production
-  fingerprint → `PRODUCTION_SIGNED`
+  fingerprint → `PRODUCTION_SIGNED` only after the artifact signature
+  itself cryptographically verifies. For AABs this is JAR signature
+  verification (`JarFile` verify=true). Certificate bytes or META-INF
+  signature-file presence alone are never treated as a valid signature.
+  A tampered archive that keeps the original signature block is
+  `UNKNOWN`, never `PRODUCTION_SIGNED`.
 
 Production distribution (`assembleProductionRelease` /
 `bundleProductionRelease`) fails unless classification is exactly

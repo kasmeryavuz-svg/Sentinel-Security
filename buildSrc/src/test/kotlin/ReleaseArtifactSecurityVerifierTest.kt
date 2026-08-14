@@ -3,6 +3,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -244,6 +245,7 @@ class ReleaseArtifactSecurityVerifierTest {
         val archive = unsignedZip()
         val evidence = ReleaseArtifactSecurityVerifier.inspectSignedArchive(archive)
         assertTrue(!evidence.signed)
+        assertTrue(!evidence.verificationFailed)
         val classification = ReleaseArtifactSecurityVerifier.classifySigning(
             certOutput = evidence.certificateOutput,
             signed = evidence.signed,
@@ -260,14 +262,13 @@ class ReleaseArtifactSecurityVerifierTest {
     fun `generated non-debug keystore is never production without expected fingerprint`() {
         val signed = SignedArchiveFixtures.signedJar()
         val evidence = ReleaseArtifactSecurityVerifier.inspectSignedArchive(signed)
-        assertTrue(evidence.signed, "signed archive should have a certificate")
+        assertTrue(evidence.signed, "signed archive should cryptographically verify")
+        assertFalse(evidence.verificationFailed)
         assertTrue(evidence.fingerprints.isNotEmpty())
         assertTrue(evidence.certificateOutput.contains("Arbitrary Developer"))
-        val withoutExpected = ReleaseArtifactSecurityVerifier.classifySigning(
-            certOutput = evidence.certificateOutput,
-            signed = true,
+        val withoutExpected = ReleaseArtifactSecurityVerifier.classifyArchiveSigning(
+            evidence = evidence,
             expectedProductionFingerprint = null,
-            observedFingerprints = evidence.fingerprints,
         )
         assertNotEquals(
             ReleaseArtifactSecurityVerifier.SigningClassification.PRODUCTION_SIGNED,
@@ -277,25 +278,105 @@ class ReleaseArtifactSecurityVerifierTest {
             ReleaseArtifactSecurityVerifier.SigningClassification.UNKNOWN,
             withoutExpected,
         )
-        val mismatched = ReleaseArtifactSecurityVerifier.classifySigning(
-            certOutput = evidence.certificateOutput,
-            signed = true,
+        val mismatched = ReleaseArtifactSecurityVerifier.classifyArchiveSigning(
+            evidence = evidence,
             expectedProductionFingerprint = otherFingerprint,
-            observedFingerprints = evidence.fingerprints,
         )
         assertNotEquals(
             ReleaseArtifactSecurityVerifier.SigningClassification.PRODUCTION_SIGNED,
             mismatched,
         )
-        val matched = ReleaseArtifactSecurityVerifier.classifySigning(
-            certOutput = evidence.certificateOutput,
-            signed = true,
+        val matched = ReleaseArtifactSecurityVerifier.classifyArchiveSigning(
+            evidence = evidence,
             expectedProductionFingerprint = evidence.fingerprints.single(),
-            observedFingerprints = evidence.fingerprints,
         )
         assertEquals(
             ReleaseArtifactSecurityVerifier.SigningClassification.PRODUCTION_SIGNED,
             matched,
+        )
+    }
+
+    @Test
+    fun `tampered signed archive never classifies as production even with original fingerprint`() {
+        val signed = SignedArchiveFixtures.signedJar()
+        val intact = ReleaseArtifactSecurityVerifier.inspectSignedArchive(signed)
+        assertTrue(intact.signed)
+        assertFalse(intact.verificationFailed)
+        assertTrue(intact.fingerprints.isNotEmpty())
+        val originalFingerprint = intact.fingerprints.single()
+        assertEquals(
+            ReleaseArtifactSecurityVerifier.SigningClassification.PRODUCTION_SIGNED,
+            ReleaseArtifactSecurityVerifier.classifyArchiveSigning(
+                evidence = intact,
+                expectedProductionFingerprint = originalFingerprint,
+            ),
+        )
+
+        val tampered = SignedArchiveFixtures.tamperPayloadKeepingSignatures(signed)
+        assertTrue(
+            SignedArchiveFixtures.hasSignatureBlockFiles(tampered),
+            "tamper fixture must preserve META-INF signature files",
+        )
+        val tamperedEvidence = ReleaseArtifactSecurityVerifier.inspectSignedArchive(tampered)
+        assertTrue(tamperedEvidence.verificationFailed)
+        assertFalse(tamperedEvidence.signed)
+        assertTrue(tamperedEvidence.fingerprints.isEmpty())
+        val tamperedClassification = ReleaseArtifactSecurityVerifier.classifyArchiveSigning(
+            evidence = tamperedEvidence,
+            expectedProductionFingerprint = originalFingerprint,
+        )
+        assertNotEquals(
+            ReleaseArtifactSecurityVerifier.SigningClassification.PRODUCTION_SIGNED,
+            tamperedClassification,
+        )
+        assertEquals(
+            ReleaseArtifactSecurityVerifier.SigningClassification.UNKNOWN,
+            tamperedClassification,
+        )
+        val productionViolations = ReleaseArtifactSecurityVerifier.verifySigningBoundary(
+            classification = tamperedClassification,
+            productionDistributionRequested = true,
+        )
+        assertTrue(productionViolations.isNotEmpty())
+    }
+
+    @Test
+    fun `signature block files alone never prove a valid signature`() {
+        val archive = File.createTempFile("signature-only", ".aab")
+        ZipOutputStream(archive.outputStream()).use { zip ->
+            zip.putNextEntry(ZipEntry("META-INF/MANIFEST.MF"))
+            zip.write("Manifest-Version: 1.0\n".toByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("META-INF/CERT.RSA"))
+            zip.write(ByteArray(64) { 0x5A })
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("payload.txt"))
+            zip.write("not-signed-payload\n".toByteArray())
+            zip.closeEntry()
+        }
+        val evidence = ReleaseArtifactSecurityVerifier.inspectSignedArchive(archive)
+        assertFalse(evidence.signed)
+        val classification = ReleaseArtifactSecurityVerifier.classifyArchiveSigning(
+            evidence = evidence,
+            expectedProductionFingerprint = arbitraryFingerprint,
+        )
+        assertNotEquals(
+            ReleaseArtifactSecurityVerifier.SigningClassification.PRODUCTION_SIGNED,
+            classification,
+        )
+    }
+
+    @Test
+    fun `failed cryptographic verification never becomes production signed`() {
+        val classification = ReleaseArtifactSecurityVerifier.classifySigning(
+            certOutput = arbitraryNonDebugCert,
+            signed = true,
+            expectedProductionFingerprint = arbitraryFingerprint,
+            cryptographicallyVerified = false,
+        )
+        assertEquals(
+            ReleaseArtifactSecurityVerifier.SigningClassification.UNKNOWN,
+            classification,
         )
     }
 

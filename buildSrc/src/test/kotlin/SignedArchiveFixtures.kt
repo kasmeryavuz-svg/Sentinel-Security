@@ -2,6 +2,7 @@ import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 object SignedArchiveFixtures {
@@ -54,6 +55,39 @@ object SignedArchiveFixtures {
             "arbitrary",
         )
         return unsigned
+    }
+
+    fun tamperPayloadKeepingSignatures(signed: File): File {
+        val tampered = File(signed.parentFile, "tampered-${signed.name}")
+        ZipFile(signed).use { source ->
+            ZipOutputStream(tampered.outputStream()).use { destination ->
+                source.entries().asSequence().forEach { entry ->
+                    val original = source.getInputStream(entry).use { it.readBytes() }
+                    destination.putNextEntry(ZipEntry(entry.name))
+                    if (entry.name == "payload.txt") {
+                        destination.write("tampered-payload-after-signing\n".toByteArray())
+                    } else {
+                        destination.write(original)
+                    }
+                    destination.closeEntry()
+                }
+            }
+        }
+        return tampered
+    }
+
+    fun hasSignatureBlockFiles(archive: File): Boolean {
+        return ZipFile(archive).use { zip ->
+            zip.entries().asSequence().any { entry ->
+                val name = entry.name.uppercase()
+                name.startsWith("META-INF/") &&
+                    (
+                        name.endsWith(".RSA") ||
+                            name.endsWith(".DSA") ||
+                            name.endsWith(".EC")
+                        )
+            }
+        }
     }
 
     private fun tool(javaHome: File, name: String): File {

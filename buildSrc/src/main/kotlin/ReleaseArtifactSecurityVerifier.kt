@@ -1,10 +1,10 @@
 import java.io.File
+import java.io.IOException
+import java.security.GeneralSecurityException
 import java.security.MessageDigest
-import java.security.cert.Certificate
-import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import java.util.jar.JarException
 import java.util.jar.JarFile
-import java.util.zip.ZipFile
 
 object ReleaseArtifactSecurityVerifier {
     private val requiredClassDescriptors = listOf(
@@ -66,6 +66,7 @@ object ReleaseArtifactSecurityVerifier {
 
     data class ArchiveSigningEvidence(
         val signed: Boolean,
+        val verificationFailed: Boolean,
         val certificateOutput: String,
         val fingerprints: List<String>,
     )
@@ -139,7 +140,11 @@ object ReleaseArtifactSecurityVerifier {
         signed: Boolean,
         expectedProductionFingerprint: String? = null,
         observedFingerprints: List<String> = extractSha256Fingerprints(certOutput),
+        cryptographicallyVerified: Boolean = true,
     ): SigningClassification {
+        if (!cryptographicallyVerified) {
+            return SigningClassification.UNKNOWN
+        }
         if (!signed) {
             return SigningClassification.UNSIGNED
         }
@@ -161,62 +166,78 @@ object ReleaseArtifactSecurityVerifier {
 
     fun inspectSignedArchive(file: File): ArchiveSigningEvidence {
         if (!file.isFile) {
-            return ArchiveSigningEvidence(
-                signed = false,
-                certificateOutput = "",
-                fingerprints = emptyList(),
-            )
+            return unsignedEvidence()
         }
         val fingerprints = linkedSetOf<String>()
         val distinguishedNames = mutableListOf<String>()
-        var hasCodeSigners = false
-        runCatching {
-            JarFile(file, false).use { jar ->
-                val entries = jar.entries()
+        var signedEntries = 0
+        var unsignedPayloadEntries = 0
+        return try {
+            JarFile(file, true).use { jar ->
                 val buffer = ByteArray(8192)
+                val entries = jar.entries()
                 while (entries.hasMoreElements()) {
                     val entry = entries.nextElement()
+                    if (entry.isDirectory) {
+                        continue
+                    }
                     jar.getInputStream(entry).use { input ->
                         while (input.read(buffer) != -1) {
-                            // Drain the entry so the JAR signer table is populated.
+                            // Drain every entry so JarFile performs signature checks.
                         }
                     }
-                    val signers = entry.codeSigners ?: continue
-                    hasCodeSigners = true
-                    signers.forEach { signer ->
-                        signer.signerCertPath.certificates.forEach { certificate ->
-                            fingerprints += sha256Hex(certificate.encoded)
-                            if (certificate is X509Certificate) {
-                                distinguishedNames += certificate.subjectX500Principal.name
+                    val signers = entry.codeSigners
+                    if (signers != null && signers.isNotEmpty()) {
+                        signedEntries += 1
+                        signers.forEach { signer ->
+                            signer.signerCertPath.certificates.forEach { certificate ->
+                                fingerprints += sha256Hex(certificate.encoded)
+                                if (certificate is X509Certificate) {
+                                    distinguishedNames += certificate.subjectX500Principal.name
+                                }
                             }
                         }
+                    } else if (!isJarSignatureMetadata(entry.name)) {
+                        unsignedPayloadEntries += 1
                     }
                 }
             }
-        }
-        if (fingerprints.isEmpty()) {
-            certificatesFromPkcs7(file).forEach { certificate ->
-                fingerprints += sha256Hex(certificate.encoded)
-                if (certificate is X509Certificate) {
-                    distinguishedNames += certificate.subjectX500Principal.name
-                }
+            if (signedEntries > 0 && unsignedPayloadEntries > 0) {
+                return failedEvidence(
+                    "ARCHIVE HAS UNSIGNED PAYLOAD ENTRIES AFTER SIGNATURE VERIFICATION",
+                )
             }
+            val signed = signedEntries > 0
+            ArchiveSigningEvidence(
+                signed = signed,
+                verificationFailed = false,
+                certificateOutput = certificateOutput(distinguishedNames, fingerprints),
+                fingerprints = fingerprints.toList(),
+            )
+        } catch (failed: SecurityException) {
+            failedEvidence("SIGNATURE VERIFICATION FAILED: ${failed.message}")
+        } catch (failed: GeneralSecurityException) {
+            failedEvidence("SIGNATURE VERIFICATION FAILED: ${failed.message}")
+        } catch (failed: JarException) {
+            failedEvidence("SIGNATURE VERIFICATION FAILED: ${failed.message}")
+        } catch (failed: IOException) {
+            failedEvidence("ARCHIVE INSPECTION FAILED: ${failed.message}")
         }
-        val signed = hasCodeSigners ||
-            fingerprints.isNotEmpty() ||
-            archiveHasSignatureFiles(file)
-        val certificateOutput = buildString {
-            distinguishedNames.distinct().forEach { name ->
-                appendLine("certificate DN: $name")
-            }
-            fingerprints.forEach { fingerprint ->
-                appendLine("certificate SHA-256 digest: $fingerprint")
-            }
+    }
+
+    fun classifyArchiveSigning(
+        evidence: ArchiveSigningEvidence,
+        expectedProductionFingerprint: String? = null,
+    ): SigningClassification {
+        if (evidence.verificationFailed) {
+            return SigningClassification.UNKNOWN
         }
-        return ArchiveSigningEvidence(
-            signed = signed,
-            certificateOutput = certificateOutput,
-            fingerprints = fingerprints.toList(),
+        return classifySigning(
+            certOutput = evidence.certificateOutput,
+            signed = evidence.signed,
+            expectedProductionFingerprint = expectedProductionFingerprint,
+            observedFingerprints = evidence.fingerprints,
+            cryptographicallyVerified = true,
         )
     }
 
@@ -308,46 +329,48 @@ object ReleaseArtifactSecurityVerifier {
             .joinToString("") { byte -> "%02x".format(byte) }
     }
 
-    private fun archiveHasSignatureFiles(file: File): Boolean {
-        return runCatching {
-            ZipFile(file).use { zip ->
-                zip.entries().asSequence().any { entry ->
-                    val name = entry.name.uppercase()
-                    name.startsWith("META-INF/") &&
-                        (
-                            name.endsWith(".RSA") ||
-                                name.endsWith(".DSA") ||
-                                name.endsWith(".EC")
-                            )
-                }
-            }
-        }.getOrDefault(false)
+    private fun unsignedEvidence(): ArchiveSigningEvidence {
+        return ArchiveSigningEvidence(
+            signed = false,
+            verificationFailed = false,
+            certificateOutput = "",
+            fingerprints = emptyList(),
+        )
     }
 
-    private fun certificatesFromPkcs7(file: File): List<Certificate> {
-        val factory = CertificateFactory.getInstance("X.509")
-        val certificates = mutableListOf<Certificate>()
-        runCatching {
-            ZipFile(file).use { zip ->
-                zip.entries().asSequence()
-                    .filter { entry ->
-                        val name = entry.name.uppercase()
-                        name.startsWith("META-INF/") &&
-                            (
-                                name.endsWith(".RSA") ||
-                                    name.endsWith(".DSA") ||
-                                    name.endsWith(".EC")
-                                )
-                    }
-                    .forEach { entry ->
-                        zip.getInputStream(entry).use { input ->
-                            runCatching {
-                                certificates += factory.generateCertificates(input)
-                            }
-                        }
-                    }
+    private fun failedEvidence(reason: String): ArchiveSigningEvidence {
+        return ArchiveSigningEvidence(
+            signed = false,
+            verificationFailed = true,
+            certificateOutput = reason,
+            fingerprints = emptyList(),
+        )
+    }
+
+    private fun certificateOutput(
+        distinguishedNames: List<String>,
+        fingerprints: Set<String>,
+    ): String {
+        return buildString {
+            distinguishedNames.distinct().forEach { name ->
+                appendLine("certificate DN: $name")
+            }
+            fingerprints.forEach { fingerprint ->
+                appendLine("certificate SHA-256 digest: $fingerprint")
             }
         }
-        return certificates
+    }
+
+    private fun isJarSignatureMetadata(name: String): Boolean {
+        val normalized = name.replace('\\', '/').uppercase()
+        if (!normalized.startsWith("META-INF/")) {
+            return false
+        }
+        return normalized == "META-INF/MANIFEST.MF" ||
+            normalized.endsWith(".SF") ||
+            normalized.endsWith(".RSA") ||
+            normalized.endsWith(".DSA") ||
+            normalized.endsWith(".EC") ||
+            normalized.endsWith(".SIG")
     }
 }
