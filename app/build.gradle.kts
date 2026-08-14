@@ -172,6 +172,14 @@ val checkAppDependencyIsolation by tasks.registering {
                     "${configuration.name} has unapproved external production artifacts; " +
                         "expected $allowedExternalModules, found $externalModules"
                 }
+                check("com.android.tools.build:apksig" !in externalModules) {
+                    "apksig leaked onto the Android app classpath via ${configuration.name}"
+                }
+                check(":provisioning-qr" !in configuration.incoming.resolutionResult.allComponents
+                    .mapNotNull { (it.id as? ProjectComponentIdentifier)?.projectPath }
+                    .toSet()) {
+                    "workstation QR tooling leaked onto the Android app classpath"
+                }
             }
     }
 }

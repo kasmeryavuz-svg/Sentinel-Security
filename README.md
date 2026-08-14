@@ -5,9 +5,13 @@ Minimal, fail-safe Android device-management skeleton.
 ## Safety
 
 This project contains no real wipe, factory-reset, deletion, accessibility,
-shell, or ADB functionality. Fully-managed Device Owner enrollment uses the
-public Android 12+ provisioning contract only. The application does not
-factory-reset devices, host or upload APKs, or assign Device Owner via ADB.
+shell, or in-app ADB functionality. Sentinel implements the public Android 12+
+fully-managed provisioning contract and is ready to participate when an OS
+setup flow exposes that QR entry point. GrapheneOS production QR enrollment is
+not yet confirmed; until a real supported GrapheneOS setup flow accepts it,
+ADB `dpm set-device-owner` remains the practical reference/testing Device
+Owner assignment method. The application itself does not factory-reset
+devices, host or upload APKs, or assign Device Owner via ADB.
 Its `DeviceAdminReceiver` declares only Android's `disable-camera` metadata
 policy. Provisioning completion is log-only and does not mutate policy. The
 only wipe-shaped action is `SafeMockWipeAction`; it is
@@ -69,8 +73,9 @@ uses `isStatusBarDisabled()` and requires API 34+). Repository-wide DPM
 boundary checks, dynamic/reflection/native guards, and per-variant effective
 DeviceAdmin metadata checks prevent app or variant overrides from widening those
 allowlists.
-See `docs/GRAPHENEOS_ENROLLMENT.md` for the GrapheneOS-first QR enrollment
-procedure, `docs/QR_PROVISIONING.md` for local QR JSON generation,
+See `docs/GRAPHENEOS_ENROLLMENT.md` for GrapheneOS enrollment status (QR is
+standards-ready, not yet confirmed on GrapheneOS SetupWizard2),
+`docs/QR_PROVISIONING.md` for local QR JSON generation,
 `docs/DEVICE_OWNER_TEST_DEVICE.md` for the development-only disposable
 test-device workflow, and `docs/POLICY_ARCHITECTURE.md` for trust boundaries,
 approval lifecycle, mutation verification, and the safe capability checklist.

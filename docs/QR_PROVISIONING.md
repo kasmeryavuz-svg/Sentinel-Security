@@ -42,8 +42,19 @@ The checksum is SHA-256 of the **signed APK file**, encoded as URL-safe
 Base64 **without padding**. It pins that exact build. It is not a
 signature-only checksum.
 
-HTTP URLs, missing APKs, unsigned artifacts, empty files, and a non-Sentinel
-admin component fail closed.
+Before hashing, the generator cryptographically verifies the APK with
+Android's apksig library (`ApkVerifier`). Verification must succeed and the
+APK must have at least one valid signer. A ZIP that merely contains
+`META-INF/*.RSA` or the text `APK Sig Block 42` is rejected. apksig is
+declared only in this workstation module and is not an Android app
+dependency.
+
+The download URL is parsed as a URI. The scheme must be HTTPS
+(case-insensitive), and a non-empty host is required. `http://`, `https://`
+with no host, and other malformed or prefix-only strings fail closed.
+
+HTTP URLs, missing APKs, unsigned, corrupted, or invalidly signed artifacts,
+empty files, and a non-Sentinel admin component fail closed.
 
 ## Encode a QR image separately
 

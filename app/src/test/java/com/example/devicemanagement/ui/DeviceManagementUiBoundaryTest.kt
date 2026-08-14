@@ -91,6 +91,8 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(appSources.contains("ACTION_PROVISION_MANAGED_DEVICE"))
         assertFalse(appSources.contains("provisioningqr"))
         assertFalse(appSources.contains(":provisioning-qr"))
+        assertFalse(appSources.contains("apksig"))
+        assertFalse(appSources.contains("ApkVerifier"))
         assertTrue(appSources.contains("SensitiveActionController"))
     }
 

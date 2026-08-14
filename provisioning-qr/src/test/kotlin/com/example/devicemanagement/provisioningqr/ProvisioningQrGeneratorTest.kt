@@ -8,13 +8,11 @@ import org.junit.Test
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.Base64
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 
 class ProvisioningQrGeneratorTest {
     @Test
     fun `payload uses the exact Sentinel admin component and HTTPS URL`() {
-        val apk = signedApk()
+        val apk = TestSignedApkFactory.signedApk()
         val payload = ProvisioningQrGenerator.generate(
             QrProvisioningRequest(
                 signedApkPath = apk,
@@ -30,7 +28,7 @@ class ProvisioningQrGeneratorTest {
             "com.example.devicemanagement/.management.SentinelDeviceAdminReceiver",
             payload.adminComponent,
         )
-        assertTrue(payload.apkDownloadUrl.startsWith("https://"))
+        assertEquals("https://example.test/sentinel.apk", payload.apkDownloadUrl)
         val json = payload.toJson()
         assertTrue(json.contains("\"${ProvisioningQrGenerator.KEY_ADMIN_COMPONENT}\""))
         assertTrue(json.contains("\"${ProvisioningQrGenerator.KEY_DOWNLOAD_LOCATION}\""))
@@ -41,7 +39,7 @@ class ProvisioningQrGeneratorTest {
 
     @Test
     fun `checksum equals SHA-256 of the signed APK file encoded URL-safe without padding`() {
-        val apk = signedApk()
+        val apk = TestSignedApkFactory.signedApk()
         val bytes = Files.readAllBytes(apk)
         val payload = ProvisioningQrGenerator.generate(
             QrProvisioningRequest(
@@ -62,17 +60,15 @@ class ProvisioningQrGeneratorTest {
 
     @Test
     fun `checksum pins the exact APK file not a signature-only digest`() {
-        val apk = signedApk()
         val first = ProvisioningQrGenerator.generate(
             QrProvisioningRequest(
-                signedApkPath = apk,
+                signedApkPath = TestSignedApkFactory.signedApk("assets/a.txt" to byteArrayOf(1)),
                 apkDownloadUrl = "https://example.test/sentinel.apk",
             ),
         )
-        Files.write(apk, byteArrayOf(0x0A), java.nio.file.StandardOpenOption.APPEND)
         val second = ProvisioningQrGenerator.generate(
             QrProvisioningRequest(
-                signedApkPath = apk,
+                signedApkPath = TestSignedApkFactory.signedApk("assets/a.txt" to byteArrayOf(2)),
                 apkDownloadUrl = "https://example.test/sentinel.apk",
             ),
         )
@@ -81,11 +77,28 @@ class ProvisioningQrGeneratorTest {
     }
 
     @Test
+    fun `tampered signed APK fails closed`() {
+        val apk = TestSignedApkFactory.signedApk()
+        Files.write(apk, byteArrayOf(0x0A), java.nio.file.StandardOpenOption.APPEND)
+        val error = runCatching {
+            ProvisioningQrGenerator.generate(
+                QrProvisioningRequest(
+                    signedApkPath = apk,
+                    apkDownloadUrl = "https://example.test/sentinel.apk",
+                ),
+            )
+        }.exceptionOrNull()
+
+        assertTrue(error is ProvisioningQrException)
+        assertTrue(error?.message?.contains("signed") == true || error?.message?.contains("verification") == true)
+    }
+
+    @Test
     fun `HTTP download URL is rejected`() {
         val error = runCatching {
             ProvisioningQrGenerator.generate(
                 QrProvisioningRequest(
-                    signedApkPath = signedApk(),
+                    signedApkPath = TestSignedApkFactory.signedApk(),
                     apkDownloadUrl = "http://example.test/sentinel.apk",
                 ),
             )
@@ -93,6 +106,26 @@ class ProvisioningQrGeneratorTest {
 
         assertTrue(error is ProvisioningQrException)
         assertTrue(error?.message?.contains("HTTPS") == true)
+    }
+
+    @Test
+    fun `HTTPS URL without host is rejected`() {
+        listOf("https://", "https:///apk", "https:example.test", "not-a-url").forEach { url ->
+            val error = runCatching {
+                ProvisioningQrGenerator.requireHttpsDownloadUrl(url)
+            }.exceptionOrNull()
+            assertTrue("expected rejection for $url", error is ProvisioningQrException)
+        }
+    }
+
+    @Test
+    fun `HTTPS scheme is accepted case-insensitively when host is present`() {
+        assertEquals(
+            "HTTPS://Example.TEST/sentinel.apk",
+            ProvisioningQrGenerator.requireHttpsDownloadUrl(
+                "HTTPS://Example.TEST/sentinel.apk",
+            ),
+        )
     }
 
     @Test
@@ -116,14 +149,44 @@ class ProvisioningQrGeneratorTest {
         val error = runCatching {
             ProvisioningQrGenerator.generate(
                 QrProvisioningRequest(
-                    signedApkPath = unsignedApk(),
+                    signedApkPath = TestSignedApkFactory.unsignedApk(),
                     apkDownloadUrl = "https://example.test/sentinel.apk",
                 ),
             )
         }.exceptionOrNull()
 
         assertTrue(error is ProvisioningQrException)
-        assertTrue(error?.message?.contains("signed") == true)
+        assertTrue(error?.message?.contains("signed") == true || error?.message?.contains("verification") == true)
+    }
+
+    @Test
+    fun `ZIP with fake CERT RSA is rejected`() {
+        val error = runCatching {
+            ProvisioningQrGenerator.generate(
+                QrProvisioningRequest(
+                    signedApkPath = TestSignedApkFactory.zipWithFakeCertRsa(),
+                    apkDownloadUrl = "https://example.test/sentinel.apk",
+                ),
+            )
+        }.exceptionOrNull()
+
+        assertTrue(error is ProvisioningQrException)
+        assertTrue(error?.message?.contains("signed") == true || error?.message?.contains("verification") == true)
+    }
+
+    @Test
+    fun `ZIP containing APK Sig Block 42 text is rejected`() {
+        val error = runCatching {
+            ProvisioningQrGenerator.generate(
+                QrProvisioningRequest(
+                    signedApkPath = TestSignedApkFactory.zipContainingApkSigningBlockMarker(),
+                    apkDownloadUrl = "https://example.test/sentinel.apk",
+                ),
+            )
+        }.exceptionOrNull()
+
+        assertTrue(error is ProvisioningQrException)
+        assertTrue(error?.message?.contains("signed") == true || error?.message?.contains("verification") == true)
     }
 
     @Test
@@ -141,7 +204,7 @@ class ProvisioningQrGeneratorTest {
         val error = runCatching {
             ProvisioningQrGenerator.generate(
                 QrProvisioningRequest(
-                    signedApkPath = signedApk(),
+                    signedApkPath = TestSignedApkFactory.signedApk(),
                     apkDownloadUrl = "https://example.test/sentinel.apk",
                     adminComponent = "com.example.other/.OtherReceiver",
                 ),
@@ -156,7 +219,7 @@ class ProvisioningQrGeneratorTest {
     fun `Wi-Fi extras are omitted unless supplied explicitly`() {
         val withWifi = ProvisioningQrGenerator.generate(
             QrProvisioningRequest(
-                signedApkPath = signedApk(),
+                signedApkPath = TestSignedApkFactory.signedApk(),
                 apkDownloadUrl = "https://example.test/sentinel.apk",
                 wifiSsid = "lab-net",
                 wifiSecurityType = "WPA2",
@@ -174,7 +237,7 @@ class ProvisioningQrGeneratorTest {
         val error = runCatching {
             ProvisioningQrGenerator.generate(
                 QrProvisioningRequest(
-                    signedApkPath = signedApk(),
+                    signedApkPath = TestSignedApkFactory.signedApk(),
                     apkDownloadUrl = "https://example.test/sentinel.apk",
                     wifiPassword = "secret",
                 ),
@@ -187,7 +250,7 @@ class ProvisioningQrGeneratorTest {
 
     @Test
     fun `CLI parse requires apk and https url arguments`() {
-        val apk = signedApk()
+        val apk = TestSignedApkFactory.signedApk()
         val request = ProvisioningQrGenerator.parseArgs(
             arrayOf(
                 "--apk",
@@ -210,26 +273,5 @@ class ProvisioningQrGeneratorTest {
             ProvisioningQrGenerator.parseArgs(arrayOf("--keystore", "secret.jks"))
         }.exceptionOrNull()
         assertTrue(error is ProvisioningQrException)
-    }
-
-    private fun signedApk() = writeZip(
-        "META-INF/CERT.RSA" to byteArrayOf(0x30, 0x01),
-        "AndroidManifest.xml" to byteArrayOf(0x01, 0x02, 0x03),
-    )
-
-    private fun unsignedApk() = writeZip(
-        "AndroidManifest.xml" to byteArrayOf(0x01, 0x02, 0x03),
-    )
-
-    private fun writeZip(vararg entries: Pair<String, ByteArray>): java.nio.file.Path {
-        val apk = Files.createTempDirectory("sentinel-qr").resolve("sentinel.apk")
-        ZipOutputStream(Files.newOutputStream(apk)).use { zip ->
-            entries.forEach { (name, bytes) ->
-                zip.putNextEntry(ZipEntry(name))
-                zip.write(bytes)
-                zip.closeEntry()
-            }
-        }
-        return apk
     }
 }

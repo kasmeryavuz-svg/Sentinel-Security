@@ -1,11 +1,12 @@
 package com.example.devicemanagement.provisioningqr
 
-import java.nio.charset.StandardCharsets
+import com.android.apksig.ApkVerifier
+import java.net.URI
+import java.net.URISyntaxException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.util.Base64
-import java.util.zip.ZipFile
 import kotlin.system.exitProcess
 
 /**
@@ -14,6 +15,10 @@ import kotlin.system.exitProcess
  * This module is not an Android production runtime dependency. It never reads
  * keystore files, passwords, or private keys. The SHA-256 checksum is always
  * the exact signed APK file digest, encoded as URL-safe Base64 without padding.
+ *
+ * APK authenticity is checked with Android's apksig verifier. Presence of
+ * META-INF certificate files or an "APK Sig Block 42" marker is not accepted
+ * as proof of signing.
  */
 object ProvisioningQrGenerator {
     const val EXPECTED_ADMIN_COMPONENT: String =
@@ -28,9 +33,6 @@ object ProvisioningQrGenerator {
     const val KEY_WIFI_SSID: String = "android.app.extra.PROVISIONING_WIFI_SSID"
     const val KEY_WIFI_SECURITY_TYPE: String = "android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE"
     const val KEY_WIFI_PASSWORD: String = "android.app.extra.PROVISIONING_WIFI_PASSWORD"
-
-    private val APK_SIGNING_BLOCK_MAGIC: ByteArray =
-        "APK Sig Block 42".toByteArray(StandardCharsets.UTF_8)
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -51,19 +53,12 @@ object ProvisioningQrGenerator {
                 "admin component must be exactly $EXPECTED_ADMIN_COMPONENT"
             )
         }
-        val downloadUrl = request.apkDownloadUrl.trim()
-        if (!downloadUrl.startsWith("https://")) {
-            throw ProvisioningQrException("APK download URL must be HTTPS")
-        }
+        val downloadUrl = requireHttpsDownloadUrl(request.apkDownloadUrl)
         val apkPath = request.signedApkPath
         if (!Files.isRegularFile(apkPath)) {
             throw ProvisioningQrException("signed APK is missing: $apkPath")
         }
-        if (!looksLikeSignedApk(apkPath)) {
-            throw ProvisioningQrException(
-                "APK is not a signed package; checksum must be computed after signing"
-            )
-        }
+        verifySignedApk(apkPath)
         val wifiSsid = request.wifiSsid?.takeIf { it.isNotBlank() }
         val wifiSecurityType = request.wifiSecurityType?.takeIf { it.isNotBlank() }
         val wifiPassword = request.wifiPassword?.takeIf { it.isNotBlank() }
@@ -91,67 +86,39 @@ object ProvisioningQrGenerator {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(digest)
     }
 
-    fun looksLikeSignedApk(apkPath: Path): Boolean {
-        if (!hasZipLocalFileHeader(apkPath)) {
-            return false
+    fun requireHttpsDownloadUrl(raw: String): String {
+        val trimmed = raw.trim()
+        val uri = try {
+            URI(trimmed)
+        } catch (_: URISyntaxException) {
+            throw ProvisioningQrException("APK download URL must be a valid HTTPS URL")
         }
-        return hasV1SignatureEntry(apkPath) || hasApkSigningBlock(apkPath)
+        if (!uri.isAbsolute || uri.isOpaque) {
+            throw ProvisioningQrException("APK download URL must be a valid HTTPS URL")
+        }
+        val scheme = uri.scheme
+        if (scheme == null || !scheme.equals("https", ignoreCase = true)) {
+            throw ProvisioningQrException("APK download URL must be HTTPS")
+        }
+        if (uri.host.isNullOrBlank()) {
+            throw ProvisioningQrException("APK download URL must include a non-empty host")
+        }
+        return trimmed
     }
 
-    private fun hasZipLocalFileHeader(apkPath: Path): Boolean {
-        Files.newInputStream(apkPath).use { stream ->
-            val header = ByteArray(4)
-            if (stream.read(header) != 4) {
-                return false
-            }
-            return header[0] == 0x50.toByte() &&
-                header[1] == 0x4B.toByte() &&
-                header[2] == 0x03.toByte() &&
-                header[3] == 0x04.toByte()
-        }
-    }
-
-    private fun hasV1SignatureEntry(apkPath: Path): Boolean {
-        return try {
-            ZipFile(apkPath.toFile()).use { zip ->
-                zip.entries().asSequence().any { entry ->
-                    val name = entry.name
-                    name.startsWith("META-INF/") &&
-                        (
-                            name.endsWith(".RSA") ||
-                                name.endsWith(".DSA") ||
-                                name.endsWith(".EC")
-                        )
-                }
-            }
+    private fun verifySignedApk(apkPath: Path) {
+        val result = try {
+            ApkVerifier.Builder(apkPath.toFile()).build().verify()
         } catch (_: Exception) {
-            false
+            throw ProvisioningQrException(
+                "APK signature verification failed; checksum must be computed after signing"
+            )
         }
-    }
-
-    private fun hasApkSigningBlock(apkPath: Path): Boolean {
-        val bytes = Files.readAllBytes(apkPath)
-        if (bytes.size < APK_SIGNING_BLOCK_MAGIC.size + 32) {
-            return false
+        if (!result.isVerified || result.signerCertificates.isEmpty()) {
+            throw ProvisioningQrException(
+                "APK is not a signed package; checksum must be computed after signing"
+            )
         }
-        val magic = APK_SIGNING_BLOCK_MAGIC
-        var index = bytes.size - magic.size
-        while (index >= 0) {
-            var matched = true
-            var offset = 0
-            while (offset < magic.size) {
-                if (bytes[index + offset] != magic[offset]) {
-                    matched = false
-                    break
-                }
-                offset++
-            }
-            if (matched) {
-                return true
-            }
-            index--
-        }
-        return false
     }
 
     internal fun parseArgs(args: Array<String>): QrProvisioningRequest {

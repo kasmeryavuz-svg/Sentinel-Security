@@ -77,7 +77,8 @@ does not persist state or change policy. DeviceAdmin metadata remains exactly
 
 QR JSON generation lives in the separate `:provisioning-qr` workstation
 module. It is not an Android app dependency and does not enter the production
-APK. See `docs/QR_PROVISIONING.md` and `docs/GRAPHENEOS_ENROLLMENT.md`.
+APK. See `docs/QR_PROVISIONING.md`. GrapheneOS production QR enrollment is
+not yet confirmed; see `docs/GRAPHENEOS_ENROLLMENT.md`.
 
 ## Approval lifecycle
 

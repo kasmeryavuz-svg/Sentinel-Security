@@ -9,10 +9,13 @@ This document is for development validation only. It is not a production
 enrollment workflow. Sentinel does not execute ADB, provisioning commands, or
 Device Owner setup from inside the application.
 
-**Production enrollment** is standards-compliant fully-managed QR provisioning.
-See `docs/GRAPHENEOS_ENROLLMENT.md` and `docs/QR_PROVISIONING.md`. ADB
-`set-device-owner` remains a **reference/test** path for stock Android and
-emulators only.
+Sentinel implements the public Android 12+ fully-managed provisioning contract
+and is **ready to participate** when an OS setup flow exposes that QR entry
+point. GrapheneOS production QR enrollment is **not yet confirmed**. Until a
+real supported GrapheneOS setup flow accepts the platform QR entry, ADB
+`set-device-owner` remains the practical **reference/testing** Device Owner
+assignment method on GrapheneOS and on stock Android / emulators. See
+`docs/GRAPHENEOS_ENROLLMENT.md` and `docs/QR_PROVISIONING.md`.
 
 ## Prerequisites
 
@@ -32,8 +35,9 @@ com.example.devicemanagement/com.example.devicemanagement.management.SentinelDev
 
 ## Supported development provisioning
 
-ADB Device Owner assignment is a **reference/test** method only. It is not
-the intended production enrollment path.
+ADB Device Owner assignment is the practical **reference/testing** method on
+GrapheneOS until QR enrollment is confirmed there, and on stock Android /
+emulators. It is invoked from the developer workstation, not from Sentinel.
 
 From the developer workstation—not from Sentinel—use Android's `dpm`
 development command:
@@ -108,5 +112,6 @@ for the current app session. It is cleared when the app restarts and is not
 an audit log. Use it only to confirm the latest Applied / Denied / Failed
 outcome and correlation ID during this development workflow.
 
-Production QR enrollment for GrapheneOS and the local JSON generator are
-documented in `docs/GRAPHENEOS_ENROLLMENT.md` and `docs/QR_PROVISIONING.md`.
+QR JSON generation and GrapheneOS enrollment status are documented in
+`docs/QR_PROVISIONING.md` and `docs/GRAPHENEOS_ENROLLMENT.md`. GrapheneOS
+production QR enrollment is not yet confirmed.

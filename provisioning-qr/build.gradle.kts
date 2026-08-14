@@ -24,6 +24,7 @@ application {
 }
 
 dependencies {
+    implementation("com.android.tools.build:apksig:8.13.2")
     testImplementation("junit:junit:4.13.2")
 }
 
