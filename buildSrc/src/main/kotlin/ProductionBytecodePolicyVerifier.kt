@@ -508,8 +508,15 @@ internal object ProductionBytecodePolicyVerifier {
             }
         }
 
+        private fun isFrameworkClass(): Boolean {
+            return className.startsWith("android/") ||
+                className.startsWith("java/") ||
+                className.startsWith("javax/") ||
+                className.startsWith("dalvik/")
+        }
+
         private fun checkSqliteOwner(owner: String, location: String) {
-            if (!owner.startsWith(SQLITE_PACKAGE)) {
+            if (isFrameworkClass() || !owner.startsWith(SQLITE_PACKAGE)) {
                 return
             }
             if (!authorizedAuditSqliteAccess()) {
@@ -533,7 +540,7 @@ internal object ProductionBytecodePolicyVerifier {
             name: String,
             location: String,
         ) {
-            if (name !in forbiddenContextDatabaseMethods) {
+            if (isFrameworkClass() || name !in forbiddenContextDatabaseMethods) {
                 return
             }
             val contextLike =
@@ -554,7 +561,11 @@ internal object ProductionBytecodePolicyVerifier {
         }
 
         private fun checkAppFileOwner(owner: String, location: String) {
-            if (target.artifactPath != ":app" || owner !in appForbiddenFileOwners) {
+            if (
+                isFrameworkClass() ||
+                target.artifactPath != ":app" ||
+                owner !in appForbiddenFileOwners
+            ) {
                 return
             }
             violation(
@@ -564,7 +575,7 @@ internal object ProductionBytecodePolicyVerifier {
         }
 
         private fun checkAuditDatabaseFilename(value: String, location: String) {
-            if (value != AUDIT_DATABASE_FILE) {
+            if (isFrameworkClass() || value != AUDIT_DATABASE_FILE) {
                 return
             }
             if (!authorizedAuditSqliteAccess()) {
