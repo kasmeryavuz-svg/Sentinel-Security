@@ -159,6 +159,10 @@ android {
                 "appMainSourceDir",
                 layout.projectDirectory.dir("src/main").asFile.absolutePath,
             )
+            it.systemProperty(
+                "repoRoot",
+                rootProject.layout.projectDirectory.asFile.absolutePath,
+            )
         }
     }
 }

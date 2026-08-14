@@ -30,6 +30,7 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("SafeMockWipeAction"))
         assertFalse(composition.contains("MOCK_WIPE"))
         assertFalse(composition.contains("wipeData"))
+        assertFalse(composition.contains("wipeDevice"))
         assertFalse(composition.contains("ApprovalAuthority"))
         assertFalse(composition.contains("ActionExecutor"))
     }

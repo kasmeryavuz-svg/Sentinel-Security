@@ -39,6 +39,10 @@ class LifecycleStartupGuardTest {
         assertFalse(container.contains("ActionExecutor"))
         assertFalse(app.contains("BOOT_COMPLETED"))
         assertFalse(container.contains("BOOT_COMPLETED"))
+        assertFalse(app.contains("wipeData"))
+        assertFalse(container.contains("wipeData"))
+        assertFalse(app.contains("wipeDevice"))
+        assertFalse(container.contains("wipeDevice"))
         assertFalse(app.contains("AuditRecoveryInspector"))
         assertFalse(container.contains("DeviceManagementRecoveryInspectionFactory"))
     }

@@ -43,6 +43,7 @@ class SqliteAuditStoreGuardTest {
         assertFalse(source.contains("setCameraDisabled"))
         assertFalse(source.contains("DevicePolicyManager"))
         assertFalse(source.contains("wipeData"))
+        assertFalse(source.contains("wipeDevice"))
         assertFalse(source.contains("lockNow"))
         assertFalse(source.contains("SharedPreferences"))
         assertTrue(source.contains("insertOrThrow"))

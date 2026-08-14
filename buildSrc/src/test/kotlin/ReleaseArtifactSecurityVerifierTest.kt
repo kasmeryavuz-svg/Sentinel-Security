@@ -41,6 +41,15 @@ class ReleaseArtifactSecurityVerifierTest {
     }
 
     @Test
+    fun `wipeDevice token fails closed in packaged DEX`() {
+        val violations = ReleaseArtifactSecurityVerifier.verifyPackagedDex(
+            strings = setOf("wipeDevice"),
+            sourceName = "app-release.apk",
+        )
+        assertTrue(violations.any { "wipeDevice" in it })
+    }
+
+    @Test
     fun `debug certificate is classified as test-signed`() {
         val classification = ReleaseArtifactSecurityVerifier.classifySigning(
             certOutput = "Signer #1 certificate DN: CN=Android Debug, O=Android, C=US",

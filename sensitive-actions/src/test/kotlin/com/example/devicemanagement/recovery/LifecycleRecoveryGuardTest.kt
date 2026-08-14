@@ -31,6 +31,7 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("insert("))
         assertFalse(sources.contains("deleteOldest"))
         assertFalse(sources.contains("wipeData"))
+        assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("ActionRequest"))
         assertFalse(sources.contains("SharedPreferences"))
         assertFalse(sources.contains("BOOT_COMPLETED"))
