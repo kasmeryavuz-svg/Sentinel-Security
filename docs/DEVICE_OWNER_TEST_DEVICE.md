@@ -43,47 +43,61 @@ is required.
 
 ## Validation
 
-Open Sentinel and inspect the test-device diagnostics. A successful validation
-must show:
+Open Sentinel and inspect the Device Owner security dashboard. A successful
+validation must show:
 
+- header banner: **Device Owner verified**;
 - management mode: Device Owner;
-- Device Owner verification: `VERIFIED_DEVICE_OWNER`;
-- expected receiver registered and active;
+- Device Owner validation: Verified Device Owner;
+- expected receiver registered and active in technical details;
 - Profile Owner: no; and
 - no configuration or availability errors.
 
-Any `NOT_DEVICE_OWNER`, `CONFIGURATION_ERROR`, or `UNAVAILABLE` result must be
-treated as a failed validation. The application does not attempt to repair,
-repeat, or initiate provisioning.
+Any **Not Device Owner**, **Configuration error**, or **Validation
+unavailable** result must be treated as a failed validation. The application
+does not attempt to repair, repeat, or initiate provisioning. Security
+controls may remain visible for diagnostics; they still fail through the
+trusted authorization path.
 
 ### Reversible screen-capture policy
 
-Only after Device Owner validation succeeds, use the
-**TEST DEVICE — SCREEN CAPTURE POLICY** section:
+Only after Device Owner validation succeeds, use the **Screen capture** card:
 
-1. Select **Disable screen capture**. The operation must report matching
-   requested and observed disabled states.
-2. Select **Enable screen capture** to restore the original policy. The
-   operation must report matching requested and observed enabled states.
-3. Record the correlation ID shown for each operation.
+1. Select **Disable**. The card and session activity must report **Applied**.
+2. Select **Enable** to restore the original policy. The operation must report
+   **Applied**.
+3. Record the correlation ID shown on the card and in session activity.
 
-Any denial, failure, unavailable state, or post-write read-back mismatch is a
-failed test. Do not bypass the validation or attempt another policy operation.
+Any **Denied**, **Failed**, unavailable state, or post-write confirmation
+mismatch is a failed test. Do not bypass the validation or attempt another
+policy operation.
 
 ### Reversible camera policy
 
-Only after Device Owner validation succeeds, use the
-**TEST DEVICE — CAMERA POLICY** section:
+Only after Device Owner validation succeeds, use the **Camera** card:
 
-1. Select **Disable camera**. Android must block camera access and Sentinel must
-   report matching requested and observed disabled states.
-2. Select **Enable camera** to restore the original policy. Android must allow
-   camera access and Sentinel must report matching requested and observed
-   enabled states.
+1. Select **Disable**. Android must block camera access and Sentinel must
+   report **Applied**.
+2. Select **Enable** to restore the original policy. Android must allow
+   camera access and Sentinel must report **Applied**.
 3. Record the authoritative correlation ID returned by Sentinel. The trigger's
    caller request ID is diagnostic input and is not approval identity.
 
-Any denial, validation uncertainty, exception, unavailable state, or post-write
-read-back mismatch is a failed test. Do not bypass validation.
+Any **Denied**, validation uncertainty, exception, unavailable state, or
+post-write confirmation mismatch is a failed test. Do not bypass validation.
+
+### Reversible status-bar policy
+
+Status-bar controls require Android 14 (API 34) or newer. On older devices
+the card must show that the capability is unavailable and must not claim
+success. Only after Device Owner validation succeeds on API 34+, use the
+**Status bar** card the same way as the other two policies.
+
+### Session activity
+
+The dashboard **Session activity** list is NON-PERSISTENT in-memory history
+for the current app session. It is cleared when the app restarts and is not
+an audit log. Use it only to confirm the latest Applied / Denied / Failed
+outcome and correlation ID during this development workflow.
 
 Production QR enrollment is intentionally not implemented.

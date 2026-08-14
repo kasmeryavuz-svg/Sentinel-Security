@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/dashboard_scroll"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/dashboard_background"
+    android:clipToPadding="false"
+    android:fillViewport="true"
+    android:padding="@dimen/spacing_l">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/header_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/dashboard_title"
+            android:textColor="@color/dashboard_text_primary"
+            android:textSize="@dimen/text_title"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/header_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_s"
+            android:textColor="@color/dashboard_text_secondary"
+            android:textSize="@dimen/text_body" />
+
+        <TextView
+            android:id="@+id/header_verification"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_m"
+            android:focusable="true"
+            android:padding="@dimen/spacing_m"
+            android:textSize="@dimen/text_body"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/management_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_l"
+            android:background="@drawable/card_surface"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:padding="@dimen/spacing_m">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/section_management"
+                android:textColor="@color/dashboard_text_primary"
+                android:textSize="@dimen/text_section"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/management_mode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_m"
+                android:textColor="@color/dashboard_text_primary"
+                android:textSize="@dimen/text_body" />
+
+            <TextView
+                android:id="@+id/management_admin"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_s"
+                android:textColor="@color/dashboard_text_primary"
+                android:textSize="@dimen/text_body" />
+
+            <TextView
+                android:id="@+id/management_validation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_s"
+                android:textColor="@color/dashboard_text_primary"
+                android:textSize="@dimen/text_body" />
+
+            <TextView
+                android:id="@+id/management_device_owner_provisioning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_s"
+                android:textColor="@color/dashboard_text_primary"
+                android:textSize="@dimen/text_body" />
+
+            <TextView
+                android:id="@+id/management_profile_owner_provisioning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_s"
+                android:textColor="@color/dashboard_text_primary"
+                android:textSize="@dimen/text_body" />
+
+            <Button
+                android:id="@+id/management_details_toggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_m"
+                android:minHeight="@dimen/touch_min"
+                android:text="@string/show_technical_details" />
+
+            <LinearLayout
+                android:id="@+id/management_details"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_m"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/technical_details_title"
+                    android:textColor="@color/dashboard_text_secondary"
+                    android:textSize="@dimen/text_secondary"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/management_details_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/spacing_s"
+                    android:textColor="@color/dashboard_text_secondary"
+                    android:textIsSelectable="true"
+                    android:textSize="@dimen/text_secondary" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_l"
+            android:text="@string/section_controls"
+            android:textColor="@color/dashboard_text_primary"
+            android:textSize="@dimen/text_section"
+            android:textStyle="bold" />
+
+        <include
+            android:id="@+id/card_screen_capture"
+            layout="@layout/view_policy_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_m" />
+
+        <include
+            android:id="@+id/card_camera"
+            layout="@layout/view_policy_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_m" />
+
+        <include
+            android:id="@+id/card_status_bar"
+            layout="@layout/view_policy_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_m" />
+
+        <LinearLayout
+            android:id="@+id/session_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_l"
+            android:background="@drawable/card_surface"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:padding="@dimen/spacing_m">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/section_session_activity"
+                android:textColor="@color/dashboard_text_primary"
+                android:textSize="@dimen/text_section"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/session_notice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_s"
+                android:text="@string/session_activity_notice"
+                android:textColor="@color/dashboard_text_secondary"
+                android:textSize="@dimen/text_secondary" />
+
+            <TextView
+                android:id="@+id/session_empty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_m"
+                android:text="@string/session_activity_empty"
+                android:textColor="@color/dashboard_text_secondary"
+                android:textSize="@dimen/text_body" />
+
+            <LinearLayout
+                android:id="@+id/session_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/spacing_m"
+                android:orientation="vertical" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

@@ -30,7 +30,10 @@ created inside the controller; caller request IDs are diagnostic input only.
 
 ## Packages
 
-- `ui`: status-only Android UI.
+- `ui`: product Device Owner security dashboard. It reads status through
+  public providers and submits only the six trusted commands through
+  `SensitiveActionController`. Session activity is NON-PERSISTENT
+  in-memory history for the current app session.
 - `trigger`: trigger input parsing and validation.
 - `decision`: centralized, fail-safe sensitive-action decisions.
 - `action`: public trigger-based controller, internal controlled executor, and
