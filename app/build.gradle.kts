@@ -332,6 +332,136 @@ fun org.w3c.dom.NodeList.elements(): List<Element> {
     return (0 until length).map(::item).filterIsInstance<Element>()
 }
 
+fun Element.androidName(androidNamespace: String): String {
+    return getAttributeNS(androidNamespace, "name")
+}
+
+fun Element.intentActions(androidNamespace: String): List<String> {
+    return getElementsByTagName("action").elements().map {
+        it.getAttributeNS(androidNamespace, "name")
+    }
+}
+
+fun Element.intentCategories(androidNamespace: String): List<String> {
+    return getElementsByTagName("category").elements().map {
+        it.getAttributeNS(androidNamespace, "name")
+    }
+}
+
+fun verifyProvisioningManifest(
+    manifest: org.w3c.dom.Document,
+    androidNamespace: String,
+    variantName: String,
+) {
+    val forbiddenActions = setOf(
+        "android.app.action.PROVISION_MANAGED_DEVICE",
+        "android.app.action.PROVISION_MANAGED_PROFILE",
+        "android.app.action.PROVISION_MANAGED_USER",
+        "android.app.action.PROVISION_MANAGED_SHARE_DEVICE",
+    )
+    val allActions = manifest.getElementsByTagName("action").elements()
+        .map { it.getAttributeNS(androidNamespace, "name") }
+        .toSet()
+    check(allActions.intersect(forbiddenActions).isEmpty()) {
+        "Effective $variantName manifest declares forbidden provisioning launcher " +
+            "actions: ${allActions.intersect(forbiddenActions)}"
+    }
+
+    val activities = manifest.getElementsByTagName("activity").elements()
+    val exportedActivities = activities.filter { activity ->
+        activity.getAttributeNS(androidNamespace, "exported") == "true"
+    }
+    val expectedExported = setOf(
+        "com.example.devicemanagement.ui.MainActivity",
+        "com.example.devicemanagement.provisioning.GetProvisioningModeActivity",
+        "com.example.devicemanagement.provisioning.AdminPolicyComplianceActivity",
+    )
+    val exportedNames = exportedActivities.map { it.androidName(androidNamespace) }.toSet()
+    check(exportedNames == expectedExported) {
+        "Effective $variantName exported activities changed; expected " +
+            "$expectedExported, found $exportedNames"
+    }
+
+    fun requireProvisioningActivity(
+        className: String,
+        action: String,
+    ) {
+        val activity = activities.single { it.androidName(androidNamespace) == className }
+        check(activity.getAttributeNS(androidNamespace, "exported") == "true") {
+            "Effective $variantName $className must be exported for the platform " +
+                "provisioning contract"
+        }
+        check(
+            activity.getAttributeNS(androidNamespace, "permission") ==
+                "android.permission.BIND_DEVICE_ADMIN",
+        ) {
+            "Effective $variantName $className must be protected with " +
+                "BIND_DEVICE_ADMIN"
+        }
+        val actions = activity.intentActions(androidNamespace)
+        val categories = activity.intentCategories(androidNamespace)
+        check(actions == listOf(action)) {
+            "Effective $variantName $className intent actions changed: $actions"
+        }
+        check(categories == listOf("android.intent.category.DEFAULT")) {
+            "Effective $variantName $className intent categories changed: $categories"
+        }
+        check("android.intent.category.LAUNCHER" !in categories) {
+            "Effective $variantName $className must not have a launcher category"
+        }
+        check(activity.intentActions(androidNamespace).intersect(forbiddenActions).isEmpty()) {
+            "Effective $variantName $className must not declare a managed-device " +
+                "provisioning launcher action"
+        }
+    }
+
+    requireProvisioningActivity(
+        "com.example.devicemanagement.provisioning.GetProvisioningModeActivity",
+        "android.app.action.GET_PROVISIONING_MODE",
+    )
+    requireProvisioningActivity(
+        "com.example.devicemanagement.provisioning.AdminPolicyComplianceActivity",
+        "android.app.action.ADMIN_POLICY_COMPLIANCE",
+    )
+
+    val launcherActivity = activities.single {
+        it.androidName(androidNamespace) ==
+            "com.example.devicemanagement.ui.MainActivity"
+    }
+    check(launcherActivity.getAttributeNS(androidNamespace, "permission").isEmpty()) {
+        "Effective $variantName MainActivity must not require BIND_DEVICE_ADMIN"
+    }
+    check(
+        launcherActivity.intentActions(androidNamespace) ==
+            listOf("android.intent.action.MAIN"),
+    )
+    check(
+        launcherActivity.intentCategories(androidNamespace) ==
+            listOf("android.intent.category.LAUNCHER"),
+    )
+
+    val exportedServices = manifest.getElementsByTagName("service").elements()
+        .filter { it.getAttributeNS(androidNamespace, "exported") == "true" }
+    check(exportedServices.isEmpty()) {
+        "Effective $variantName manifest must not export services"
+    }
+    val exportedProviders = manifest.getElementsByTagName("provider").elements()
+        .filter { it.getAttributeNS(androidNamespace, "exported") == "true" }
+    check(exportedProviders.isEmpty()) {
+        "Effective $variantName manifest must not export providers"
+    }
+    val exportedReceivers = manifest.getElementsByTagName("receiver").elements()
+        .filter { it.getAttributeNS(androidNamespace, "exported") == "true" }
+        .map { it.androidName(androidNamespace) }
+    check(
+        exportedReceivers == listOf(
+            "com.example.devicemanagement.management.SentinelDeviceAdminReceiver",
+        ),
+    ) {
+        "Effective $variantName exported receivers changed: $exportedReceivers"
+    }
+}
+
 androidComponents {
     onVariants(selector().all()) { variant ->
         val variantName = variant.name
@@ -455,12 +585,15 @@ androidComponents {
                     .elements()
                     .map { it.getAttributeNS(androidNamespace, "name") }
                 check(
-                    enableActions ==
-                        listOf("android.app.action.DEVICE_ADMIN_ENABLED"),
+                    enableActions.toSet() == setOf(
+                        "android.app.action.DEVICE_ADMIN_ENABLED",
+                        "android.app.action.PROFILE_PROVISIONING_COMPLETE",
+                    ) && enableActions.size == 2,
                 ) {
                     "Effective $variantName DeviceAdmin receiver actions changed: " +
                         enableActions
                 }
+                verifyProvisioningManifest(manifest, androidNamespace, variantName)
                 check(
                     metadata.getAttributeNS(androidNamespace, "resource") ==
                         "@xml/device_admin_receiver",

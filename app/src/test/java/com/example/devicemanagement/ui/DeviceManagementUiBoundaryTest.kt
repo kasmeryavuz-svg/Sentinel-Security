@@ -80,6 +80,17 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(appSources.contains("DefaultScreenCapturePolicy"))
         assertFalse(appSources.contains("DefaultCameraPolicy"))
         assertFalse(appSources.contains("DefaultStatusBarPolicy"))
+        assertFalse(appSources.contains("wipeData"))
+        assertFalse(appSources.contains("lockNow"))
+        assertFalse(appSources.contains("resetPassword"))
+        assertFalse(appSources.contains("removeUser"))
+        assertFalse(appSources.contains("uninstallPackageWithActiveAdmins"))
+        assertFalse(appSources.contains("clearApplicationUserData"))
+        assertFalse(appSources.contains("setLockTaskPackages"))
+        assertFalse(appSources.contains("setLockTaskFeatures"))
+        assertFalse(appSources.contains("ACTION_PROVISION_MANAGED_DEVICE"))
+        assertFalse(appSources.contains("provisioningqr"))
+        assertFalse(appSources.contains(":provisioning-qr"))
         assertTrue(appSources.contains("SensitiveActionController"))
     }
 
