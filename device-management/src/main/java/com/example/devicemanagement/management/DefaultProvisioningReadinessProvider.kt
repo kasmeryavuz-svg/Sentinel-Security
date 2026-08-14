@@ -23,7 +23,7 @@ internal class DefaultProvisioningReadinessProvider(
                 checksReliable = false,
                 errors = listOf(
                     "Management status check failed: " +
-                        (error::class.simpleName ?: "error"),
+                        error.javaClass.simpleName.ifEmpty { "error" },
                 ),
             )
         }
@@ -129,7 +129,8 @@ internal class DefaultProvisioningReadinessProvider(
             )
             CheckResult(value = value, success = true)
         } catch (error: Throwable) {
-            errors += "$capability check failed: ${error::class.simpleName ?: "error"}"
+            errors +=
+                "$capability check failed: ${error.javaClass.simpleName.ifEmpty { "error" }}"
             logger.error(
                 event = "provisioning_readiness_check",
                 fields = mapOf(

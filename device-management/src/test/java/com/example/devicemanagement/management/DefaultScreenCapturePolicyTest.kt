@@ -10,18 +10,18 @@ class DefaultScreenCapturePolicyTest {
     @Test
     fun `verified Device Owner can disable screen capture with immediate read back`() {
         val service = FakeScreenCaptureService(initialDisabled = false)
-        val result = policy(verifiedValidation(), service).applyDisabled(true)
+        val result = policy(verifiedValidation(), service).applyDisabled(true, CORRELATION_ID)
 
-        assertEquals(ScreenCapturePolicyMutation.Applied(true, true), result)
+        assertEquals(PolicyMutation.Applied(true, true), result)
         assertEquals(listOf("set:true", "get"), service.operations)
     }
 
     @Test
     fun `verified Device Owner can restore screen capture with immediate read back`() {
         val service = FakeScreenCaptureService(initialDisabled = true)
-        val result = policy(verifiedValidation(), service).applyDisabled(false)
+        val result = policy(verifiedValidation(), service).applyDisabled(false, CORRELATION_ID)
 
-        assertEquals(ScreenCapturePolicyMutation.Applied(false, false), result)
+        assertEquals(PolicyMutation.Applied(false, false), result)
         assertEquals(listOf("set:false", "get"), service.operations)
     }
 
@@ -32,10 +32,10 @@ class DefaultScreenCapturePolicyTest {
             ignoreWrites = true,
         )
 
-        val result = policy(verifiedValidation(), service).applyDisabled(true)
+        val result = policy(verifiedValidation(), service).applyDisabled(true, CORRELATION_ID)
 
         assertEquals(
-            ScreenCapturePolicyMutation.Failed("post_write_read_back_mismatch"),
+            PolicyMutation.Failed("post_write_read_back_mismatch"),
             result,
         )
         assertEquals(listOf("set:true", "get"), service.operations)
@@ -46,9 +46,9 @@ class DefaultScreenCapturePolicyTest {
         val service = FakeScreenCaptureService(false)
 
         val result = policy(validation(ManagementMode.ORDINARY_APP), service)
-            .applyDisabled(true)
+            .applyDisabled(true, CORRELATION_ID)
 
-        assertTrue(result is ScreenCapturePolicyMutation.Denied)
+        assertTrue(result is PolicyMutation.Denied)
         assertTrue(service.operations.isEmpty())
     }
 
@@ -57,18 +57,19 @@ class DefaultScreenCapturePolicyTest {
         val service = FakeScreenCaptureService(false)
 
         val result = policy(validation(ManagementMode.PROFILE_OWNER), service)
-            .applyDisabled(true)
+            .applyDisabled(true, CORRELATION_ID)
 
-        assertTrue(result is ScreenCapturePolicyMutation.Denied)
+        assertTrue(result is PolicyMutation.Denied)
         assertTrue(service.operations.isEmpty())
     }
 
     @Test
     fun `unavailable policy service fails closed`() {
-        val result = policy(verifiedValidation(), service = null).applyDisabled(true)
+        val result = policy(verifiedValidation(), service = null)
+            .applyDisabled(true, CORRELATION_ID)
 
         assertEquals(
-            ScreenCapturePolicyMutation.Failed("policy_service_unavailable"),
+            PolicyMutation.Failed("policy_service_unavailable"),
             result,
         )
     }
@@ -80,9 +81,9 @@ class DefaultScreenCapturePolicyTest {
             setError = SecurityException("denied"),
         )
 
-        val result = policy(verifiedValidation(), service).applyDisabled(true)
+        val result = policy(verifiedValidation(), service).applyDisabled(true, CORRELATION_ID)
 
-        assertEquals(ScreenCapturePolicyMutation.Failed("security_exception"), result)
+        assertEquals(PolicyMutation.Failed("security_exception"), result)
         assertEquals(listOf("set:true"), service.operations)
     }
 
@@ -93,10 +94,10 @@ class DefaultScreenCapturePolicyTest {
             getError = IllegalStateException("unavailable"),
         )
 
-        val result = policy(verifiedValidation(), service).applyDisabled(true)
+        val result = policy(verifiedValidation(), service).applyDisabled(true, CORRELATION_ID)
 
         assertEquals(
-            ScreenCapturePolicyMutation.Failed(
+            PolicyMutation.Failed(
                 "unexpected_exception:IllegalStateException",
             ),
             result,
@@ -200,6 +201,7 @@ class DefaultScreenCapturePolicyTest {
     }
 
     private companion object {
+        const val CORRELATION_ID = "authoritative-correlation"
         const val EXPECTED_COMPONENT =
             "com.example.devicemanagement/.management.SentinelDeviceAdminReceiver"
     }

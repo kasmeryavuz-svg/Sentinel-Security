@@ -22,15 +22,12 @@ class CameraSensitiveActionTest {
             SensitiveActionCommands.DISABLE_CAMERA,
         ))
 
-        assertEquals(
-            ActionResult.Applied(
-                operation = SensitiveActionOperation.DISABLE_CAMERA,
-                requestedDisabled = true,
-                observedDisabled = true,
-                correlationId = "correlation",
-            ),
-            result,
-        )
+        assertTrue(result is ActionResult.Applied)
+        result as ActionResult.Applied
+        assertEquals(SensitiveActionOperation.DISABLE_CAMERA, result.operation)
+        assertEquals(true, result.requestedDisabled)
+        assertEquals(true, result.observedDisabled)
+        assertAuthoritativeCorrelation(result, backend)
         assertEquals(listOf(true), backend.cameraWrites)
     }
 
@@ -42,15 +39,12 @@ class CameraSensitiveActionTest {
             SensitiveActionCommands.ENABLE_CAMERA,
         ))
 
-        assertEquals(
-            ActionResult.Applied(
-                operation = SensitiveActionOperation.ENABLE_CAMERA,
-                requestedDisabled = false,
-                observedDisabled = false,
-                correlationId = "correlation",
-            ),
-            result,
-        )
+        assertTrue(result is ActionResult.Applied)
+        result as ActionResult.Applied
+        assertEquals(SensitiveActionOperation.ENABLE_CAMERA, result.operation)
+        assertEquals(false, result.requestedDisabled)
+        assertEquals(false, result.observedDisabled)
+        assertAuthoritativeCorrelation(result, backend)
         assertEquals(listOf(false), backend.cameraWrites)
     }
 
@@ -73,14 +67,8 @@ class CameraSensitiveActionTest {
             SensitiveActionCommands.DISABLE_CAMERA,
         ))
 
-        assertEquals(
-            ActionResult.Rejected("decision_denied:DEVICE_OWNER_NOT_VERIFIED"),
-            ordinaryResult,
-        )
-        assertEquals(
-            ActionResult.Rejected("decision_denied:PROFILE_OWNER_NOT_ALLOWED"),
-            profileResult,
-        )
+        assertRejected(ordinaryResult, "decision_denied:DEVICE_OWNER_NOT_VERIFIED")
+        assertRejected(profileResult, "decision_denied:PROFILE_OWNER_NOT_ALLOWED")
         assertTrue(ordinaryBackend.cameraWrites.isEmpty())
         assertTrue(profileBackend.cameraWrites.isEmpty())
     }
@@ -95,10 +83,7 @@ class CameraSensitiveActionTest {
             SensitiveActionCommands.DISABLE_CAMERA,
         ))
 
-        assertEquals(
-            ActionResult.Rejected("decision_denied:SERVICE_UNAVAILABLE"),
-            result,
-        )
+        assertRejected(result, "decision_denied:SERVICE_UNAVAILABLE")
         assertTrue(backend.cameraWrites.isEmpty())
     }
 
@@ -134,18 +119,16 @@ class CameraSensitiveActionTest {
             ),
         ).submit(trigger(SensitiveActionCommands.ENABLE_CAMERA))
 
-        assertEquals(
-            ActionResult.Rejected("validation_changed", "correlation"),
-            denied,
-        )
-        assertEquals(
-            ActionResult.Failed("security_exception", "correlation"),
-            failed,
-        )
+        assertTrue(denied is ActionResult.Rejected)
+        assertEquals("validation_changed", (denied as ActionResult.Rejected).reason)
+        assertTrue(failed is ActionResult.Failed)
+        assertEquals("security_exception", (failed as ActionResult.Failed).reason)
+        assertTrue(denied.correlationId != "correlation")
+        assertTrue(failed.correlationId != "correlation")
     }
 
     private fun controller(backend: SensitiveActionPolicyBackend) =
-        SensitiveActionController.createControlled(
+        createControlledController(
             backend = backend,
             logger = logger,
             nowEpochMillis = { 1_000L },
@@ -158,11 +141,29 @@ class CameraSensitiveActionTest {
         expiresAtEpochMillis = 2_000L,
     )
 
+    private fun assertAuthoritativeCorrelation(
+        result: ActionResult.Applied,
+        backend: RecordingBackend,
+    ) {
+        assertTrue(result.correlationId.isNotBlank())
+        assertTrue(result.correlationId != "correlation")
+        assertEquals(listOf(result.correlationId), backend.correlations)
+    }
+
+    private fun assertRejected(result: ActionResult, reason: String) {
+        assertTrue(result is ActionResult.Rejected)
+        result as ActionResult.Rejected
+        assertEquals(reason, result.reason)
+        assertTrue(result.correlationId?.isNotBlank() == true)
+        assertTrue(result.correlationId != "correlation")
+    }
+
     private class RecordingBackend(
         private val authorization: SensitiveActionAuthorization = authorized,
         private val mutationResult: PolicyMutationResult? = null,
     ) : SensitiveActionPolicyBackend {
         val cameraWrites = mutableListOf<Boolean>()
+        val correlations = mutableListOf<String>()
 
         override fun currentAuthorization(): SensitiveActionAuthorization = authorization
 
@@ -178,6 +179,7 @@ class CameraSensitiveActionTest {
             correlationId: String,
         ): PolicyMutationResult {
             cameraWrites += disabled
+            correlations += correlationId
             return mutationResult ?: PolicyMutationResult.Applied(disabled, disabled)
         }
     }

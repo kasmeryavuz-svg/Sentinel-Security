@@ -1,111 +1,112 @@
 package com.example.devicemanagement.action
 
 import com.example.devicemanagement.decision.ActionDecision
-import com.example.devicemanagement.decision.DecisionEngine
 import com.example.devicemanagement.decision.FailSafeDecisionEngine
 import com.example.devicemanagement.integration.MonotonicTimeSource
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
+import com.example.devicemanagement.integration.SystemMonotonicTimeSource
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.InMemoryStateRepository
 import com.example.devicemanagement.persistence.ManagementState
 import com.example.devicemanagement.persistence.PolicyBackendStateRepository
 import com.example.devicemanagement.trigger.DefaultTriggerEvaluator
 import com.example.devicemanagement.trigger.Trigger
+import java.util.UUID
 
 /**
- * The sole public entry point for sensitive actions.
- *
- * Callers can submit only raw trigger input. Decisions, approvals, actions,
- * and the executor are module-private and cannot be supplied by app code.
+ * Internal implementation of the app-visible submit-only controller.
  */
-class SensitiveActionController internal constructor(
-    private val decisionEngine: DecisionEngine,
+internal class DefaultSensitiveActionController(
+    private val decisionEngine: com.example.devicemanagement.decision.DecisionEngine,
     private val actionExecutor: ActionExecutor,
-) {
-    fun submit(trigger: Trigger?): ActionResult {
-        return when (val decision = decisionEngine.decide(trigger)) {
+    private val correlationIdGenerator: () -> String = { UUID.randomUUID().toString() },
+) : SensitiveActionController {
+    override fun submit(trigger: Trigger?): ActionResult {
+        val correlationId = correlationIdGenerator()
+        return when (val decision = decisionEngine.decide(trigger, correlationId)) {
             is ActionDecision.Approved -> actionExecutor.execute(decision)
             is ActionDecision.Denied -> ActionResult.Rejected(
                 reason = "decision_denied:${decision.reason.name}",
+                correlationId = correlationId,
             )
         }
     }
+}
 
-    companion object {
-        fun createFailSafe(logger: StructuredLogger): SensitiveActionController {
-            val approvalAuthority = ApprovalAuthority()
-            val stateRepository = InMemoryStateRepository(
-                ManagementState(
-                    policyServiceAvailable = false,
-                    sensitiveActionsEnabled = false,
-                    verifiedDeviceOwner = false,
-                    profileOwner = false,
-                    expectedAdminReceiverRegistered = false,
-                    expectedAdminActive = false,
-                    managementStateConsistent = false,
-                ),
-            )
-            return SensitiveActionController(
-                decisionEngine = FailSafeDecisionEngine(
-                    triggerEvaluator = DefaultTriggerEvaluator(),
-                    stateRepository = stateRepository,
-                    approvalAuthority = approvalAuthority,
-                    logger = logger,
-                ),
-                actionExecutor = ActionExecutor(
-                    actions = setOf(SafeMockWipeAction(logger)),
-                    approvalAuthority = approvalAuthority,
-                    logger = logger,
-                ),
-            )
-        }
-
-        fun createControlled(
-            backend: SensitiveActionPolicyBackend,
-            logger: StructuredLogger,
-            nowEpochMillis: () -> Long = System::currentTimeMillis,
-            monotonicTimeSource: MonotonicTimeSource =
-                MonotonicTimeSource { System.nanoTime() / 1_000_000L },
-        ): SensitiveActionController {
-            val approvalAuthority = ApprovalAuthority()
-            return SensitiveActionController(
-                decisionEngine = FailSafeDecisionEngine(
-                    triggerEvaluator = DefaultTriggerEvaluator(),
-                    stateRepository = PolicyBackendStateRepository(backend),
-                    approvalAuthority = approvalAuthority,
-                    logger = logger,
-                    nowEpochMillis = nowEpochMillis,
-                    monotonicTimeSource = monotonicTimeSource,
-                ),
-                actionExecutor = ActionExecutor(
-                    actions = setOf(
-                        ScreenCapturePolicyAction(
-                            type = DeviceActionType.DISABLE_SCREEN_CAPTURE,
-                            disabled = true,
-                            backend = backend,
-                        ),
-                        ScreenCapturePolicyAction(
-                            type = DeviceActionType.ENABLE_SCREEN_CAPTURE,
-                            disabled = false,
-                            backend = backend,
-                        ),
-                        CameraPolicyAction(
-                            type = DeviceActionType.DISABLE_CAMERA,
-                            disabled = true,
-                            backend = backend,
-                        ),
-                        CameraPolicyAction(
-                            type = DeviceActionType.ENABLE_CAMERA,
-                            disabled = false,
-                            backend = backend,
-                        ),
-                    ),
-                    approvalAuthority = approvalAuthority,
-                    logger = logger,
-                    nowEpochMillis = nowEpochMillis,
-                    monotonicTimeSource = monotonicTimeSource,
-                ),
-            )
-        }
+/**
+ * Production composition entry point. This implementation module is not present
+ * on the app compile classpath; app receives only SensitiveActionController API.
+ * Clock injection is intentionally unavailable to app/UI and is supplied only by
+ * trusted device-management composition.
+ */
+object DeviceManagementSensitiveActionControllerFactory {
+    fun create(
+        backend: SensitiveActionPolicyBackend,
+        logger: StructuredLogger,
+        monotonicTimeSource: MonotonicTimeSource,
+    ): SensitiveActionController {
+        return createControlledController(
+            backend = backend,
+            logger = logger,
+            monotonicTimeSource = monotonicTimeSource,
+        )
     }
+}
+
+internal fun createFailSafeController(
+    logger: StructuredLogger,
+): SensitiveActionController {
+    val approvalAuthority = ApprovalAuthority()
+    val registry = SensitiveActionRegistry.failSafe(logger)
+    val stateRepository = InMemoryStateRepository(
+        ManagementState(
+            policyServiceAvailable = false,
+            sensitiveActionsEnabled = false,
+            verifiedDeviceOwner = false,
+            profileOwner = false,
+            expectedAdminReceiverRegistered = false,
+            expectedAdminActive = false,
+            managementStateConsistent = false,
+        ),
+    )
+    return DefaultSensitiveActionController(
+        decisionEngine = FailSafeDecisionEngine(
+            triggerEvaluator = DefaultTriggerEvaluator(registry),
+            stateRepository = stateRepository,
+            approvalAuthority = approvalAuthority,
+            logger = logger,
+        ),
+        actionExecutor = ActionExecutor(
+            registry = registry,
+            approvalAuthority = approvalAuthority,
+            logger = logger,
+        ),
+    )
+}
+
+internal fun createControlledController(
+    backend: SensitiveActionPolicyBackend,
+    logger: StructuredLogger,
+    nowEpochMillis: () -> Long = System::currentTimeMillis,
+    monotonicTimeSource: MonotonicTimeSource = SystemMonotonicTimeSource,
+): SensitiveActionController {
+    val approvalAuthority = ApprovalAuthority()
+    val registry = SensitiveActionRegistry.controlled(backend)
+    return DefaultSensitiveActionController(
+        decisionEngine = FailSafeDecisionEngine(
+            triggerEvaluator = DefaultTriggerEvaluator(registry),
+            stateRepository = PolicyBackendStateRepository(backend),
+            approvalAuthority = approvalAuthority,
+            logger = logger,
+            nowEpochMillis = nowEpochMillis,
+            monotonicTimeSource = monotonicTimeSource,
+        ),
+        actionExecutor = ActionExecutor(
+            registry = registry,
+            approvalAuthority = approvalAuthority,
+            logger = logger,
+            nowEpochMillis = nowEpochMillis,
+            monotonicTimeSource = monotonicTimeSource,
+        ),
+    )
 }

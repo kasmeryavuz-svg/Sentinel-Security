@@ -3,14 +3,57 @@ package com.example.devicemanagement.management
 import android.content.Context
 import android.os.SystemClock
 import com.example.devicemanagement.action.SensitiveActionController
+import com.example.devicemanagement.action.DeviceManagementSensitiveActionControllerFactory
 import com.example.devicemanagement.integration.MonotonicTimeSource
 import com.example.devicemanagement.integration.PolicyMutationResult
 import com.example.devicemanagement.integration.SensitiveActionAuthorization
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
 import com.example.devicemanagement.logging.StructuredLogger
 
-object DeviceManagementSensitiveActions {
+internal object DeviceManagementComposition {
     fun create(
+        context: Context,
+        logger: StructuredLogger,
+    ): DeviceManagementServices {
+        val deviceManagementLogger = StructuredDeviceManagementLogger(logger)
+        val sensitiveActions = createSensitiveActions(
+                context = context,
+                sensitiveActionLogger = logger,
+                deviceManagementLogger = deviceManagementLogger,
+            )
+        val deviceManagementStatus =
+            DeviceManagementDiagnostics.create(context, deviceManagementLogger)
+        val provisioningReadiness =
+            DeviceManagementDiagnostics.createProvisioningReadiness(
+                context,
+                deviceManagementLogger,
+            )
+        val deviceOwnerValidation =
+            DeviceManagementDiagnostics.createDeviceOwnerValidation(
+                context,
+                deviceManagementLogger,
+            )
+        val screenCapturePolicyStatus =
+            DeviceManagementDiagnostics.createScreenCapturePolicyStatus(
+                context,
+                deviceManagementLogger,
+            )
+        val cameraPolicyStatus =
+            DeviceManagementDiagnostics.createCameraPolicyStatus(
+                context,
+                deviceManagementLogger,
+            )
+        return object : DeviceManagementServices {
+            override val sensitiveActions = sensitiveActions
+            override val deviceManagementStatus = deviceManagementStatus
+            override val provisioningReadiness = provisioningReadiness
+            override val deviceOwnerValidation = deviceOwnerValidation
+            override val screenCapturePolicyStatus = screenCapturePolicyStatus
+            override val cameraPolicyStatus = cameraPolicyStatus
+        }
+    }
+
+    private fun createSensitiveActions(
         context: Context,
         sensitiveActionLogger: StructuredLogger,
         deviceManagementLogger: DeviceManagementLogger,
@@ -36,12 +79,20 @@ object DeviceManagementSensitiveActions {
             cameraPolicy = cameraPolicy,
             logger = deviceManagementLogger,
         )
-        return SensitiveActionController.createControlled(
+        return DeviceManagementSensitiveActionControllerFactory.create(
             backend = backend,
             logger = sensitiveActionLogger,
-            monotonicTimeSource = MonotonicTimeSource(SystemClock::elapsedRealtime),
+            monotonicTimeSource = AndroidElapsedRealtimeMonotonicTimeSource,
         )
     }
+}
+
+/**
+ * Production Android monotonic source for approval freshness. Owned exclusively by
+ * trusted device-management composition; not injectable from app/UI code.
+ */
+internal object AndroidElapsedRealtimeMonotonicTimeSource : MonotonicTimeSource {
+    override fun nowMillis(): Long = SystemClock.elapsedRealtime()
 }
 
 internal class DeviceManagementSensitiveActionBackend(
@@ -89,31 +140,24 @@ internal class DeviceManagementSensitiveActionBackend(
         disabled: Boolean,
         correlationId: String,
     ): PolicyMutationResult {
-        return when (val result = screenCapturePolicy.applyDisabled(disabled)) {
-            is ScreenCapturePolicyMutation.Applied -> PolicyMutationResult.Applied(
-                requestedDisabled = result.requestedDisabled,
-                observedDisabled = result.observedDisabled,
-            )
-            is ScreenCapturePolicyMutation.Denied ->
-                PolicyMutationResult.Denied(result.reason)
-            is ScreenCapturePolicyMutation.Failed ->
-                PolicyMutationResult.Failed(result.reason)
-        }
+        return screenCapturePolicy.applyDisabled(disabled, correlationId).toBackendResult()
     }
 
     override fun applyCameraDisabled(
         disabled: Boolean,
         correlationId: String,
     ): PolicyMutationResult {
-        return when (val result = cameraPolicy.applyDisabled(disabled)) {
-            is CameraPolicyMutation.Applied -> PolicyMutationResult.Applied(
-                requestedDisabled = result.requestedDisabled,
-                observedDisabled = result.observedDisabled,
+        return cameraPolicy.applyDisabled(disabled, correlationId).toBackendResult()
+    }
+
+    private fun PolicyMutation.toBackendResult(): PolicyMutationResult {
+        return when (this) {
+            is PolicyMutation.Applied -> PolicyMutationResult.Applied(
+                requestedDisabled = requestedDisabled,
+                observedDisabled = observedDisabled,
             )
-            is CameraPolicyMutation.Denied ->
-                PolicyMutationResult.Denied(result.reason)
-            is CameraPolicyMutation.Failed ->
-                PolicyMutationResult.Failed(result.reason)
+            is PolicyMutation.Denied -> PolicyMutationResult.Denied(reason)
+            is PolicyMutation.Failed -> PolicyMutationResult.Failed(reason)
         }
     }
 

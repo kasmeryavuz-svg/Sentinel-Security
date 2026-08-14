@@ -41,6 +41,20 @@ sealed interface PolicyMutationResult {
     data class Failed(val reason: String) : PolicyMutationResult
 }
 
+/**
+ * Monotonic millisecond clock used for approval freshness.
+ *
+ * Owned by trusted composition/implementation code. App and UI modules do not
+ * depend on this type at compile time and must not inject clocks.
+ */
 fun interface MonotonicTimeSource {
     fun nowMillis(): Long
+}
+
+/**
+ * JVM fallback for unit tests and non-Android composition. Production Android
+ * composition must supply [android.os.SystemClock.elapsedRealtime] instead.
+ */
+internal object SystemMonotonicTimeSource : MonotonicTimeSource {
+    override fun nowMillis(): Long = System.nanoTime() / 1_000_000L
 }

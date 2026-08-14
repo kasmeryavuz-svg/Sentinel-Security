@@ -7,6 +7,7 @@ plugins {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
+        freeCompilerArgs.addAll("-Xlambdas=class", "-Xsam-conversions=class")
     }
 }
 
@@ -16,6 +17,7 @@ java {
 }
 
 dependencies {
+    implementation(project(":sensitive-actions-api"))
     testImplementation("junit:junit:4.13.2")
 }
 

@@ -1,20 +1,5 @@
 package com.example.devicemanagement.management
 
-enum class ScreenCapturePolicyState {
-    DISABLED,
-    ENABLED,
-    UNAVAILABLE,
-}
-
-data class ScreenCapturePolicyStatus(
-    val state: ScreenCapturePolicyState,
-    val reasons: List<String>,
-)
-
-fun interface ScreenCapturePolicyStatusProvider {
-    fun currentStatus(): ScreenCapturePolicyStatus
-}
-
 internal class DefaultScreenCapturePolicyStatusProvider(
     private val deviceOwnerValidationProvider: DeviceOwnerValidationProvider,
     private val platform: DevicePolicyPlatform,
@@ -51,7 +36,7 @@ internal class DefaultScreenCapturePolicyStatusProvider(
             unavailable(
                 listOf(
                     "Screen-capture policy status unavailable: " +
-                        (error::class.simpleName ?: "unexpected error"),
+                        (error.javaClass.simpleName.ifEmpty { "unexpected error" }),
                 ),
             )
         }

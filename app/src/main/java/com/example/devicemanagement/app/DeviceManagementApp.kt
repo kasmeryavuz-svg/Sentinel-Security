@@ -8,8 +8,7 @@ class DeviceManagementApp : Application() {
         val logger = AndroidStructuredLogger()
         AppContainer(
             context = this,
-            sensitiveActionLogger = logger,
-            deviceManagementLogger = logger,
+            logger = logger,
         )
     }
 }

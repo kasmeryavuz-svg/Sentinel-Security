@@ -13,10 +13,11 @@ internal class SafeMockWipeAction(
             fields = mapOf(
                 "action" to type.name,
                 "mode" to "simulation_only",
-                "request_id" to request.requestId,
+                "correlation_id" to request.correlationId,
+                "caller_request_id" to request.callerRequestId,
             ),
         )
-        return ActionResult.Simulated(WIPE_LOG_MESSAGE)
+        return ActionResult.Simulated(WIPE_LOG_MESSAGE, request.correlationId)
     }
 
     companion object {

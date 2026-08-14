@@ -2,18 +2,16 @@ package com.example.devicemanagement.action
 
 import com.example.devicemanagement.decision.ActionDecision
 import com.example.devicemanagement.integration.MonotonicTimeSource
+import com.example.devicemanagement.integration.SystemMonotonicTimeSource
 import com.example.devicemanagement.logging.StructuredLogger
 
 internal class ActionExecutor(
-    actions: Set<DeviceAction>,
+    private val registry: SensitiveActionRegistry,
     private val approvalAuthority: ApprovalAuthority,
     private val logger: StructuredLogger,
     private val nowEpochMillis: () -> Long = System::currentTimeMillis,
-    private val monotonicTimeSource: MonotonicTimeSource =
-        MonotonicTimeSource { System.nanoTime() / 1_000_000L },
+    private val monotonicTimeSource: MonotonicTimeSource = SystemMonotonicTimeSource,
 ) {
-    private val actionsByType = actions.associateBy(DeviceAction::type)
-
     fun execute(decision: ActionDecision): ActionResult {
         if (decision !is ActionDecision.Approved) {
             return reject("decision_not_approved")
@@ -27,14 +25,19 @@ internal class ActionExecutor(
             )
         ) {
             is ApprovalConsumption.Accepted -> consumption.request
-            is ApprovalConsumption.Rejected -> return reject(consumption.reason)
+            is ApprovalConsumption.Rejected -> return reject(
+                reason = consumption.reason,
+                correlationId = consumption.correlationId,
+            )
         }
-        val action = actionsByType[request.type]
+        val action = registry.actionForType(request.type)
             ?: return reject(
                 reason = "action_not_registered",
+                correlationId = request.correlationId,
                 fields = mapOf(
                     "action" to request.type.name,
-                    "request_id" to request.requestId,
+                    "correlation_id" to request.correlationId,
+                    "caller_request_id" to request.callerRequestId,
                 ),
             )
 
@@ -44,8 +47,9 @@ internal class ActionExecutor(
                 event = "action_execution_completed",
                 fields = mapOf(
                     "action" to request.type.name,
-                    "request_id" to request.requestId,
-                    "result" to result::class.simpleName,
+                    "correlation_id" to request.correlationId,
+                    "caller_request_id" to request.callerRequestId,
+                    "result" to result.javaClass.simpleName,
                 ),
             )
             result
@@ -54,25 +58,27 @@ internal class ActionExecutor(
                 event = "action_execution_failed",
                 fields = mapOf(
                     "action" to request.type.name,
-                    "request_id" to request.requestId,
+                    "correlation_id" to request.correlationId,
+                    "caller_request_id" to request.callerRequestId,
                 ),
                 throwable = error,
             )
             ActionResult.Failed(
-                reason = error::class.simpleName ?: "unknown_error",
-                correlationId = request.requestId,
+                reason = error.javaClass.simpleName.ifEmpty { "unknown_error" },
+                correlationId = request.correlationId,
             )
         }
     }
 
     private fun reject(
         reason: String,
+        correlationId: String? = null,
         fields: Map<String, Any?> = emptyMap(),
     ): ActionResult.Rejected {
         logger.warn(
             event = "action_execution_rejected",
             fields = fields + ("reason" to reason),
         )
-        return ActionResult.Rejected(reason)
+        return ActionResult.Rejected(reason, correlationId)
     }
 }

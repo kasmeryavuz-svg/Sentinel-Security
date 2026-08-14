@@ -1,3 +1,6 @@
+import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.artifact.ScopedArtifact
+import com.android.build.api.variant.ScopedArtifacts
 import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -29,123 +32,58 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
+        freeCompilerArgs.addAll("-Xlambdas=class", "-Xsam-conversions=class")
     }
 }
 
 dependencies {
+    implementation(project(":device-management-api"))
     implementation(project(":sensitive-actions"))
     testImplementation("junit:junit:4.13.2")
+    testImplementation(kotlin("reflect"))
 }
 
-val destructivePolicyOperations = listOf(
-    "wipeData",
-    "wipeDevice",
-    "reboot",
-    "resetPassword",
-    "resetPasswordWithToken",
-    "clearApplicationUserData",
-    "removeUser",
-    "removeUserWhenPossible",
-    "logoutUser",
-    "lockNow",
-    "setLockTaskPackages",
-    "setLockTaskFeatures",
-    "setFactoryResetProtectionPolicy",
-    "installPackage",
-    "installExistingPackage",
-    "uninstallPackage",
-    "setApplicationHidden",
-    "setPackagesSuspended",
-    "setUninstallBlocked",
-    "setAccountManagementDisabled",
-    "setAlwaysOnVpnPackage",
-    "setRecommendedGlobalProxy",
-    "setNetworkLoggingEnabled",
-    "setSecurityLoggingEnabled",
-    "addUserRestriction",
-    "clearUserRestriction",
-    "setPermissionGrantState",
-    "createAndManageUser",
-    "switchUser",
-    "setProfileEnabled",
-    "transferOwnership",
-    "setDeviceOwner",
-)
-
-val allowedPolicyQueries = setOf(
-    "isDeviceOwnerApp",
-    "isProfileOwnerApp",
-    "isAdminActive",
-    "isProvisioningAllowed",
-    "getScreenCaptureDisabled",
-    "getCameraDisabled",
-)
-
-val allowedPolicyMutators = setOf(
-    "setScreenCaptureDisabled",
-    "setCameraDisabled",
-)
-
-val checkNoDestructiveDevicePolicyApis by tasks.registering {
-    group = "verification"
-    description = "Rejects destructive policy APIs in production sources."
-    val productionSources = fileTree("src/main") {
-        include("**/*.kt", "**/*.java")
-    }
-    inputs.files(productionSources)
-
-    doLast {
-        val destructiveCalls = productionSources.files.flatMap { source ->
-            destructivePolicyOperations.mapNotNull { operation ->
-                val callPattern = Regex("""\b${Regex.escape(operation)}\s*\(""")
-                if (callPattern.containsMatchIn(source.readText())) {
-                    "${source.relativeTo(projectDir)}: $operation"
-                } else {
-                    null
-                }
-            }
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        val capitalized = variant.name.replaceFirstChar { it.uppercaseChar() }
+        val policyGuard = tasks.register<ProductionBytecodePolicyTask>(
+            "check${capitalized}ProductionBytecodePolicy",
+        ) {
+            group = "verification"
+            description =
+                "Verifies compiled ${variant.name} implementation classes against policy boundaries."
+            artifactPath.set(project.path)
+            mergedNativeLibraries.from(
+                variant.artifacts.get(SingleArtifact.MERGED_NATIVE_LIBS),
+            )
+            productionFiles.from(fileTree("src") {
+                exclude("test/**", "androidTest/**", "testFixtures/**")
+            })
         }
-        val policyImportsOutsideBoundary = productionSources.files.mapNotNull { source ->
-            val importsPolicyManager =
-                source.readText().contains("import android.app.admin.DevicePolicyManager")
-            if (
-                importsPolicyManager &&
-                source.name != "AndroidDeviceManagementInfrastructure.kt"
-            ) {
-                "${source.relativeTo(projectDir)}: DevicePolicyManager import outside boundary"
-            } else {
-                null
-            }
+        variant.artifacts
+            .forScope(ScopedArtifacts.Scope.PROJECT)
+            .use(policyGuard)
+            .toGet(
+                ScopedArtifact.CLASSES,
+                ProductionBytecodePolicyTask::classJars,
+                ProductionBytecodePolicyTask::classDirectories,
+            )
+        rootProject.tasks.named("checkProductionBytecodePolicy").configure {
+            dependsOn(policyGuard)
         }
-        val boundarySource = productionSources.files.singleOrNull {
-            it.name == "AndroidDeviceManagementInfrastructure.kt"
-        }
-        val nonQueryCalls = boundarySource?.let { source ->
-            Regex("""\bmanager\s*\.\s*([A-Za-z][A-Za-z0-9_]*)\s*\(""")
-                .findAll(source.readText())
-                .map { it.groupValues[1] }
-                .filterNot { call ->
-                    call in allowedPolicyQueries || call in allowedPolicyMutators
-                }
-                .map {
-                    "${source.relativeTo(projectDir)}: non-allowlisted DevicePolicyManager call $it"
-                }
-                .toList()
-        }.orEmpty()
-        val violations = destructiveCalls + policyImportsOutsideBoundary + nonQueryCalls
-        check(violations.isEmpty()) {
-            "Only allowlisted DevicePolicyManager queries and mutators are allowed:\n" +
-                violations.joinToString("\n")
+        tasks.matching {
+            it.name == "assemble$capitalized" ||
+                it.name == "bundle${capitalized}Aar" ||
+                it.name == "test${capitalized}UnitTest" ||
+                it.name == "check$capitalized" ||
+                it.name == "check"
+        }.configureEach {
+            dependsOn(policyGuard)
         }
     }
-}
-
-tasks.matching { it.name == "preBuild" }.configureEach {
-    dependsOn(checkNoDestructiveDevicePolicyApis)
 }
 
 tasks.withType<Test>().configureEach {
-    dependsOn(checkNoDestructiveDevicePolicyApis)
     systemProperty(
         "deviceManagementSourceDir",
         layout.projectDirectory.dir("src/main").asFile.absolutePath,

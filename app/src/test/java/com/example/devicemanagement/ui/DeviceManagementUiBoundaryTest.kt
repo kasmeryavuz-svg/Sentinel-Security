@@ -20,6 +20,16 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(uiSources.contains("DevicePolicyScreenCaptureService"))
         assertFalse(uiSources.contains("DevicePolicyCameraService"))
         assertFalse(uiSources.contains("SensitiveActionPolicyBackend"))
+        assertFalse(uiSources.contains("DeviceManagementSensitiveActionControllerFactory"))
+        assertFalse(uiSources.contains("MonotonicTimeSource"))
+        assertFalse(uiSources.contains("AndroidElapsedRealtimeMonotonicTimeSource"))
+        assertFalse(uiSources.contains("SystemClock"))
+        assertFalse(uiSources.contains("elapsedRealtime"))
+        assertFalse(uiSources.contains("createControlled"))
+        assertFalse(uiSources.contains("SensitiveActionRegistry"))
+        assertFalse(uiSources.contains("VerifiedPolicyMutation"))
+        assertFalse(uiSources.contains("DeviceOwnerMutationGuard"))
+        assertFalse(uiSources.contains("DeviceManagementSensitiveActionBackend"))
         assertFalse(uiSources.contains("DefaultScreenCapturePolicy"))
         assertFalse(uiSources.contains("DefaultCameraPolicy"))
         assertFalse(
@@ -35,6 +45,7 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(uiSources.contains("setScreenCaptureDisabled"))
         assertFalse(uiSources.contains("setCameraDisabled"))
         assertFalse(uiSources.contains("ActionExecutor"))
+        assertFalse(uiSources.contains("ApprovalAuthority"))
         assertFalse(uiSources.contains("DeviceAction"))
     }
 }

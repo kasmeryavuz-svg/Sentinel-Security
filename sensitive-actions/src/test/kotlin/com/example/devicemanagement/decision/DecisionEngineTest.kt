@@ -1,6 +1,7 @@
 package com.example.devicemanagement.decision
 
 import com.example.devicemanagement.action.ApprovalAuthority
+import com.example.devicemanagement.action.SensitiveActionRegistry
 import com.example.devicemanagement.logging.StructuredLogger
 import com.example.devicemanagement.persistence.ManagementState
 import com.example.devicemanagement.persistence.StateRepository
@@ -85,7 +86,9 @@ class DecisionEngineTest {
 
     @Test
     fun `trigger evaluator exception fails closed`() {
-        val throwingEvaluator = TriggerEvaluator { _, _ -> error("unexpected evaluator state") }
+        val throwingEvaluator = TriggerEvaluator { _, _, _ ->
+            error("unexpected evaluator state")
+        }
         val engine = FailSafeDecisionEngine(
             triggerEvaluator = throwingEvaluator,
             stateRepository = FixedStateRepository(enabledState),
@@ -106,7 +109,7 @@ class DecisionEngineTest {
     fun `repository exception fails closed`() {
         val throwingRepository = StateRepository { error("storage unavailable") }
         val engine = FailSafeDecisionEngine(
-            triggerEvaluator = DefaultTriggerEvaluator(),
+            triggerEvaluator = DefaultTriggerEvaluator(failSafeRegistry()),
             stateRepository = throwingRepository,
             approvalAuthority = ApprovalAuthority(),
             logger = logger,
@@ -130,7 +133,7 @@ class DecisionEngineTest {
 
     private fun engineWith(state: ManagementState?): DecisionEngine =
         FailSafeDecisionEngine(
-            triggerEvaluator = DefaultTriggerEvaluator(),
+            triggerEvaluator = DefaultTriggerEvaluator(failSafeRegistry()),
             stateRepository = FixedStateRepository(state),
             approvalAuthority = ApprovalAuthority(),
             logger = logger,
@@ -142,6 +145,14 @@ class DecisionEngineTest {
         requestId = "request-1",
         expiresAtEpochMillis = expiresAt,
     )
+
+    private fun DecisionEngine.decide(trigger: Trigger?): ActionDecision {
+        return decide(trigger, CORRELATION_ID)
+    }
+
+    private fun failSafeRegistry(): SensitiveActionRegistry {
+        return SensitiveActionRegistry.failSafe(logger)
+    }
 
     private class FixedStateRepository(
         private val state: ManagementState?,
@@ -162,6 +173,8 @@ class DecisionEngineTest {
     }
 
     private companion object {
+        const val CORRELATION_ID = "authoritative-correlation"
+
         val enabledState = ManagementState(
             policyServiceAvailable = true,
             sensitiveActionsEnabled = true,
