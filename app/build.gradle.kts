@@ -222,6 +222,10 @@ val checkAppApiCompileNegative by tasks.registering {
             "com/example/devicemanagement/audit/AuditStorageHealth",
             "com/example/devicemanagement/audit/AuditStorageStatus",
             "com/example/devicemanagement/audit/AuditStorageStatusProvider",
+            "com/example/devicemanagement/recovery/InterruptedRequest",
+            "com/example/devicemanagement/recovery/RecoveryInspection",
+            "com/example/devicemanagement/recovery/RecoveryInspectionHealth",
+            "com/example/devicemanagement/recovery/RecoveryInspectionProvider",
             "com/example/devicemanagement/trigger/SensitiveActionCommands",
             "com/example/devicemanagement/trigger/Trigger",
             "com/example/devicemanagement/management/DeviceManagement",
@@ -376,6 +380,9 @@ fun verifyProvisioningManifest(
         "android.app.action.PROVISION_MANAGED_PROFILE",
         "android.app.action.PROVISION_MANAGED_USER",
         "android.app.action.PROVISION_MANAGED_SHARE_DEVICE",
+        "android.intent.action.BOOT_COMPLETED",
+        "android.intent.action.LOCKED_BOOT_COMPLETED",
+        "android.intent.action.QUICKBOOT_POWERON",
     )
     val allActions = manifest.getElementsByTagName("action").elements()
         .map { it.getAttributeNS(androidNamespace, "name") }

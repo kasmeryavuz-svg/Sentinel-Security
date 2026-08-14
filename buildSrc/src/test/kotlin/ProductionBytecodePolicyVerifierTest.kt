@@ -1211,6 +1211,176 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `recovery class cannot submit through SensitiveActionController`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/action/SensitiveActionController.java" to
+                """
+                package com.example.devicemanagement.action;
+                import com.example.devicemanagement.trigger.Trigger;
+                public interface SensitiveActionController {
+                    Object submit(Trigger trigger);
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/trigger/Trigger.java" to
+                """
+                package com.example.devicemanagement.trigger;
+                public final class Trigger {}
+                """.trimIndent(),
+            "com/example/devicemanagement/recovery/RogueRecoverySubmit.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.action.SensitiveActionController;
+                import com.example.devicemanagement.trigger.Trigger;
+                public final class RogueRecoverySubmit {
+                    void replay(SensitiveActionController controller, Trigger trigger) {
+                        controller.submit(trigger);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "submit" in it })
+    }
+
+    @Test
+    fun `recovery class cannot issue an ApprovalAuthority capability`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/action/ApprovalAuthority.java" to
+                """
+                package com.example.devicemanagement.action;
+                public final class ApprovalAuthority {
+                    public Object issue(Object request, long issuedAt) {
+                        return request;
+                    }
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/recovery/RogueRecoveryApproval.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.action.ApprovalAuthority;
+                public final class RogueRecoveryApproval {
+                    Object replay(ApprovalAuthority authority) {
+                        return authority.issue(null, 0L);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "ApprovalAuthority" in it })
+    }
+
+    @Test
+    fun `recovery class cannot call ActionExecutor`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/action/ActionExecutor.java" to
+                """
+                package com.example.devicemanagement.action;
+                public final class ActionExecutor {
+                    public Object execute(Object decision) {
+                        return decision;
+                    }
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/recovery/RogueRecoveryExecutor.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.action.ActionExecutor;
+                public final class RogueRecoveryExecutor {
+                    Object replay(ActionExecutor executor) {
+                        return executor.execute(null);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "ActionExecutor" in it })
+    }
+
+    @Test
+    fun `recovery class cannot mutate DevicePolicyManager`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/recovery/RogueRecoveryDpm.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import android.app.admin.DevicePolicyManager;
+                import android.content.ComponentName;
+                public final class RogueRecoveryDpm {
+                    void replay(DevicePolicyManager manager, ComponentName admin) {
+                        manager.setCameraDisabled(admin, true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it || "DevicePolicyManager" in it })
+        assertTrue(violations.any { "setCameraDisabled" in it })
+    }
+
+    @Test
+    fun `recovery class cannot insert audit store records`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            newAuditRecordStub(),
+            "com/example/devicemanagement/recovery/RogueRecoveryAuditInsert.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.audit.AuditRecordStore;
+                import com.example.devicemanagement.audit.NewAuditRecord;
+                public final class RogueRecoveryAuditInsert {
+                    void forge(AuditRecordStore store, NewAuditRecord record) {
+                        store.insert(record);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it || "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "insert" in it })
+    }
+
+    @Test
+    fun `recovery class may read AuditHistoryProvider latest`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/audit/AuditHistory.java" to
+                """
+                package com.example.devicemanagement.audit;
+                public final class AuditHistory {}
+                """.trimIndent(),
+            "com/example/devicemanagement/audit/AuditHistoryProvider.java" to
+                """
+                package com.example.devicemanagement.audit;
+                public interface AuditHistoryProvider {
+                    AuditHistory latest(int limit);
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/recovery/SafeRecoveryInspect.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.audit.AuditHistoryProvider;
+                public final class SafeRecoveryInspect {
+                    Object inspect(AuditHistoryProvider history) {
+                        return history.latest(20);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "recovery code" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
     fun `controller append from a non-submit method is rejected`() {
         val classes = compileJava(
             auditWriterStub(),

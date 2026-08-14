@@ -31,9 +31,13 @@ denied. The Android app depends only on the `device-management` facade and can
 access only `SensitiveActionController.submit` plus read-only status providers.
 The `device-management-impl` and `sensitive-actions` implementation artifacts are
 absent from every app compile classpath and are packaged only at runtime.
-Approvals are identity-bound, single-use, and accepted only by the executor
-paired with the issuing decision engine. Authoritative correlation IDs are
-created inside the controller; caller request IDs are diagnostic input only.
+Approvals are identity-bound, single-use, process-local, and accepted only by
+the executor paired with the issuing decision engine. They are never persisted.
+After process death, crash, force-stop, or reboot, Sentinel reconstructs
+services from current device state and does not retry or replay a previous
+request. Interrupted durable `REQUESTED` events remain evidence only.
+Authoritative correlation IDs are created inside the controller; caller request
+IDs are diagnostic input only.
 
 ## Packages
 
@@ -72,7 +76,9 @@ uses `isStatusBarDisabled()` and requires API 34+). Repository-wide DPM
 boundary checks, dynamic/reflection/native guards, and per-variant effective
 DeviceAdmin metadata checks prevent app or variant overrides from widening those
 allowlists.
-See `docs/AUDIT.md` for durable local audit persistence and its tamper-evidence
+See `docs/LIFECYCLE.md` for process-death, interrupted-audit, and reboot
+semantics, `docs/AUDIT.md` for durable local audit persistence and its
+tamper-evidence
 limits, `docs/GRAPHENEOS_ENROLLMENT.md` for GrapheneOS enrollment status (QR is
 standards-ready, not yet confirmed on GrapheneOS SetupWizard2),
 `docs/QR_PROVISIONING.md` for local QR JSON generation,

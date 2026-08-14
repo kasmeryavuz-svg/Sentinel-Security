@@ -9,6 +9,8 @@ import com.example.devicemanagement.audit.AuditSqliteIdentity
 import com.example.devicemanagement.audit.DurableAuditRepository
 import com.example.devicemanagement.audit.SensitiveActionAuditWriter
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
+import com.example.devicemanagement.recovery.AuditRecoveryInspector
+import com.example.devicemanagement.recovery.DeviceManagementRecoveryInspectionFactory
 import com.example.devicemanagement.internal.DeviceManagementImplementation
 import com.example.devicemanagement.management.DefaultCameraPolicy
 import com.example.devicemanagement.management.DefaultScreenCapturePolicy
@@ -30,4 +32,6 @@ class ControlledCompositionAccess(
     val auditRecordStore: AuditRecordStore,
     val auditPersistedCodec: AuditPersistedCodec,
     val auditSqliteIdentity: AuditSqliteIdentity,
+    val auditRecoveryInspector: AuditRecoveryInspector,
+    val recoveryInspectionFactory: DeviceManagementRecoveryInspectionFactory,
 )

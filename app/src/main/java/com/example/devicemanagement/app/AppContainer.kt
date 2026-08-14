@@ -12,7 +12,13 @@ import com.example.devicemanagement.management.DeviceOwnerValidationProvider
 import com.example.devicemanagement.management.ProvisioningReadinessProvider
 import com.example.devicemanagement.management.ScreenCapturePolicyStatusProvider
 import com.example.devicemanagement.management.StatusBarPolicyStatusProvider
+import com.example.devicemanagement.recovery.RecoveryInspectionProvider
 
+/**
+ * Reconstructs the public device-management surface from current device state.
+ * The only mutation handle is [sensitiveActions]. Recovery inspection is
+ * read-only evidence and is never an authorization or replay path.
+ */
 class AppContainer(
     context: Context,
     logger: StructuredLogger,
@@ -45,4 +51,6 @@ class AppContainer(
     val auditHistory: AuditHistoryProvider = services.auditHistory
 
     val auditStorageStatus: AuditStorageStatusProvider = services.auditStorageStatus
+
+    val recoveryInspection: RecoveryInspectionProvider = services.recoveryInspection
 }

@@ -5,6 +5,10 @@ import java.util.IdentityHashMap
 /**
  * Issues single-use, identity-bound approvals and retains the authoritative
  * request. The executor never trusts request data supplied with a decision.
+ *
+ * Issued approvals live only in this process-local map. They are never
+ * persisted, serialized, or reconstructed after process death. A new
+ * [ApprovalAuthority] after restart cannot consume a pre-restart approval.
  */
 internal class ApprovalAuthority {
     private val issuedApprovals = IdentityHashMap<Approval, ApprovalRecord>()

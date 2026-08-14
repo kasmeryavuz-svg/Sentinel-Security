@@ -2,6 +2,7 @@ package com.example.devicemanagement.ui
 
 import com.example.devicemanagement.audit.AuditHistoryProvider
 import com.example.devicemanagement.audit.AuditStorageStatusProvider
+import com.example.devicemanagement.recovery.RecoveryInspectionProvider
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -99,6 +100,7 @@ class AuditPresentationGuardTest {
         listOf(
             AuditHistoryProvider::class.java,
             AuditStorageStatusProvider::class.java,
+            RecoveryInspectionProvider::class.java,
         ).forEach { type ->
             type.methods.filter { Modifier.isPublic(it.modifiers) }.forEach { method ->
                 assertFalse(forbidden.contains(method.name))
