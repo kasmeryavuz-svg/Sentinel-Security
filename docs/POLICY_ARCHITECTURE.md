@@ -43,9 +43,13 @@ audit writers.
 
 The dashboard **Audit log** is loaded from the read-only `AuditHistoryProvider`.
 It is durable app-private SQLite evidence, not an authorization source and not
-cryptographically tamper-proof archival. `StructuredLogger` remains a logging
+cryptographically tamper-proof archival. The UI cannot open, modify, delete, or
+recreate `sentinel_audit.db`; compiled production guards reject SQLite and
+direct file access to that store. `StructuredLogger` remains a logging
 abstraction and is not an audit subsystem. Audit persistence cannot approve
-actions, call DevicePolicyManager, or bypass the existing backend.
+actions, call DevicePolicyManager, or bypass the existing backend. Unknown
+persisted audit phases are storage corruption, not fabricated terminal
+outcomes.
 
 The app has one direct project dependency: the `device-management` facade.
 That facade exposes contracts from `device-management-api` and

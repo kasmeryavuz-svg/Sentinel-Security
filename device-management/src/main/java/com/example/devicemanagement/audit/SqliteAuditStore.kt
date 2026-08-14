@@ -14,18 +14,23 @@ import com.example.devicemanagement.logging.StructuredLogger
  * Schema upgrades never drop or recreate the database. Corruption handling
  * never deletes the file. This is not cryptographically tamper-proof storage.
  */
+internal object AuditSqliteIdentity {
+    const val DATABASE_NAME = "sentinel_audit.db"
+    const val TABLE_NAME = "audit_events"
+}
+
 internal class SentinelAuditOpenHelper(
     context: Context,
 ) : SQLiteOpenHelper(
     context,
-    AuditSchema.DATABASE_NAME,
+    AuditSqliteIdentity.DATABASE_NAME,
     null,
     AuditSchema.VERSION,
     NonDestructiveAuditDatabaseErrorHandler(),
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
-            "CREATE TABLE ${AuditSchema.TABLE_NAME} (" +
+            "CREATE TABLE ${AuditSqliteIdentity.TABLE_NAME} (" +
                 "sequence INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                 "event_id TEXT NOT NULL UNIQUE, " +
                 "correlation_id TEXT NOT NULL, " +
@@ -36,7 +41,7 @@ internal class SentinelAuditOpenHelper(
                 ")",
         )
         db.execSQL(
-            "CREATE INDEX idx_audit_correlation ON ${AuditSchema.TABLE_NAME}(correlation_id)",
+            "CREATE INDEX idx_audit_correlation ON ${AuditSqliteIdentity.TABLE_NAME}(correlation_id)",
         )
     }
 
@@ -83,7 +88,7 @@ internal class SqliteAuditRecordStore(
         }
         db.beginTransaction()
         try {
-            val sequence = db.insertOrThrow(AuditSchema.TABLE_NAME, null, values)
+            val sequence = db.insertOrThrow(AuditSqliteIdentity.TABLE_NAME, null, values)
             if (sequence <= 0L) {
                 throw AuditStoreException("audit insert returned invalid sequence")
             }
@@ -94,10 +99,10 @@ internal class SqliteAuditRecordStore(
         }
     }
 
-    override fun latest(limit: Int): List<PersistedAuditRecord> {
+    override fun latest(limit: Int): AuditRecordRead {
         val db = helper.readableDatabase
         val cursor = db.query(
-            AuditSchema.TABLE_NAME,
+            AuditSqliteIdentity.TABLE_NAME,
             COLUMNS,
             null,
             null,
@@ -107,18 +112,27 @@ internal class SqliteAuditRecordStore(
             limit.coerceAtLeast(0).toString(),
         )
         cursor.use {
-            val rows = ArrayList<PersistedAuditRecord>(it.count)
+            val rows = ArrayList<PersistedAuditRecord>()
+            var unreadable = false
             while (it.moveToNext()) {
-                rows += readRow(it)
+                val decoded = readRow(it)
+                if (decoded == null) {
+                    unreadable = true
+                } else {
+                    rows += decoded
+                }
             }
-            return rows
+            return AuditRecordRead(
+                records = rows,
+                unreadableRecords = unreadable,
+            )
         }
     }
 
     override fun count(): Int {
         val db = helper.readableDatabase
         val cursor = db.rawQuery(
-            "SELECT COUNT(*) FROM ${AuditSchema.TABLE_NAME}",
+            "SELECT COUNT(*) FROM ${AuditSqliteIdentity.TABLE_NAME}",
             emptyArray(),
         )
         cursor.use {
@@ -135,31 +149,29 @@ internal class SqliteAuditRecordStore(
         }
         val db = helper.writableDatabase
         db.execSQL(
-            "DELETE FROM ${AuditSchema.TABLE_NAME} WHERE sequence IN (" +
-                "SELECT sequence FROM ${AuditSchema.TABLE_NAME} ORDER BY sequence ASC LIMIT ?" +
+            "DELETE FROM ${AuditSqliteIdentity.TABLE_NAME} WHERE sequence IN (" +
+                "SELECT sequence FROM ${AuditSqliteIdentity.TABLE_NAME} ORDER BY sequence ASC LIMIT ?" +
                 ")",
             arrayOf(count.toLong()),
         )
     }
 
-    private fun readRow(cursor: android.database.Cursor): PersistedAuditRecord {
+    private fun readRow(cursor: android.database.Cursor): PersistedAuditRecord? {
+        val phase = AuditPersistedCodec.tryDecodePhase(
+            cursor.getString(cursor.getColumnIndexOrThrow("phase")),
+        ) ?: return null
         val reasonName = cursor.getString(cursor.getColumnIndexOrThrow("reason_code"))
         return PersistedAuditRecord(
             sequence = cursor.getLong(cursor.getColumnIndexOrThrow("sequence")),
             eventId = cursor.getString(cursor.getColumnIndexOrThrow("event_id")),
             correlationId = cursor.getString(cursor.getColumnIndexOrThrow("correlation_id")),
             actionName = cursor.getString(cursor.getColumnIndexOrThrow("action_name")),
-            phase = parsePhase(cursor.getString(cursor.getColumnIndexOrThrow("phase"))),
+            phase = phase,
             presentationWallClockMillis = cursor.getLong(
                 cursor.getColumnIndexOrThrow("presentation_wall_clock_millis"),
             ),
             reasonCode = parseReason(reasonName),
         )
-    }
-
-    private fun parsePhase(raw: String): AuditEventPhase {
-        return runCatching { AuditEventPhase.valueOf(raw) }
-            .getOrDefault(AuditEventPhase.FAILED)
     }
 
     private fun parseReason(raw: String?): AuditReasonCode? {

@@ -90,10 +90,14 @@ object AuditActionNames {
     fun isKnown(actionName: String): Boolean = actionName in known
 }
 
+/**
+ * Public audit presentation constants.
+ *
+ * Database filename and table identity are implementation artifacts and are
+ * not part of the app/UI API surface.
+ */
 object AuditSchema {
     const val VERSION = 1
-    const val DATABASE_NAME = "sentinel_audit.db"
-    const val TABLE_NAME = "audit_events"
     const val RETENTION_BOUND = 8_000
     const val DASHBOARD_LIMIT = 20
 }

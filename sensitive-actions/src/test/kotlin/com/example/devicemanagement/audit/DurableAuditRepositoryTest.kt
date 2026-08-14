@@ -100,10 +100,79 @@ class DurableAuditRepositoryTest {
     @Test
     fun `schema version and retention are explicit and stable`() {
         assertEquals(1, AuditSchema.VERSION)
-        assertEquals("sentinel_audit.db", AuditSchema.DATABASE_NAME)
-        assertEquals("audit_events", AuditSchema.TABLE_NAME)
         assertEquals(8_000, AuditSchema.RETENTION_BOUND)
         assertTrue(AuditSchema.RETENTION_BOUND in 5_000..10_000)
+        assertFalse(
+            AuditSchema::class.java.fields.any { field ->
+                field.name == "DATABASE_NAME" || field.name == "TABLE_NAME"
+            },
+        )
+    }
+
+    @Test
+    fun `unknown or corrupt persisted phases are not synthesized as terminal outcomes`() {
+        val unknown = listOf(
+            "UNKNOWN",
+            "CORRUPT",
+            "failed",
+            "APPLIED ",
+            "REQUESTED_APPLIED",
+            "",
+            null,
+        )
+        unknown.forEach { raw ->
+            val decoded = AuditPersistedCodec.tryDecodePhase(raw)
+            assertEquals("decoded $raw", null, decoded)
+            if (decoded != null) {
+                assertFalse(AuditPersistedCodec.isTerminal(decoded))
+            }
+        }
+        val thrown = runCatching { AuditPersistedCodec.decodePhase("NOT_A_PHASE") }.exceptionOrNull()
+        assertTrue(thrown is AuditStoreException)
+        assertEquals(AuditEventPhase.REQUESTED, AuditPersistedCodec.decodePhase("REQUESTED"))
+        assertEquals(AuditEventPhase.FAILED, AuditPersistedCodec.decodePhase("FAILED"))
+    }
+
+    @Test
+    fun `unreadable terminal phase keeps REQUESTED and marks storage degraded`() {
+        val store = RawPhaseAuditRecordStore(
+            listOf(
+                RawAuditRow(1L, "event-1", "corr", "disable_camera", "REQUESTED", 10L),
+                RawAuditRow(2L, "event-2", "corr", "disable_camera", "NOT_A_REAL_PHASE", 11L),
+            ),
+        )
+        val repository = DurableAuditRepository(store, logger)
+        val history = repository.latest(10)
+
+        assertEquals(1, history.events.size)
+        assertEquals(AuditEventPhase.REQUESTED, history.events.single().phase)
+        assertFalse(history.events.any { AuditPersistedCodec.isTerminal(it.phase) })
+        assertEquals(AuditStorageHealth.DEGRADED, repository.currentStatus().health)
+        assertEquals(
+            AuditReasonCode.AUDIT_PERSISTENCE_UNAVAILABLE,
+            repository.currentStatus().reasonCode,
+        )
+    }
+
+    @Test
+    fun `corrupt phase-only rows never become APPLIED REJECTED FAILED or SIMULATED`() {
+        val store = RawPhaseAuditRecordStore(
+            listOf(
+                RawAuditRow(1L, "event-1", "corr", "disable_camera", "GARBAGE", 10L),
+            ),
+        )
+        val repository = DurableAuditRepository(store, logger)
+        val history = repository.latest(10)
+
+        assertTrue(history.events.isEmpty())
+        val terminals = setOf(
+            AuditEventPhase.APPLIED,
+            AuditEventPhase.REJECTED,
+            AuditEventPhase.FAILED,
+            AuditEventPhase.SIMULATED,
+        )
+        assertFalse(history.events.any { it.phase in terminals })
+        assertEquals(AuditStorageHealth.DEGRADED, repository.currentStatus().health)
     }
 
     @Test
@@ -161,6 +230,51 @@ class DurableAuditRepositoryTest {
         assertFalse(source.contains("ApprovalAuthority"))
         assertTrue(source.contains("Retention pruning of oldest records happens only here"))
         assertTrue(source.contains("not cryptographically tamper-proof"))
+    }
+
+    private data class RawAuditRow(
+        val sequence: Long,
+        val eventId: String,
+        val correlationId: String,
+        val actionName: String,
+        val phase: String,
+        val presentationWallClockMillis: Long,
+    )
+
+    private class RawPhaseAuditRecordStore(
+        private val rows: List<RawAuditRow>,
+    ) : AuditRecordStore {
+        override fun insert(record: NewAuditRecord): Long {
+            throw AuditStoreException("raw phase fixture is read-only")
+        }
+
+        override fun latest(limit: Int): AuditRecordRead {
+            val decoded = ArrayList<PersistedAuditRecord>()
+            var unreadable = false
+            rows.sortedByDescending { it.sequence }.take(limit.coerceAtLeast(0)).forEach { row ->
+                val phase = AuditPersistedCodec.tryDecodePhase(row.phase)
+                if (phase == null) {
+                    unreadable = true
+                } else {
+                    decoded += PersistedAuditRecord(
+                        sequence = row.sequence,
+                        eventId = row.eventId,
+                        correlationId = row.correlationId,
+                        actionName = row.actionName,
+                        phase = phase,
+                        presentationWallClockMillis = row.presentationWallClockMillis,
+                        reasonCode = null,
+                    )
+                }
+            }
+            return AuditRecordRead(records = decoded, unreadableRecords = unreadable)
+        }
+
+        override fun count(): Int = rows.size
+
+        override fun deleteOldest(count: Int) {
+            throw AuditStoreException("raw phase fixture cannot prune")
+        }
     }
 
     private fun request(

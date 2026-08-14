@@ -39,10 +39,20 @@ may use only:
 - `AuditHistoryProvider`
 - `AuditStorageStatusProvider`
 
-The writer, SQLite helper, and database mutation types are implementation
-artifacts. They are absent from the app compile classpath. Audit persistence
-cannot authorize actions, create approvals, replay commands, call
-DevicePolicyManager, or influence Device Owner verification.
+The writer, SQLite helper, database filename/table identity, and database
+mutation types are implementation artifacts. They are absent from the app
+compile classpath. Production app/UI bytecode cannot reference SQLiteDatabase,
+SQLiteOpenHelper, Context.openOrCreateDatabase, Context.deleteDatabase,
+Context.getDatabasePath, or java.io.File APIs capable of targeting the audit
+store. Audit records may be read only through `AuditHistoryProvider` and
+`AuditStorageStatusProvider`. Audit persistence cannot authorize actions,
+create approvals, replay commands, call DevicePolicyManager, or influence
+Device Owner verification.
+
+Unknown or malformed persisted `phase` values are treated as storage
+corruption. They are omitted from history and never decoded as `APPLIED`,
+`REJECTED`, `FAILED`, or `SIMULATED`. A still-readable `REQUESTED` event stays
+Interrupted / Outcome unknown, and audit health becomes degraded.
 
 ## Failure and crash semantics
 
@@ -67,6 +77,9 @@ used for authorization, freshness, cooldowns, or replay protection.
 - Fields: monotonically increasing `sequence`, unique `event_id`,
   `correlation_id`, bounded `action_name`, `phase`, presentation
   `presentation_wall_clock_millis`, optional bounded `reason_code`
+- Unknown or malformed `phase` values are omitted and treated as storage
+  corruption. They never become `APPLIED`, `REJECTED`, `FAILED`, or
+  `SIMULATED`. A readable `REQUESTED` sibling stays Interrupted.
 - Incompatible or corrupt databases fail closed. The helper does not drop or
   recreate the file.
 - Android backup remains disabled (`allowBackup=false`).
