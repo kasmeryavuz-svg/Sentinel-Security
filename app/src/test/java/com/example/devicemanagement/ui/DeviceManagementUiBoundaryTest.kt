@@ -19,6 +19,7 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(uiSources.contains("DevicePolicyReadService"))
         assertFalse(uiSources.contains("DevicePolicyScreenCaptureService"))
         assertFalse(uiSources.contains("DevicePolicyCameraService"))
+        assertFalse(uiSources.contains("DevicePolicyStatusBarService"))
         assertFalse(uiSources.contains("SensitiveActionPolicyBackend"))
         assertFalse(uiSources.contains("DeviceManagementSensitiveActionControllerFactory"))
         assertFalse(uiSources.contains("MonotonicTimeSource"))
@@ -32,6 +33,7 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(uiSources.contains("DeviceManagementSensitiveActionBackend"))
         assertFalse(uiSources.contains("DefaultScreenCapturePolicy"))
         assertFalse(uiSources.contains("DefaultCameraPolicy"))
+        assertFalse(uiSources.contains("DefaultStatusBarPolicy"))
         assertFalse(
             uiSources.contains(
                 "import com.example.devicemanagement.management.ScreenCapturePolicy\n",
@@ -42,8 +44,14 @@ class DeviceManagementUiBoundaryTest {
                 "import com.example.devicemanagement.management.CameraPolicy\n",
             ),
         )
+        assertFalse(
+            uiSources.contains(
+                "import com.example.devicemanagement.management.StatusBarPolicy\n",
+            ),
+        )
         assertFalse(uiSources.contains("setScreenCaptureDisabled"))
         assertFalse(uiSources.contains("setCameraDisabled"))
+        assertFalse(uiSources.contains("setStatusBarDisabled"))
         assertFalse(uiSources.contains("ActionExecutor"))
         assertFalse(uiSources.contains("ApprovalAuthority"))
         assertFalse(uiSources.contains("DeviceAction"))

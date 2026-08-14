@@ -43,6 +43,11 @@ internal object DeviceManagementComposition {
                 context,
                 deviceManagementLogger,
             )
+        val statusBarPolicyStatus =
+            DeviceManagementDiagnostics.createStatusBarPolicyStatus(
+                context,
+                deviceManagementLogger,
+            )
         return object : DeviceManagementServices {
             override val sensitiveActions = sensitiveActions
             override val deviceManagementStatus = deviceManagementStatus
@@ -50,6 +55,7 @@ internal object DeviceManagementComposition {
             override val deviceOwnerValidation = deviceOwnerValidation
             override val screenCapturePolicyStatus = screenCapturePolicyStatus
             override val cameraPolicyStatus = cameraPolicyStatus
+            override val statusBarPolicyStatus = statusBarPolicyStatus
         }
     }
 
@@ -73,10 +79,16 @@ internal object DeviceManagementComposition {
             platform = platform,
             logger = deviceManagementLogger,
         )
+        val statusBarPolicy = DefaultStatusBarPolicy(
+            deviceOwnerValidationProvider = validationProvider,
+            platform = platform,
+            logger = deviceManagementLogger,
+        )
         val backend = DeviceManagementSensitiveActionBackend(
             deviceOwnerValidationProvider = validationProvider,
             screenCapturePolicy = screenCapturePolicy,
             cameraPolicy = cameraPolicy,
+            statusBarPolicy = statusBarPolicy,
             logger = deviceManagementLogger,
         )
         return DeviceManagementSensitiveActionControllerFactory.create(
@@ -99,6 +111,7 @@ internal class DeviceManagementSensitiveActionBackend(
     private val deviceOwnerValidationProvider: DeviceOwnerValidationProvider,
     private val screenCapturePolicy: ScreenCapturePolicy,
     private val cameraPolicy: CameraPolicy,
+    private val statusBarPolicy: StatusBarPolicy,
     private val logger: DeviceManagementLogger,
 ) : SensitiveActionPolicyBackend {
     override fun currentAuthorization(): SensitiveActionAuthorization {
@@ -148,6 +161,13 @@ internal class DeviceManagementSensitiveActionBackend(
         correlationId: String,
     ): PolicyMutationResult {
         return cameraPolicy.applyDisabled(disabled, correlationId).toBackendResult()
+    }
+
+    override fun applyStatusBarDisabled(
+        disabled: Boolean,
+        correlationId: String,
+    ): PolicyMutationResult {
+        return statusBarPolicy.applyDisabled(disabled, correlationId).toBackendResult()
     }
 
     private fun PolicyMutation.toBackendResult(): PolicyMutationResult {

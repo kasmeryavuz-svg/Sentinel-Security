@@ -9,6 +9,7 @@ import com.example.devicemanagement.management.DeviceManagementStatusProvider
 import com.example.devicemanagement.management.DeviceOwnerValidationProvider
 import com.example.devicemanagement.management.ProvisioningReadinessProvider
 import com.example.devicemanagement.management.ScreenCapturePolicyStatusProvider
+import com.example.devicemanagement.management.StatusBarPolicyStatusProvider
 
 class AppContainer(
     context: Context,
@@ -35,4 +36,7 @@ class AppContainer(
         services.screenCapturePolicyStatus
 
     val cameraPolicyStatus: CameraPolicyStatusProvider = services.cameraPolicyStatus
+
+    val statusBarPolicyStatus: StatusBarPolicyStatusProvider =
+        services.statusBarPolicyStatus
 }

@@ -25,12 +25,16 @@ class SensitiveActionRegistryTest {
             SensitiveActionCommands.ENABLE_SCREEN_CAPTURE,
             SensitiveActionCommands.DISABLE_CAMERA,
             SensitiveActionCommands.ENABLE_CAMERA,
+            SensitiveActionCommands.DISABLE_STATUS_BAR,
+            SensitiveActionCommands.ENABLE_STATUS_BAR,
         )
         val expectedTypes = setOf(
             DeviceActionType.DISABLE_SCREEN_CAPTURE,
             DeviceActionType.ENABLE_SCREEN_CAPTURE,
             DeviceActionType.DISABLE_CAMERA,
             DeviceActionType.ENABLE_CAMERA,
+            DeviceActionType.DISABLE_STATUS_BAR,
+            DeviceActionType.ENABLE_STATUS_BAR,
         )
 
         assertEquals(expectedCommands, registry.commands())
@@ -182,6 +186,14 @@ class SensitiveActionRegistryTest {
             correlationId: String,
         ): PolicyMutationResult {
             writes += "camera:$disabled"
+            return PolicyMutationResult.Applied(disabled, disabled)
+        }
+
+        override fun applyStatusBarDisabled(
+            disabled: Boolean,
+            correlationId: String,
+        ): PolicyMutationResult {
+            writes += "status_bar:$disabled"
             return PolicyMutationResult.Applied(disabled, disabled)
         }
     }

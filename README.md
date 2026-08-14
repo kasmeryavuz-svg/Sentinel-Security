@@ -50,8 +50,10 @@ provisioning intents, and validates an already-provisioned Device Owner using
 read-only package, receiver, ownership, and active-admin checks. Its build
 fails if a non-allowlisted policy operation appears in compiled production
 bytecode. The
-only mutators are screen-capture and camera disable toggles, each followed by
-an immediate read-back using the expected admin component. Repository-wide DPM
+only mutators are screen-capture, camera, and status-bar disable toggles, each
+followed by
+an immediate read-back using the expected admin component (status-bar read-back
+uses `isStatusBarDisabled()` and requires API 34+). Repository-wide DPM
 boundary checks, dynamic/reflection/native guards, and per-variant effective
 DeviceAdmin metadata checks prevent app or variant overrides from widening those
 allowlists.

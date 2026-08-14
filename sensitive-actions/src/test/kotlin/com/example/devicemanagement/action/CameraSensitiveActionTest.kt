@@ -182,6 +182,13 @@ class CameraSensitiveActionTest {
             correlations += correlationId
             return mutationResult ?: PolicyMutationResult.Applied(disabled, disabled)
         }
+
+        override fun applyStatusBarDisabled(
+            disabled: Boolean,
+            correlationId: String,
+        ): PolicyMutationResult {
+            error("camera action must not invoke status-bar policy")
+        }
     }
 
     private class NoOpLogger : StructuredLogger {

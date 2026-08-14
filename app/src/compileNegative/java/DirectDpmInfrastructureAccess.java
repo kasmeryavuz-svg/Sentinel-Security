@@ -8,5 +8,8 @@ final class DirectDpmInfrastructureAccess {
         new AndroidDevicePolicyPlatform(context)
                 .cameraPolicyService()
                 .setCameraDisabled(true);
+        new AndroidDevicePolicyPlatform(context)
+                .statusBarPolicyService()
+                .setStatusBarDisabled(true);
     }
 }

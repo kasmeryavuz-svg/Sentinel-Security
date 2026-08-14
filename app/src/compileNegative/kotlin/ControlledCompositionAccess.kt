@@ -7,6 +7,7 @@ import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
 import com.example.devicemanagement.internal.DeviceManagementImplementation
 import com.example.devicemanagement.management.DefaultCameraPolicy
 import com.example.devicemanagement.management.DefaultScreenCapturePolicy
+import com.example.devicemanagement.management.DefaultStatusBarPolicy
 import com.example.devicemanagement.management.VerifiedPolicyMutationExecutor
 
 class ControlledCompositionAccess(
@@ -15,6 +16,7 @@ class ControlledCompositionAccess(
     val backend: SensitiveActionPolicyBackend,
     val cameraPolicyWriter: DefaultCameraPolicy,
     val screenCapturePolicyWriter: DefaultScreenCapturePolicy,
+    val statusBarPolicyWriter: DefaultStatusBarPolicy,
     val mutationExecutor: VerifiedPolicyMutationExecutor,
     val controllerFactory: DeviceManagementSensitiveActionControllerFactory,
     val implementationBootstrap: DeviceManagementImplementation,

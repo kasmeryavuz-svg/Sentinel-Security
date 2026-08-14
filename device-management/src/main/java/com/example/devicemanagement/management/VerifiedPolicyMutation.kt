@@ -12,6 +12,8 @@ internal sealed interface VerifiedPolicyMutation {
     data class ScreenCapture(val disabled: Boolean) : VerifiedPolicyMutation
 
     data class Camera(val disabled: Boolean) : VerifiedPolicyMutation
+
+    data class StatusBar(val disabled: Boolean) : VerifiedPolicyMutation
 }
 
 internal sealed interface PolicyMutation {
@@ -42,6 +44,7 @@ internal class VerifiedPolicyMutationExecutor(
             is VerifiedPolicyMutation.ScreenCapture ->
                 executeScreenCapture(mutation, correlationId)
             is VerifiedPolicyMutation.Camera -> executeCamera(mutation, correlationId)
+            is VerifiedPolicyMutation.StatusBar -> executeStatusBar(mutation, correlationId)
         }
     }
 
@@ -125,6 +128,59 @@ internal class VerifiedPolicyMutationExecutor(
         } catch (error: Throwable) {
             fail(
                 "camera",
+                "unexpected_exception:${error.javaClass.simpleName.ifEmpty { "unknown" }}",
+                correlationId,
+                error,
+            )
+        }
+    }
+
+    private fun executeStatusBar(
+        mutation: VerifiedPolicyMutation.StatusBar,
+        correlationId: String,
+    ): PolicyMutation {
+        val service = try {
+            platform.statusBarPolicyService()
+        } catch (error: Throwable) {
+            return fail("status_bar", "policy_service_unavailable", correlationId, error)
+        } ?: return PolicyMutation.Failed("policy_service_unavailable")
+
+        val validation = try {
+            deviceOwnerValidationProvider.currentValidation()
+        } catch (error: Throwable) {
+            return fail("status_bar", "device_owner_validation_failed", correlationId, error)
+        }
+        val denial = DeviceOwnerMutationGuard.denialReason(validation)
+        if (denial != null) {
+            return deny("status_bar", denial, mutation.disabled, correlationId)
+        }
+
+        return try {
+            val accepted = service.setStatusBarDisabled(mutation.disabled)
+            if (!accepted) {
+                logger.error(
+                    event = "status_bar_policy_failed",
+                    fields = mapOf(
+                        "correlation_id" to correlationId,
+                        "reason" to "setter_rejected",
+                        "requested_disabled" to mutation.disabled,
+                    ),
+                    throwable = null,
+                )
+                return PolicyMutation.Failed("setter_rejected")
+            }
+            val observedDisabled = service.isStatusBarDisabled()
+            verify(
+                capability = "status_bar",
+                requestedDisabled = mutation.disabled,
+                observedDisabled = observedDisabled,
+                correlationId = correlationId,
+            )
+        } catch (error: SecurityException) {
+            fail("status_bar", "security_exception", correlationId, error)
+        } catch (error: Throwable) {
+            fail(
+                "status_bar",
                 "unexpected_exception:${error.javaClass.simpleName.ifEmpty { "unknown" }}",
                 correlationId,
                 error,

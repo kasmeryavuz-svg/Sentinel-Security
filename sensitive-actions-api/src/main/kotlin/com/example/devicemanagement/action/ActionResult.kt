@@ -29,4 +29,6 @@ enum class SensitiveActionOperation {
     ENABLE_SCREEN_CAPTURE,
     DISABLE_CAMERA,
     ENABLE_CAMERA,
+    DISABLE_STATUS_BAR,
+    ENABLE_STATUS_BAR,
 }

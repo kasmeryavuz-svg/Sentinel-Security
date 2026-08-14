@@ -18,6 +18,11 @@ interface SensitiveActionPolicyBackend {
         disabled: Boolean,
         correlationId: String,
     ): PolicyMutationResult
+
+    fun applyStatusBarDisabled(
+        disabled: Boolean,
+        correlationId: String,
+    ): PolicyMutationResult
 }
 
 data class SensitiveActionAuthorization(
