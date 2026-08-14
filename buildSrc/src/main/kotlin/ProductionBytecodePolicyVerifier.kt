@@ -536,21 +536,19 @@ internal object ProductionBytecodePolicyVerifier {
             checkSqliteOwner(owner, "$location invocation $owner.$name$descriptor")
         }
 
+        /**
+         * Identify Context database APIs by method name, never by a closed owner
+         * allowlist. invokevirtual/invokespecial on an application-defined
+         * ContextWrapper (or other Context-derived) subclass records that subclass
+         * as the call owner, so matching only Context/ContextWrapper/Activity/
+         * Application/Service leaves an inherited open/delete/path bypass.
+         */
         private fun checkContextDatabaseInvocation(
             owner: String,
             name: String,
             location: String,
         ) {
             if (isFrameworkClass() || name !in forbiddenContextDatabaseMethods) {
-                return
-            }
-            val contextLike =
-                owner == "android/content/Context" ||
-                    owner == "android/content/ContextWrapper" ||
-                    owner == "android/app/Activity" ||
-                    owner == "android/app/Application" ||
-                    owner == "android/app/Service"
-            if (!contextLike) {
                 return
             }
             if (!authorizedAuditSqliteAccess()) {

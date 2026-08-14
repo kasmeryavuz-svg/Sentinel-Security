@@ -1,7 +1,12 @@
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
 import java.io.File
 import java.nio.file.Files
 import javax.tools.ToolProvider
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ProductionBytecodePolicyVerifierTest {
@@ -724,6 +729,69 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `custom ContextWrapper subclass inherited deleteDatabase is rejected`() {
+        val classes = compileJava(
+            customContextWrapperSubclass(
+                className = "CustomDeleteDatabaseContext",
+                methodName = "reach",
+                statement = "deleteDatabase(\"sentinel_audit.db\");",
+            ),
+        )
+
+        assertInvocationOwner(
+            classes = classes,
+            callerClass = "attack/CustomDeleteDatabaseContext",
+            callerMethod = "reach",
+            invokedName = "deleteDatabase",
+            expectedOwner = "attack/CustomDeleteDatabaseContext",
+        )
+        assertRejected(classes, "attack/CustomDeleteDatabaseContext.deleteDatabase")
+        assertRejected(classes, "trusted audit pipeline")
+    }
+
+    @Test
+    fun `custom ContextWrapper subclass inherited getDatabasePath is rejected`() {
+        val classes = compileJava(
+            customContextWrapperSubclass(
+                className = "CustomGetDatabasePathContext",
+                methodName = "reach",
+                statement = "getDatabasePath(\"sentinel_audit.db\");",
+            ),
+        )
+
+        assertInvocationOwner(
+            classes = classes,
+            callerClass = "attack/CustomGetDatabasePathContext",
+            callerMethod = "reach",
+            invokedName = "getDatabasePath",
+            expectedOwner = "attack/CustomGetDatabasePathContext",
+        )
+        assertRejected(classes, "attack/CustomGetDatabasePathContext.getDatabasePath")
+        assertRejected(classes, "trusted audit pipeline")
+    }
+
+    @Test
+    fun `custom ContextWrapper subclass inherited openOrCreateDatabase is rejected`() {
+        val classes = compileJava(
+            customContextWrapperSubclass(
+                className = "CustomOpenOrCreateDatabaseContext",
+                methodName = "reach",
+                statement = "openOrCreateDatabase(\"sentinel_audit.db\", 0, null);",
+            ),
+        )
+
+        assertInvocationOwner(
+            classes = classes,
+            callerClass = "attack/CustomOpenOrCreateDatabaseContext",
+            callerMethod = "reach",
+            invokedName = "openOrCreateDatabase",
+            expectedOwner = "attack/CustomOpenOrCreateDatabaseContext",
+        )
+        assertRejected(classes, "attack/CustomOpenOrCreateDatabaseContext.openOrCreateDatabase")
+        assertRejected(classes, "trusted audit pipeline")
+    }
+
+    @Test
     fun `app bytecode cannot open the audit database file directly`() {
         val classes = compileJava(
             "attack/AuditFileBypass.java" to
@@ -923,6 +991,76 @@ class ProductionBytecodePolicyVerifierTest {
             """.trimIndent()
     }
 
+    private fun customContextWrapperSubclass(
+        className: String,
+        methodName: String,
+        statement: String,
+    ): Pair<String, String> {
+        return "attack/$className.java" to
+            """
+            package attack;
+            import android.content.ContextWrapper;
+            public final class $className extends ContextWrapper {
+                public $className() {
+                    super(null);
+                }
+                void $methodName() {
+                    $statement
+                }
+            }
+            """.trimIndent()
+    }
+
+    private fun assertInvocationOwner(
+        classes: File,
+        callerClass: String,
+        callerMethod: String,
+        invokedName: String,
+        expectedOwner: String,
+    ) {
+        var foundOwner: String? = null
+        ClassReader(File(classes, "$callerClass.class").readBytes()).accept(
+            object : ClassVisitor(Opcodes.ASM9) {
+                override fun visitMethod(
+                    access: Int,
+                    name: String,
+                    descriptor: String,
+                    signature: String?,
+                    exceptions: Array<out String>?,
+                ): MethodVisitor? {
+                    if (name != callerMethod) {
+                        return null
+                    }
+                    return object : MethodVisitor(Opcodes.ASM9) {
+                        override fun visitMethodInsn(
+                            opcode: Int,
+                            owner: String,
+                            name: String,
+                            descriptor: String,
+                            isInterface: Boolean,
+                        ) {
+                            if (name == invokedName) {
+                                foundOwner = owner
+                            }
+                        }
+                    }
+                }
+            },
+            ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES,
+        )
+        assertEquals(
+            expectedOwner,
+            foundOwner,
+            "Expected bytecode invoke owner $expectedOwner for $invokedName, found $foundOwner",
+        )
+        check(foundOwner != "android/content/Context") {
+            "Fixture compiled to Context owner instead of the custom subclass"
+        }
+        check(foundOwner != "android/content/ContextWrapper") {
+            "Fixture compiled to ContextWrapper owner instead of the custom subclass"
+        }
+    }
+
     private fun assertRejected(classes: File, expected: String) {
         val violations = verify(":app", classes)
         assertTrue(
@@ -990,6 +1128,13 @@ class ProductionBytecodePolicyVerifierTest {
                 public File getDatabasePath(String name) {
                     return new File(name);
                 }
+            }
+            """.trimIndent(),
+        "android/content/ContextWrapper.java" to
+            """
+            package android.content;
+            public class ContextWrapper extends Context {
+                public ContextWrapper(Context base) {}
             }
             """.trimIndent(),
         "android/database/sqlite/SQLiteDatabase.java" to
