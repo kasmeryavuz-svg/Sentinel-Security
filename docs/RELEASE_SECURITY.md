@@ -39,7 +39,7 @@ is read-only evidence, and audit records never authorize.
 | `profileable` | absent | **absent** |
 | Backup / extraction | disabled + exclude-all rules | same |
 | Network | no INTERNET; cleartext denied | same |
-| Signing | Android debug key | production key **only** when secrets are supplied; otherwise a local verification artifact that must not be distributed as production |
+| Signing | Android debug key | production key **only** when secrets are supplied; otherwise an **unsigned** local verification artifact that must not be distributed as production |
 
 Debug remains a developer build. It is not a production distribution.
 
@@ -129,9 +129,9 @@ Required names:
 
 Behavior:
 
-- all four absent: `assembleRelease` may produce a **local verification**
-  artifact. AGP may test-sign it with the Android debug key. That artifact is
-  **not** a production distribution.
+- all four absent: `assembleRelease` produces an **unsigned local
+  verification** artifact. Release is never assigned the Android debug
+  signing configuration. That artifact is **not** a production distribution.
 - any but not all four present: configuration **fails closed**. There is no
   silent debug-key fallback.
 - all four present: release uses the `production` signing config, never the

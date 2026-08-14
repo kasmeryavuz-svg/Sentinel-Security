@@ -79,18 +79,7 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
             backupRules.get().asFile,
             dataExtractionRules.get().asFile,
         )
-        val networkConfig = networkSecurityConfig.get().asFile
-        if (!networkConfig.isFile) {
-            violations += "network security config is missing"
-        } else {
-            val networkText = networkConfig.readText()
-            if ("cleartextTrafficPermitted=\"false\"" !in networkText) {
-                violations += "network security config must deny cleartext traffic"
-            }
-            if ("debug-overrides" in networkText) {
-                violations += "network security config must not include debug-overrides"
-            }
-        }
+        violations += NetworkSecurityConfigVerifier.verify(networkSecurityConfig.get().asFile)
 
         if (mappingFile.isPresent) {
             violations += ReleaseArtifactSecurityVerifier.verifyMapping(mappingFile.get().asFile)
@@ -134,10 +123,10 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
 
     private fun findApk(directory: File): File {
         val apks = directory.walkTopDown()
-            .filter { it.isFile && it.extension == "apk" && "unsigned" !in it.name }
+            .filter { it.isFile && it.extension == "apk" }
             .toList()
-        val preferred = apks.filterNot { "unsigned" in it.name }
-        val chosen = preferred.singleOrNull() ?: apks.singleOrNull()
+        val signed = apks.filterNot { "unsigned" in it.name.lowercase() }
+        val chosen = signed.singleOrNull() ?: apks.singleOrNull()
         check(chosen != null && chosen.isFile) {
             "Expected one release APK under $directory; found ${apks.map { it.name }}"
         }

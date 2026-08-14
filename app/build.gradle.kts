@@ -721,14 +721,23 @@ androidComponents {
                         "@xml/device_admin_receiver"
                 }
 
-                val linkedResources = layout.buildDirectory.file(
+                val binaryLinked = layout.buildDirectory.file(
                     "intermediates/linked_resources_binary_format/$variantName/" +
                         "process${capitalized}Resources/" +
                         "linked-resources-binary-format-$variantName.ap_",
                 ).get().asFile
-                check(linkedResources.isFile) {
-                    "Linked $variantName resources are unavailable at " +
-                        linkedResources
+                val protoLinked = layout.buildDirectory.file(
+                    "intermediates/linked_resources_proto_format/$variantName/" +
+                        "process${capitalized}Resources/" +
+                        "linked-resources-proto-format-$variantName.ap_",
+                ).get().asFile
+                val linkedResources = when {
+                    binaryLinked.isFile -> binaryLinked
+                    protoLinked.isFile -> protoLinked
+                    else -> error(
+                        "Linked $variantName resources are unavailable at " +
+                            "$binaryLinked or $protoLinked",
+                    )
                 }
                 val output = ByteArrayOutputStream()
                 project.exec {
@@ -877,13 +886,7 @@ val checkBackupDataExtractionPolicy by tasks.registering {
     inputs.files(backup, extraction, network)
     doLast {
         val violations = BackupPolicyVerifier.verify(backup, extraction).toMutableList()
-        val networkText = network.readText()
-        if ("cleartextTrafficPermitted=\"false\"" !in networkText) {
-            violations += "network security config must deny cleartext traffic"
-        }
-        if ("debug-overrides" in networkText) {
-            violations += "network security config must not include debug-overrides"
-        }
+        violations += NetworkSecurityConfigVerifier.verify(network)
         check(violations.isEmpty()) {
             violations.joinToString("\n")
         }

@@ -62,7 +62,7 @@ class ReleaseHardeningGuardTest {
         assertFalse(backup.contains("<include"))
         assertFalse(extraction.contains("<include"))
         assertTrue(network.contains("cleartextTrafficPermitted=\"false\""))
-        assertFalse(network.contains("debug-overrides"))
+        assertFalse(network.contains("<debug-overrides"))
         assertFalse(network.contains("src=\"user\""))
         assertFalse(backup.contains("sentinel_audit.db") && backup.contains("<include"))
     }
