@@ -59,7 +59,7 @@ class Checkpoint16WipeBoundaryFreezeTest {
             requireNotNull(System.getProperty("deviceManagementSourceDir")),
             "java/com/example/devicemanagement/management/VerifiedPolicyMutation.kt",
         ).readText()
-        val variants = Regex("data class ([A-Za-z]+) \\(")
+        val variants = Regex("data class ([A-Za-z]+)\\(")
             .findAll(
                 source.substringAfter("internal sealed interface VerifiedPolicyMutation")
                     .substringBefore("internal sealed interface PolicyMutation"),
