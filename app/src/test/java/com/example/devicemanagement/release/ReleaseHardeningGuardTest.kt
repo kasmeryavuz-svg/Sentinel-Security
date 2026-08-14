@@ -117,7 +117,10 @@ class ReleaseHardeningGuardTest {
 
     @Test
     fun `production distribution wiring is fail-closed and does not hardcode a certificate`() {
-        val appDir = File(requireNotNull(System.getProperty("appMainSourceDir"))).parentFile.parentFile
+        val mainDir = File(requireNotNull(System.getProperty("appMainSourceDir")))
+        val appDir = requireNotNull(mainDir.parentFile?.parentFile) {
+            "app module directory could not be resolved from $mainDir"
+        }
         val gradle = File(appDir, "build.gradle.kts").readText()
         assertTrue(gradle.contains("SENTINEL_RELEASE_CERT_SHA256"))
         assertTrue(gradle.contains("assembleProductionRelease"))
