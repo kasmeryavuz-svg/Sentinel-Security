@@ -1,1 +1,34 @@
-# Intentionally empty. No shrinking is enabled in the minimal skeleton.
+# Checkpoint 15: minimum keep rules for a minified release.
+# Do not disable shrinking, optimization, or obfuscation here.
+# Manifest components are also kept by the default Android rules.
+
+# Application and launcher / platform-contract components instantiated by Android.
+-keep class com.example.devicemanagement.app.DeviceManagementApp { <init>(); }
+-keep class com.example.devicemanagement.ui.MainActivity { <init>(...); }
+-keep class com.example.devicemanagement.provisioning.GetProvisioningModeActivity { <init>(...); }
+-keep class com.example.devicemanagement.provisioning.AdminPolicyComplianceActivity { <init>(...); }
+-keep class com.example.devicemanagement.management.SentinelDeviceAdminReceiver { <init>(...); }
+
+# Runtime composition linkage across the facade / implementation artifacts.
+-keep class com.example.devicemanagement.management.DeviceManagement {
+    public static com.example.devicemanagement.management.DeviceManagementServices create(android.content.Context, com.example.devicemanagement.logging.StructuredLogger);
+}
+-keep class com.example.devicemanagement.internal.DeviceManagementImplementation {
+    public static com.example.devicemanagement.management.DeviceManagementServices create(android.content.Context, com.example.devicemanagement.logging.StructuredLogger);
+}
+-keep interface com.example.devicemanagement.management.DeviceManagementServices { *; }
+-keep class com.example.devicemanagement.app.AppContainer { *; }
+
+# Public submit-only mutation API and read-only recovery / audit contracts.
+-keep interface com.example.devicemanagement.action.SensitiveActionController { *; }
+-keep interface com.example.devicemanagement.recovery.RecoveryInspectionProvider { *; }
+-keep class com.example.devicemanagement.recovery.RecoveryInspection { *; }
+-keep class com.example.devicemanagement.recovery.InterruptedRequest { *; }
+-keep class com.example.devicemanagement.recovery.RecoveryInspectionHealth { *; }
+-keep interface com.example.devicemanagement.audit.AuditHistoryProvider { *; }
+-keep interface com.example.devicemanagement.audit.AuditStorageStatusProvider { *; }
+-keep interface com.example.devicemanagement.logging.StructuredLogger { *; }
+-keep class com.example.devicemanagement.logging.AndroidStructuredLogger { <init>(...); }
+
+# Fail-safe MOCK_WIPE simulation types are intentionally not kept so R8 may
+# strip them from the controlled production call graph.

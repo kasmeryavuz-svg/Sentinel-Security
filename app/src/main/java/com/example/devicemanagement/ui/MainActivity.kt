@@ -1,6 +1,7 @@
 package com.example.devicemanagement.ui
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.text.format.DateFormat
 import android.util.TypedValue
@@ -37,6 +38,8 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        // Launcher entry only. Incoming extras, data, or actions cannot
+        // submit a sensitive action or reach the trusted controller.
         val container = (application as DeviceManagementApp).container
         presenter = DashboardPresenter(
             readSnapshot = {
@@ -55,6 +58,11 @@ class MainActivity : Activity() {
         )
         bindViews()
         bindState(presenter.currentState())
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Ignore redelivered launcher intents. Do not parse extras.
     }
 
     private fun bindViews() {

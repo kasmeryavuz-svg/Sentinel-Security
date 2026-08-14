@@ -79,7 +79,8 @@ allowlists.
 See `docs/LIFECYCLE.md` for process-death, interrupted-audit, and reboot
 semantics, `docs/AUDIT.md` for durable local audit persistence and its
 tamper-evidence
-limits, `docs/GRAPHENEOS_ENROLLMENT.md` for GrapheneOS enrollment status (QR is
+limits, `docs/RELEASE_SECURITY.md` for Checkpoint 15 production/release
+hardening, `docs/GRAPHENEOS_ENROLLMENT.md` for GrapheneOS enrollment status (QR is
 standards-ready, not yet confirmed on GrapheneOS SetupWizard2),
 `docs/QR_PROVISIONING.md` for local QR JSON generation,
 `docs/DEVICE_OWNER_TEST_DEVICE.md` for the development-only disposable
@@ -93,4 +94,10 @@ execution security boundary behind its narrow API module.
 ```bash
 ./gradlew test
 ./gradlew assembleDebug
+./gradlew assembleRelease
+./gradlew checkReleaseProductionSecurity
 ```
+
+`assembleRelease` is a local verification artifact. It is not a production
+distribution unless production signing secrets are supplied. See
+`docs/RELEASE_SECURITY.md`.

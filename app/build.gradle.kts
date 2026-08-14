@@ -8,6 +8,7 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.w3c.dom.Element
 import java.io.ByteArrayOutputStream
+import java.util.Properties
 import java.util.jar.JarFile
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
@@ -23,6 +24,62 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+fun sentinelSecret(name: String): String? {
+    System.getenv(name)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    val local = rootProject.file("local.properties")
+    if (!local.isFile) {
+        return null
+    }
+    val properties = Properties()
+    local.reader(Charsets.UTF_8).use { properties.load(it) }
+    return properties.getProperty(name)?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+class ProductionSigningSecrets(
+    val storeFile: File,
+    val storePassword: String,
+    val keyAlias: String,
+    val keyPassword: String,
+)
+
+fun readProductionSigningSecrets(): ProductionSigningSecrets? {
+    val names = listOf(
+        "SENTINEL_RELEASE_STORE_FILE",
+        "SENTINEL_RELEASE_STORE_PASSWORD",
+        "SENTINEL_RELEASE_KEY_ALIAS",
+        "SENTINEL_RELEASE_KEY_PASSWORD",
+    )
+    val values = names.map { sentinelSecret(it) }
+    val present = values.count { !it.isNullOrBlank() }
+    if (present == 0) {
+        return null
+    }
+    check(present == names.size) {
+        "Incomplete production signing secrets. Set all of ${names.joinToString()} " +
+            "via environment variables or gitignored local.properties. " +
+            "Refusing to fall back to the Android debug keystore."
+    }
+    val storeFile = file(requireNotNull(values[0]))
+    check(storeFile.isFile) {
+        "Production keystore file is missing. A production distribution cannot be signed."
+    }
+    check(!storeFile.name.contains("debug", ignoreCase = true)) {
+        "Production signing must not use the Android debug keystore"
+    }
+    return ProductionSigningSecrets(
+        storeFile = storeFile,
+        storePassword = requireNotNull(values[1]),
+        keyAlias = requireNotNull(values[2]),
+        keyPassword = requireNotNull(values[3]),
+    )
+}
+
+val productionSigningSecrets = readProductionSigningSecrets()
+val productionDistributionFlag =
+    providers.gradleProperty("sentinel.productionDistribution")
+        .map { it.equals("true", ignoreCase = true) }
+        .orElse(false)
+
 android {
     namespace = "com.example.devicemanagement"
     compileSdk = 36
@@ -37,13 +94,41 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        val secrets = productionSigningSecrets
+        if (secrets != null) {
+            create("production") {
+                storeFile = secrets.storeFile
+                storePassword = secrets.storePassword
+                keyAlias = secrets.keyAlias
+                keyPassword = secrets.keyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
-        release {
+        getByName("debug") {
+            isDebuggable = true
             isMinifyEnabled = false
+            isShrinkResources = false
+        }
+        release {
+            isDebuggable = false
+            isJniDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isProfileable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            val secrets = productionSigningSecrets
+            if (secrets != null) {
+                signingConfig = signingConfigs.getByName("production")
+            }
         }
     }
 
@@ -619,6 +704,15 @@ androidComponents {
                         enableActions
                 }
                 verifyProvisioningManifest(manifest, androidNamespace, variantName)
+                val hardeningViolations = EffectiveManifestSecurityVerifier.verify(
+                    manifest = manifest,
+                    androidNamespace = androidNamespace,
+                    variantName = variantName,
+                    requireNonDebuggable = variantName == "release",
+                )
+                check(hardeningViolations.isEmpty()) {
+                    hardeningViolations.joinToString("\n")
+                }
                 check(
                     metadata.getAttributeNS(androidNamespace, "resource") ==
                         "@xml/device_admin_receiver",
@@ -705,11 +799,103 @@ androidComponents {
                 rootProject.tasks.named("checkProductionBytecodePolicy"),
             )
         }
+
+        if (variantName == "release") {
+            val apkSecurity = tasks.register<ReleaseArtifactSecurityTask>(
+                "checkReleaseProductionSecurity",
+            ) {
+                group = "verification"
+                description =
+                    "Inspects the release APK, merged manifest, R8 mapping, and signing boundary."
+                this.variantName.set("release")
+                requireNonDebuggable.set(true)
+                productionDistributionRequested.set(
+                    productionDistributionFlag.get(),
+                )
+                mergedManifest.set(mergedManifestArtifact)
+                backupRules.set(file("src/main/res/xml/backup_rules.xml"))
+                dataExtractionRules.set(file("src/main/res/xml/data_extraction_rules.xml"))
+                networkSecurityConfig.set(file("src/main/res/xml/network_security_config.xml"))
+                mappingFile.set(
+                    variant.artifacts.get(SingleArtifact.OBFUSCATION_MAPPING_FILE),
+                )
+                apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
+                apksignerPath.set(
+                    file(
+                        "${android.sdkDirectory}/build-tools/" +
+                            "${android.buildToolsVersion}/apksigner",
+                    ).absolutePath,
+                )
+                signingReport.set(
+                    layout.buildDirectory.file(
+                        "reports/release-signing-boundary.txt",
+                    ),
+                )
+            }
+            val bundleSecurity = tasks.register<ReleaseArtifactSecurityTask>(
+                "checkReleaseBundleProductionSecurity",
+            ) {
+                group = "verification"
+                description =
+                    "Inspects the release AAB DEX and merged release security policy."
+                this.variantName.set("release")
+                requireNonDebuggable.set(true)
+                productionDistributionRequested.set(false)
+                mergedManifest.set(mergedManifestArtifact)
+                backupRules.set(file("src/main/res/xml/backup_rules.xml"))
+                dataExtractionRules.set(file("src/main/res/xml/data_extraction_rules.xml"))
+                networkSecurityConfig.set(file("src/main/res/xml/network_security_config.xml"))
+                mappingFile.set(
+                    variant.artifacts.get(SingleArtifact.OBFUSCATION_MAPPING_FILE),
+                )
+                bundleFile.set(variant.artifacts.get(SingleArtifact.BUNDLE))
+                signingReport.set(
+                    layout.buildDirectory.file(
+                        "reports/release-bundle-security.txt",
+                    ),
+                )
+            }
+            tasks.matching {
+                it.name == "assembleRelease" || it.name == "checkRelease"
+            }.configureEach {
+                dependsOn(apkSecurity)
+            }
+            tasks.matching { it.name == "bundleRelease" }.configureEach {
+                dependsOn(bundleSecurity)
+            }
+        }
+    }
+}
+
+val checkBackupDataExtractionPolicy by tasks.registering {
+    group = "verification"
+    description =
+        "Verifies backup and data-extraction XML excludes all Sentinel private data."
+    val backup = file("src/main/res/xml/backup_rules.xml")
+    val extraction = file("src/main/res/xml/data_extraction_rules.xml")
+    val network = file("src/main/res/xml/network_security_config.xml")
+    inputs.files(backup, extraction, network)
+    doLast {
+        val violations = BackupPolicyVerifier.verify(backup, extraction).toMutableList()
+        val networkText = network.readText()
+        if ("cleartextTrafficPermitted=\"false\"" !in networkText) {
+            violations += "network security config must deny cleartext traffic"
+        }
+        if ("debug-overrides" in networkText) {
+            violations += "network security config must not include debug-overrides"
+        }
+        check(violations.isEmpty()) {
+            violations.joinToString("\n")
+        }
     }
 }
 
 tasks.withType<Test>().configureEach {
-    dependsOn(checkAppDependencyIsolation, checkAppApiCompileNegative)
+    dependsOn(
+        checkAppDependencyIsolation,
+        checkAppApiCompileNegative,
+        checkBackupDataExtractionPolicy,
+    )
     systemProperty(
         "appSourceDir",
         layout.projectDirectory.dir("src").asFile.absolutePath,
@@ -717,7 +903,39 @@ tasks.withType<Test>().configureEach {
 }
 
 tasks.matching { it.name == "check" }.configureEach {
-    dependsOn(checkAppDependencyIsolation, checkAppApiCompileNegative)
+    dependsOn(
+        checkAppDependencyIsolation,
+        checkAppApiCompileNegative,
+        checkBackupDataExtractionPolicy,
+    )
+}
+
+val checkProductionDistributionSigning by tasks.registering {
+    group = "verification"
+    description =
+        "Fails closed when a production distribution is requested without signing secrets."
+    doLast {
+        check(readProductionSigningSecrets() != null) {
+            "Production distribution signing requires SENTINEL_RELEASE_STORE_FILE, " +
+                "SENTINEL_RELEASE_STORE_PASSWORD, SENTINEL_RELEASE_KEY_ALIAS, and " +
+                "SENTINEL_RELEASE_KEY_PASSWORD from the environment or gitignored " +
+                "local.properties. Refusing to fall back to the Android debug key."
+        }
+        val releaseSigning = android.signingConfigs.findByName("production")
+        check(releaseSigning != null) {
+            "Production signing configuration was not applied"
+        }
+        check(android.signingConfigs.findByName("debug") !== releaseSigning) {
+            "Production signing must not reuse the Android debug signing configuration"
+        }
+    }
+}
+
+tasks.register("assembleProductionRelease") {
+    group = "build"
+    description =
+        "Release assemble that fails unless production signing secrets are present."
+    dependsOn(checkProductionDistributionSigning, "assembleRelease")
 }
 
 tasks.matching { it.name == "preBuild" }.configureEach {
