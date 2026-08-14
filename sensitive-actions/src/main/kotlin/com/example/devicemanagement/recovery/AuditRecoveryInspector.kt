@@ -11,8 +11,8 @@ import com.example.devicemanagement.logging.StructuredLogger
  *
  * This class reads durable audit history and classifies unmatched REQUESTED
  * events as interrupted. It has no execution capability: it cannot submit
- * triggers, issue or consume approvals, call ActionExecutor, mutate
- * DevicePolicyManager, or append/delete audit records.
+ * triggers, issue or consume approvals, run the trusted executor, mutate
+ * device policy, or append/delete audit records.
  *
  * Interrupted records are left unchanged. Classification does not imply that
  * the original action completed, and it never becomes a retry.

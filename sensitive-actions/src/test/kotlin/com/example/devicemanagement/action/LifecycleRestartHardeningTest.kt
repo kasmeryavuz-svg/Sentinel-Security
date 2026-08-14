@@ -46,7 +46,7 @@ class LifecycleRestartHardeningTest {
         assertEquals(0, backend.cameraWrites.size)
         assertEquals(0, backend.authorizationReads)
         assertEquals(AuditEventPhase.REQUESTED, restartedAudit.latest(10).events.single().phase)
-        assertTrue(restarted is SensitiveActionController)
+        assertEquals(0, restartedAudit.latest(10).events.count { it.phase != AuditEventPhase.REQUESTED })
     }
 
     @Test
