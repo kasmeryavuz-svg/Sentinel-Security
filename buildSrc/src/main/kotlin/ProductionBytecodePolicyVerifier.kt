@@ -31,6 +31,7 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
         "com/example/devicemanagement/management/AndroidDevicePolicyScreenCaptureService",
         "com/example/devicemanagement/management/AndroidDevicePolicyCameraService",
+        "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService",
     )
 
     private val allowedDpmInvocations = mapOf(
@@ -86,6 +87,16 @@ internal object ProductionBytecodePolicyVerifier {
             "setCameraDisabled",
             "(Z)V",
         )),
+        "isStatusBarDisabled()Z" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService",
+            "isStatusBarDisabled",
+            "()Z",
+        )),
+        "setStatusBarDisabled(Landroid/content/ComponentName;Z)Z" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService",
+            "setStatusBarDisabled",
+            "(Z)Z",
+        )),
     )
 
     private val forbiddenLoaderOwners = setOf(
@@ -114,6 +125,14 @@ internal object ProductionBytecodePolicyVerifier {
             "Lcom/example/devicemanagement/management/PolicyMutation;",
     )
 
+    private val verifiedMutationExecutorStatusBar = InvocationOrigin(
+        "com/example/devicemanagement/management/VerifiedPolicyMutationExecutor",
+        "executeStatusBar",
+        "(Lcom/example/devicemanagement/management/VerifiedPolicyMutation" +
+            "\$StatusBar;Ljava/lang/String;)" +
+            "Lcom/example/devicemanagement/management/PolicyMutation;",
+    )
+
     /**
      * Narrow policy setters are bound to VerifiedPolicyMutationExecutor whether the
      * bytecode call owner is the interface or the concrete Android implementation.
@@ -129,6 +148,10 @@ internal object ProductionBytecodePolicyVerifier {
             "setCameraDisabled(Z)V" to verifiedMutationExecutorCamera,
         "com/example/devicemanagement/management/AndroidDevicePolicyCameraService." +
             "setCameraDisabled(Z)V" to verifiedMutationExecutorCamera,
+        "com/example/devicemanagement/management/DevicePolicyStatusBarService." +
+            "setStatusBarDisabled(Z)Z" to verifiedMutationExecutorStatusBar,
+        "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService." +
+            "setStatusBarDisabled(Z)Z" to verifiedMutationExecutorStatusBar,
     )
 
     fun verify(targets: Iterable<PolicyVerificationTarget>): List<String> {

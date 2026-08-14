@@ -18,6 +18,7 @@ import com.example.devicemanagement.management.ProvisioningAvailability
 import com.example.devicemanagement.management.ProvisioningOption
 import com.example.devicemanagement.management.ProvisioningReadiness
 import com.example.devicemanagement.management.ScreenCapturePolicyStatus
+import com.example.devicemanagement.management.StatusBarPolicyStatus
 import com.example.devicemanagement.trigger.SensitiveActionCommands
 import com.example.devicemanagement.trigger.Trigger
 import java.util.UUID
@@ -29,6 +30,7 @@ class MainActivity : Activity() {
         val validationText = TextView(this)
         val screenCapturePolicyStatusText = TextView(this)
         val cameraPolicyStatusText = TextView(this)
+        val statusBarPolicyStatusText = TextView(this)
         val operationResultText = TextView(this).apply {
             text = "Operation result: No operation requested.\n" +
                 "Failure/denial reason: none\nCorrelation ID: none"
@@ -41,6 +43,9 @@ class MainActivity : Activity() {
                 .currentStatus()
                 .toDisplayText(validation.result)
             cameraPolicyStatusText.text = container.cameraPolicyStatus
+                .currentStatus()
+                .toDisplayText(validation.result)
+            statusBarPolicyStatusText.text = container.statusBarPolicyStatus
                 .currentStatus()
                 .toDisplayText(validation.result)
         }
@@ -98,6 +103,23 @@ class MainActivity : Activity() {
                     submit(SensitiveActionCommands.ENABLE_CAMERA)
                 }
             })
+            addView(TextView(context).apply {
+                text = "\nTEST DEVICE — STATUS BAR POLICY"
+                textSize = 20f
+            })
+            addView(statusBarPolicyStatusText)
+            addView(Button(context).apply {
+                text = "Disable status bar"
+                setOnClickListener {
+                    submit(SensitiveActionCommands.DISABLE_STATUS_BAR)
+                }
+            })
+            addView(Button(context).apply {
+                text = "Enable status bar"
+                setOnClickListener {
+                    submit(SensitiveActionCommands.ENABLE_STATUS_BAR)
+                }
+            })
             addView(operationResultText)
         }
         setContentView(ScrollView(this).apply { addView(content) })
@@ -122,6 +144,18 @@ class MainActivity : Activity() {
         val reason = reasons.ifEmpty { listOf("none") }.joinToString("\n• ")
         return """
             Current camera policy: ${state.name.lowercase()}
+            Device Owner verification state: ${validationResult.name}
+            Status reason:
+            • $reason
+        """.trimIndent()
+    }
+
+    private fun StatusBarPolicyStatus.toDisplayText(
+        validationResult: DeviceOwnerValidationResult,
+    ): String {
+        val reason = reasons.ifEmpty { listOf("none") }.joinToString("\n• ")
+        return """
+            Current status-bar policy: ${state.name.lowercase()}
             Device Owner verification state: ${validationResult.name}
             Status reason:
             • $reason

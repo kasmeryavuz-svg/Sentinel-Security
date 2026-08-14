@@ -225,6 +225,9 @@ val checkAppApiCompileNegative by tasks.registering {
             "com/example/devicemanagement/management/CameraPolicyState",
             "com/example/devicemanagement/management/CameraPolicyStatus",
             "com/example/devicemanagement/management/CameraPolicyStatusProvider",
+            "com/example/devicemanagement/management/StatusBarPolicyState",
+            "com/example/devicemanagement/management/StatusBarPolicyStatus",
+            "com/example/devicemanagement/management/StatusBarPolicyStatusProvider",
             "com/example/devicemanagement/facade/R",
         )
         val appBuildDirectory = layout.buildDirectory.get().asFile.canonicalFile

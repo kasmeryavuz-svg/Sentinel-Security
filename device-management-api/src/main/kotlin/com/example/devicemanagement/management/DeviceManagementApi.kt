@@ -15,6 +15,7 @@ interface DeviceManagementServices {
     val deviceOwnerValidation: DeviceOwnerValidationProvider
     val screenCapturePolicyStatus: ScreenCapturePolicyStatusProvider
     val cameraPolicyStatus: CameraPolicyStatusProvider
+    val statusBarPolicyStatus: StatusBarPolicyStatusProvider
 }
 
 enum class ManagementMode {
@@ -120,4 +121,19 @@ data class CameraPolicyStatus(
 
 fun interface CameraPolicyStatusProvider {
     fun currentStatus(): CameraPolicyStatus
+}
+
+enum class StatusBarPolicyState {
+    DISABLED,
+    ENABLED,
+    UNAVAILABLE,
+}
+
+data class StatusBarPolicyStatus(
+    val state: StatusBarPolicyState,
+    val reasons: List<String>,
+)
+
+fun interface StatusBarPolicyStatusProvider {
+    fun currentStatus(): StatusBarPolicyStatus
 }

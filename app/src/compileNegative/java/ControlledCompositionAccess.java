@@ -7,6 +7,7 @@ import com.example.devicemanagement.internal.DeviceManagementImplementation;
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend;
 import com.example.devicemanagement.management.DefaultCameraPolicy;
 import com.example.devicemanagement.management.DefaultScreenCapturePolicy;
+import com.example.devicemanagement.management.DefaultStatusBarPolicy;
 import com.example.devicemanagement.management.VerifiedPolicyMutationExecutor;
 
 final class ControlledCompositionAccess {
@@ -15,6 +16,7 @@ final class ControlledCompositionAccess {
     SensitiveActionPolicyBackend backend;
     DefaultCameraPolicy cameraPolicyWriter;
     DefaultScreenCapturePolicy screenCapturePolicyWriter;
+    DefaultStatusBarPolicy statusBarPolicyWriter;
     VerifiedPolicyMutationExecutor mutationExecutor;
     DeviceManagementSensitiveActionControllerFactory controllerFactory;
     DeviceManagementImplementation implementationBootstrap;

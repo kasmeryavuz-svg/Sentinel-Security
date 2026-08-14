@@ -11,143 +11,101 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class ScreenCaptureSensitiveActionTest {
+class StatusBarSensitiveActionTest {
     private val logger = NoOpLogger()
 
     @Test
-    fun `verified Device Owner can disable screen capture`() {
+    fun `verified Device Owner can disable status bar`() {
         val backend = RecordingBackend()
 
         val result = controller(backend).submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
+            SensitiveActionCommands.DISABLE_STATUS_BAR,
         ))
 
         assertTrue(result is ActionResult.Applied)
-        assertEquals(listOf(true), backend.writes)
-        assertAuthoritativeCorrelation(result as ActionResult.Applied, backend)
+        result as ActionResult.Applied
+        assertEquals(SensitiveActionOperation.DISABLE_STATUS_BAR, result.operation)
+        assertEquals(true, result.requestedDisabled)
+        assertEquals(true, result.observedDisabled)
+        assertAuthoritativeCorrelation(result, backend)
+        assertEquals(listOf(true), backend.statusBarWrites)
     }
 
     @Test
-    fun `verified Device Owner can enable screen capture`() {
+    fun `verified Device Owner can enable status bar`() {
         val backend = RecordingBackend()
 
         val result = controller(backend).submit(trigger(
-            SensitiveActionCommands.ENABLE_SCREEN_CAPTURE,
+            SensitiveActionCommands.ENABLE_STATUS_BAR,
         ))
 
         assertTrue(result is ActionResult.Applied)
-        assertEquals(listOf(false), backend.writes)
-        assertAuthoritativeCorrelation(result as ActionResult.Applied, backend)
+        result as ActionResult.Applied
+        assertEquals(SensitiveActionOperation.ENABLE_STATUS_BAR, result.operation)
+        assertEquals(false, result.requestedDisabled)
+        assertEquals(false, result.observedDisabled)
+        assertAuthoritativeCorrelation(result, backend)
+        assertEquals(listOf(false), backend.statusBarWrites)
     }
 
     @Test
-    fun `caller request ID is not the authoritative correlation identity`() {
-        val backend = RecordingBackend()
-        val controller = controller(backend)
-
-        val first = controller.submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
-        )) as ActionResult.Applied
-        val second = controller.submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
-        )) as ActionResult.Applied
-
-        assertTrue(first.correlationId != "correlation")
-        assertTrue(second.correlationId != "correlation")
-        assertTrue(first.correlationId != second.correlationId)
-        assertEquals(listOf(first.correlationId, second.correlationId), backend.correlations)
-    }
-
-    @Test
-    fun `ordinary app state is denied before policy writer`() {
-        val backend = RecordingBackend(
+    fun `ordinary app and Profile Owner are denied before status bar writer`() {
+        val ordinaryBackend = RecordingBackend(
             authorization = authorized.copy(verifiedDeviceOwner = false),
         )
-
-        val result = controller(backend).submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
-        ))
-
-        assertRejected(result, "decision_denied:DEVICE_OWNER_NOT_VERIFIED")
-        assertTrue(backend.writes.isEmpty())
-    }
-
-    @Test
-    fun `Profile Owner state is denied before policy writer`() {
-        val backend = RecordingBackend(
+        val profileBackend = RecordingBackend(
             authorization = authorized.copy(
                 verifiedDeviceOwner = false,
                 profileOwner = true,
             ),
         )
 
-        val result = controller(backend).submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
+        val ordinaryResult = controller(ordinaryBackend).submit(trigger(
+            SensitiveActionCommands.DISABLE_STATUS_BAR,
+        ))
+        val profileResult = controller(profileBackend).submit(trigger(
+            SensitiveActionCommands.DISABLE_STATUS_BAR,
         ))
 
-        assertRejected(result, "decision_denied:PROFILE_OWNER_NOT_ALLOWED")
-        assertTrue(backend.writes.isEmpty())
+        assertRejected(ordinaryResult, "decision_denied:DEVICE_OWNER_NOT_VERIFIED")
+        assertRejected(profileResult, "decision_denied:PROFILE_OWNER_NOT_ALLOWED")
+        assertTrue(ordinaryBackend.statusBarWrites.isEmpty())
+        assertTrue(profileBackend.statusBarWrites.isEmpty())
     }
 
     @Test
-    fun `unavailable policy service is denied before policy writer`() {
+    fun `unavailable policy service is denied before status bar writer`() {
         val backend = RecordingBackend(
             authorization = authorized.copy(policyServiceAvailable = false),
         )
 
         val result = controller(backend).submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
+            SensitiveActionCommands.DISABLE_STATUS_BAR,
         ))
 
         assertRejected(result, "decision_denied:SERVICE_UNAVAILABLE")
-        assertTrue(backend.writes.isEmpty())
+        assertTrue(backend.statusBarWrites.isEmpty())
     }
 
     @Test
-    fun `malformed and excessive lifetime requests cannot reach policy writer`() {
-        val backend = RecordingBackend()
-        val controller = controller(backend)
-
-        val malformed = controller.submit(
-            Trigger("unknown", "correlation", 2_000L),
-        )
-        val excessiveLifetime = controller.submit(
-            Trigger(
-                SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
-                "correlation",
-                61_001L,
+    fun `status bar backend denial and failure preserve correlation ID`() {
+        val denied = controller(
+            RecordingBackend(
+                mutationResult = PolicyMutationResult.Denied("validation_changed"),
             ),
-        )
-
-        assertTrue(malformed is ActionResult.Rejected)
-        assertTrue(excessiveLifetime is ActionResult.Rejected)
-        assertTrue(backend.writes.isEmpty())
-    }
-
-    @Test
-    fun `backend denial and failure are preserved with correlation ID`() {
-        val deniedBackend = RecordingBackend(
-            mutationResult = PolicyMutationResult.Denied("validation_changed"),
-        )
-        val failedBackend = RecordingBackend(
-            mutationResult = PolicyMutationResult.Failed("security_exception"),
-        )
-
-        val denied = controller(deniedBackend).submit(trigger(
-            SensitiveActionCommands.DISABLE_SCREEN_CAPTURE,
-        ))
-        val failed = controller(failedBackend).submit(trigger(
-            SensitiveActionCommands.ENABLE_SCREEN_CAPTURE,
-        ))
+        ).submit(trigger(SensitiveActionCommands.DISABLE_STATUS_BAR))
+        val failed = controller(
+            RecordingBackend(
+                mutationResult = PolicyMutationResult.Failed("policy_service_unavailable"),
+            ),
+        ).submit(trigger(SensitiveActionCommands.ENABLE_STATUS_BAR))
 
         assertTrue(denied is ActionResult.Rejected)
         assertEquals("validation_changed", (denied as ActionResult.Rejected).reason)
         assertTrue(failed is ActionResult.Failed)
-        assertEquals("security_exception", (failed as ActionResult.Failed).reason)
+        assertEquals("policy_service_unavailable", (failed as ActionResult.Failed).reason)
         assertTrue(denied.correlationId != "correlation")
         assertTrue(failed.correlationId != "correlation")
-        assertEquals(listOf(denied.correlationId), deniedBackend.correlations)
-        assertEquals(listOf(failed.correlationId), failedBackend.correlations)
     }
 
     private fun controller(backend: SensitiveActionPolicyBackend) =
@@ -185,7 +143,7 @@ class ScreenCaptureSensitiveActionTest {
         private val authorization: SensitiveActionAuthorization = authorized,
         private val mutationResult: PolicyMutationResult? = null,
     ) : SensitiveActionPolicyBackend {
-        val writes = mutableListOf<Boolean>()
+        val statusBarWrites = mutableListOf<Boolean>()
         val correlations = mutableListOf<String>()
 
         override fun currentAuthorization(): SensitiveActionAuthorization = authorization
@@ -194,23 +152,23 @@ class ScreenCaptureSensitiveActionTest {
             disabled: Boolean,
             correlationId: String,
         ): PolicyMutationResult {
-            writes += disabled
-            correlations += correlationId
-            return mutationResult ?: PolicyMutationResult.Applied(disabled, disabled)
+            error("status-bar action must not invoke screen-capture policy")
         }
 
         override fun applyCameraDisabled(
             disabled: Boolean,
             correlationId: String,
         ): PolicyMutationResult {
-            error("screen-capture action must not invoke camera policy")
+            error("status-bar action must not invoke camera policy")
         }
 
         override fun applyStatusBarDisabled(
             disabled: Boolean,
             correlationId: String,
         ): PolicyMutationResult {
-            error("screen-capture action must not invoke status-bar policy")
+            statusBarWrites += disabled
+            correlations += correlationId
+            return mutationResult ?: PolicyMutationResult.Applied(disabled, disabled)
         }
     }
 

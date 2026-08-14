@@ -33,6 +33,8 @@ internal interface DevicePolicyPlatform {
 
     fun cameraPolicyService(): DevicePolicyCameraService? = null
 
+    fun statusBarPolicyService(): DevicePolicyStatusBarService? = null
+
     fun isExpectedAdminReceiverRegistered(): Boolean
 
     fun adminComponentConfiguration(): AdminComponentConfiguration =
@@ -69,6 +71,17 @@ internal class AndroidDevicePolicyPlatform(
     override fun cameraPolicyService(): DevicePolicyCameraService? {
         val manager = context.getSystemService(DevicePolicyManager::class.java) ?: return null
         return AndroidDevicePolicyCameraService(
+            manager = manager,
+            adminComponent = adminComponent,
+        )
+    }
+
+    override fun statusBarPolicyService(): DevicePolicyStatusBarService? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return null
+        }
+        val manager = context.getSystemService(DevicePolicyManager::class.java) ?: return null
+        return AndroidDevicePolicyStatusBarService(
             manager = manager,
             adminComponent = adminComponent,
         )
@@ -188,6 +201,31 @@ internal class AndroidDevicePolicyCameraService(
     }
 }
 
+/**
+ * Narrow status-bar policy surface. Only constructed on API 34+, where
+ * [DevicePolicyManager.isStatusBarDisabled] is available for verified read-back.
+ */
+internal interface DevicePolicyStatusBarService {
+    fun isStatusBarDisabled(): Boolean
+
+    fun setStatusBarDisabled(disabled: Boolean): Boolean
+}
+
+internal class AndroidDevicePolicyStatusBarService(
+    private val manager: DevicePolicyManager,
+    private val adminComponent: ComponentName,
+) : DevicePolicyStatusBarService {
+    @Suppress("NewApi")
+    override fun isStatusBarDisabled(): Boolean {
+        return manager.isStatusBarDisabled
+    }
+
+    @Suppress("NewApi")
+    override fun setStatusBarDisabled(disabled: Boolean): Boolean {
+        return manager.setStatusBarDisabled(adminComponent, disabled)
+    }
+}
+
 internal object DeviceManagementDiagnostics {
     fun create(
         context: Context,
@@ -257,6 +295,21 @@ internal object DeviceManagementDiagnostics {
     ): CameraPolicyStatusProvider {
         val platform = AndroidDevicePolicyPlatform(context.applicationContext)
         return DefaultCameraPolicyStatusProvider(
+            deviceOwnerValidationProvider = createDeviceOwnerValidationProvider(
+                platform = platform,
+                logger = logger,
+            ),
+            platform = platform,
+            logger = logger,
+        )
+    }
+
+    fun createStatusBarPolicyStatus(
+        context: Context,
+        logger: DeviceManagementLogger,
+    ): StatusBarPolicyStatusProvider {
+        val platform = AndroidDevicePolicyPlatform(context.applicationContext)
+        return DefaultStatusBarPolicyStatusProvider(
             deviceOwnerValidationProvider = createDeviceOwnerValidationProvider(
                 platform = platform,
                 logger = logger,

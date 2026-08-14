@@ -95,6 +95,22 @@ internal class SensitiveActionRegistry internal constructor(
                             backend = backend,
                         ),
                     ),
+                    SensitiveActionRegistration(
+                        command = SensitiveActionCommands.DISABLE_STATUS_BAR,
+                        action = StatusBarPolicyAction(
+                            type = DeviceActionType.DISABLE_STATUS_BAR,
+                            disabled = true,
+                            backend = backend,
+                        ),
+                    ),
+                    SensitiveActionRegistration(
+                        command = SensitiveActionCommands.ENABLE_STATUS_BAR,
+                        action = StatusBarPolicyAction(
+                            type = DeviceActionType.ENABLE_STATUS_BAR,
+                            disabled = false,
+                            backend = backend,
+                        ),
+                    ),
                 ),
             ).also { registry ->
                 check(DeviceActionType.MOCK_WIPE !in registry.actionTypes()) {

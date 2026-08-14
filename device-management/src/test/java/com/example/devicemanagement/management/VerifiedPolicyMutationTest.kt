@@ -42,6 +42,44 @@ class VerifiedPolicyMutationTest {
     }
 
     @Test
+    fun `status bar dispatch is service then fresh validation then setter and read back`() {
+        val operations = mutableListOf<String>()
+        val executor = executor(operations, validationProvider(operations))
+
+        val result = executor.execute(
+            VerifiedPolicyMutation.StatusBar(disabled = true),
+            CORRELATION_ID,
+        )
+
+        assertEquals(PolicyMutation.Applied(true, true), result)
+        assertEquals(
+            listOf("status-service", "validate", "status-set:true", "status-get"),
+            operations,
+        )
+    }
+
+    @Test
+    fun `status bar setter rejection fails closed before read back`() {
+        val operations = mutableListOf<String>()
+        val executor = executor(
+            operations,
+            validationProvider(operations),
+            platform = RecordingPlatform(operations, rejectStatusBarWrites = true),
+        )
+
+        val result = executor.execute(
+            VerifiedPolicyMutation.StatusBar(disabled = true),
+            CORRELATION_ID,
+        )
+
+        assertEquals(PolicyMutation.Failed("setter_rejected"), result)
+        assertEquals(
+            listOf("status-service", "validate", "status-set:true"),
+            operations,
+        )
+    }
+
+    @Test
     fun `Device Owner authorization is never cached between mutations`() {
         val operations = mutableListOf<String>()
         var validations = 0
@@ -102,6 +140,7 @@ class VerifiedPolicyMutationTest {
         val variants = listOf<VerifiedPolicyMutation>(
             VerifiedPolicyMutation.ScreenCapture(disabled = true),
             VerifiedPolicyMutation.Camera(disabled = true),
+            VerifiedPolicyMutation.StatusBar(disabled = true),
         )
         assertEquals(
             VerifiedPolicyMutation::class.sealedSubclasses.toSet(),
@@ -127,6 +166,10 @@ class VerifiedPolicyMutationTest {
                 is VerifiedPolicyMutation.Camera -> RecordingPlatform(
                     operations = mismatchOperations,
                     ignoreCameraWrites = true,
+                )
+                is VerifiedPolicyMutation.StatusBar -> RecordingPlatform(
+                    operations = mismatchOperations,
+                    ignoreStatusBarWrites = true,
                 )
             }
             val mismatch = executor(
@@ -163,6 +206,8 @@ class VerifiedPolicyMutationTest {
                 listOf("screen-service", "validate", "screen-set:true", "screen-get")
             is VerifiedPolicyMutation.Camera ->
                 listOf("camera-service", "validate", "camera-set:true", "camera-get")
+            is VerifiedPolicyMutation.StatusBar ->
+                listOf("status-service", "validate", "status-set:true", "status-get")
         }
     }
 
@@ -179,9 +224,12 @@ class VerifiedPolicyMutationTest {
         private val operations: MutableList<String>,
         private val ignoreScreenWrites: Boolean = false,
         private val ignoreCameraWrites: Boolean = false,
+        private val ignoreStatusBarWrites: Boolean = false,
+        private val rejectStatusBarWrites: Boolean = false,
     ) : DevicePolicyPlatform {
         private var screenDisabled = false
         private var cameraDisabled = false
+        private var statusBarDisabled = false
 
         override fun policyService(): DevicePolicyReadService? = null
 
@@ -215,6 +263,27 @@ class VerifiedPolicyMutationTest {
                     if (!ignoreCameraWrites) {
                         cameraDisabled = disabled
                     }
+                }
+            }
+        }
+
+        override fun statusBarPolicyService(): DevicePolicyStatusBarService {
+            operations += "status-service"
+            return object : DevicePolicyStatusBarService {
+                override fun isStatusBarDisabled(): Boolean {
+                    operations += "status-get"
+                    return statusBarDisabled
+                }
+
+                override fun setStatusBarDisabled(disabled: Boolean): Boolean {
+                    operations += "status-set:$disabled"
+                    if (rejectStatusBarWrites) {
+                        return false
+                    }
+                    if (!ignoreStatusBarWrites) {
+                        statusBarDisabled = disabled
+                    }
+                    return true
                 }
             }
         }

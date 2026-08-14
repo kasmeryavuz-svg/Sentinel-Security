@@ -6,6 +6,39 @@ import kotlin.test.assertTrue
 
 class ProductionBytecodePolicyVerifierTest {
     @Test
+    fun `authorized infrastructure can invoke only approved DPM status bar setter`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService.java" to
+                """
+                package com.example.devicemanagement.management;
+                import android.app.admin.DevicePolicyManager;
+                import android.content.ComponentName;
+                public final class AndroidDevicePolicyStatusBarService {
+                    private final DevicePolicyManager manager;
+                    private final ComponentName adminComponent;
+                    AndroidDevicePolicyStatusBarService(
+                        DevicePolicyManager manager,
+                        ComponentName adminComponent
+                    ) {
+                        this.manager = manager;
+                        this.adminComponent = adminComponent;
+                    }
+                    boolean setStatusBarDisabled(boolean disabled) {
+                        return manager.setStatusBarDisabled(adminComponent, disabled);
+                    }
+                    boolean isStatusBarDisabled() {
+                        return manager.isStatusBarDisabled();
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+
+        assertTrue(violations.isEmpty(), violations.joinToString("\n"))
+    }
+
+    @Test
     fun `authorized infrastructure can invoke only approved DPM setter`() {
         val classes = compileJava(
             "com/example/devicemanagement/management/AndroidDevicePolicyCameraService.java" to
@@ -463,6 +496,13 @@ class ProductionBytecodePolicyVerifierTest {
                     void setScreenCaptureDisabled(boolean disabled);
                 }
                 """.trimIndent(),
+            "com/example/devicemanagement/management/DevicePolicyStatusBarService.java" to
+                """
+                package com.example.devicemanagement.management;
+                public interface DevicePolicyStatusBarService {
+                    boolean setStatusBarDisabled(boolean disabled);
+                }
+                """.trimIndent(),
             "com/example/devicemanagement/management/VerifiedPolicyMutation.java" to
                 """
                 package com.example.devicemanagement.management;
@@ -474,6 +514,10 @@ class ProductionBytecodePolicyVerifierTest {
                     public static final class ScreenCapture extends VerifiedPolicyMutation {
                         public final boolean disabled;
                         public ScreenCapture(boolean disabled) { this.disabled = disabled; }
+                    }
+                    public static final class StatusBar extends VerifiedPolicyMutation {
+                        public final boolean disabled;
+                        public StatusBar(boolean disabled) { this.disabled = disabled; }
                     }
                 }
                 """.trimIndent(),
@@ -502,6 +546,14 @@ class ProductionBytecodePolicyVerifierTest {
                         service.setScreenCaptureDisabled(mutation.disabled);
                         return null;
                     }
+                    PolicyMutation executeStatusBar(
+                        VerifiedPolicyMutation.StatusBar mutation,
+                        String correlationId
+                    ) {
+                        DevicePolicyStatusBarService service = null;
+                        service.setStatusBarDisabled(mutation.disabled);
+                        return null;
+                    }
                 }
                 """.trimIndent(),
         )
@@ -511,6 +563,99 @@ class ProductionBytecodePolicyVerifierTest {
             violations.none { "outside VerifiedPolicyMutationExecutor" in it },
             violations.joinToString("\n"),
         )
+    }
+
+    @Test
+    fun `direct concrete status bar service setter bypass fails production verifier`() {
+        val classes = compileJava(
+            concreteStatusBarServiceStub(),
+            "attack/ConcreteStatusBarSetterBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.management.AndroidDevicePolicyStatusBarService;
+                public final class ConcreteStatusBarSetterBypass {
+                    void reach(AndroidDevicePolicyStatusBarService service) {
+                        service.setStatusBarDisabled(true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "outside VerifiedPolicyMutationExecutor")
+        assertRejected(classes, "AndroidDevicePolicyStatusBarService.setStatusBarDisabled")
+    }
+
+    @Test
+    fun `cast from interface to concrete status bar setter bypass fails production verifier`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/DevicePolicyStatusBarService.java" to
+                """
+                package com.example.devicemanagement.management;
+                public interface DevicePolicyStatusBarService {
+                    boolean setStatusBarDisabled(boolean disabled);
+                }
+                """.trimIndent(),
+            concreteStatusBarServiceStub(implementInterface = true),
+            "attack/CastConcreteStatusBarSetterBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.management.AndroidDevicePolicyStatusBarService;
+                import com.example.devicemanagement.management.DevicePolicyStatusBarService;
+                public final class CastConcreteStatusBarSetterBypass {
+                    void reach(DevicePolicyStatusBarService service) {
+                        ((AndroidDevicePolicyStatusBarService) service).setStatusBarDisabled(true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "outside VerifiedPolicyMutationExecutor")
+        assertRejected(classes, "AndroidDevicePolicyStatusBarService.setStatusBarDisabled")
+    }
+
+    @Test
+    fun `narrow status bar setter cannot bypass verified mutation executor`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/DevicePolicyStatusBarService.java" to
+                """
+                package com.example.devicemanagement.management;
+                public interface DevicePolicyStatusBarService {
+                    boolean setStatusBarDisabled(boolean disabled);
+                }
+                """.trimIndent(),
+            "attack/NarrowStatusBarServiceBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.management.DevicePolicyStatusBarService;
+                public final class NarrowStatusBarServiceBypass {
+                    void reach(DevicePolicyStatusBarService service) {
+                        service.setStatusBarDisabled(true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "outside VerifiedPolicyMutationExecutor")
+    }
+
+    @Test
+    fun `raw DPM setStatusBarDisabled is rejected from unauthorized class`() {
+        val classes = compileJava(
+            "attack/RawStatusBarDpmBypass.java" to
+                """
+                package attack;
+                import android.app.admin.DevicePolicyManager;
+                import android.content.ComponentName;
+                public final class RawStatusBarDpmBypass {
+                    void apply(DevicePolicyManager manager, ComponentName admin) {
+                        manager.setStatusBarDisabled(admin, true);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "setStatusBarDisabled")
+        assertRejected(classes, "outside the explicitly authorized")
     }
 
     private fun concreteCameraServiceStub(
@@ -573,6 +718,36 @@ class ProductionBytecodePolicyVerifierTest {
             """.trimIndent()
     }
 
+    private fun concreteStatusBarServiceStub(
+        implementInterface: Boolean = false,
+    ): Pair<String, String> {
+        val implementsClause =
+            if (implementInterface) " implements DevicePolicyStatusBarService" else ""
+        return "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService.java" to
+            """
+            package com.example.devicemanagement.management;
+            import android.app.admin.DevicePolicyManager;
+            import android.content.ComponentName;
+            public final class AndroidDevicePolicyStatusBarService$implementsClause {
+                private final DevicePolicyManager manager;
+                private final ComponentName adminComponent;
+                public AndroidDevicePolicyStatusBarService(
+                    DevicePolicyManager manager,
+                    ComponentName adminComponent
+                ) {
+                    this.manager = manager;
+                    this.adminComponent = adminComponent;
+                }
+                public boolean isStatusBarDisabled() {
+                    return manager.isStatusBarDisabled();
+                }
+                public boolean setStatusBarDisabled(boolean disabled) {
+                    return manager.setStatusBarDisabled(adminComponent, disabled);
+                }
+            }
+            """.trimIndent()
+    }
+
     private fun assertRejected(classes: File, expected: String) {
         val violations = verify(":app", classes)
         assertTrue(
@@ -628,8 +803,12 @@ class ProductionBytecodePolicyVerifierTest {
             public class DevicePolicyManager {
                 public void setCameraDisabled(ComponentName admin, boolean disabled) {}
                 public void setScreenCaptureDisabled(ComponentName admin, boolean disabled) {}
+                public boolean setStatusBarDisabled(ComponentName admin, boolean disabled) {
+                    return true;
+                }
                 public boolean getCameraDisabled(ComponentName admin) { return false; }
                 public boolean getScreenCaptureDisabled(ComponentName admin) { return false; }
+                public boolean isStatusBarDisabled() { return false; }
                 public void wipeData(int flags) {}
             }
             """.trimIndent(),

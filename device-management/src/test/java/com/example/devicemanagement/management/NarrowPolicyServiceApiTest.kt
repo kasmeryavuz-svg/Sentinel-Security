@@ -45,6 +45,17 @@ class NarrowPolicyServiceApiTest {
     }
 
     @Test
+    fun `status bar wrapper exposes only its approved policy surface`() {
+        assertEquals(
+            setOf("isStatusBarDisabled", "setStatusBarDisabled"),
+            DevicePolicyStatusBarService::class.java.declaredMethods
+                .filterNot { it.isSynthetic }
+                .map { it.name }
+                .toSet(),
+        )
+    }
+
+    @Test
     fun `public screen capture status provider is read only`() {
         assertEquals(
             setOf("currentStatus"),
@@ -60,6 +71,17 @@ class NarrowPolicyServiceApiTest {
         assertEquals(
             setOf("currentStatus"),
             CameraPolicyStatusProvider::class.java.declaredMethods
+                .filterNot { it.isSynthetic }
+                .map { it.name }
+                .toSet(),
+        )
+    }
+
+    @Test
+    fun `public status bar status provider is read only`() {
+        assertEquals(
+            setOf("currentStatus"),
+            StatusBarPolicyStatusProvider::class.java.declaredMethods
                 .filterNot { it.isSynthetic }
                 .map { it.name }
                 .toSet(),

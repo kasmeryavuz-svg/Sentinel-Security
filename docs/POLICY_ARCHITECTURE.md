@@ -22,8 +22,9 @@ untrusted UI trigger
   -> DevicePolicyManager
 ```
 
-The controlled registry is fixed in source and contains exactly four commands:
-enable/disable screen capture and enable/disable camera. The `MOCK_WIPE`
+The controlled registry is fixed in source and contains exactly six commands:
+enable/disable screen capture, enable/disable camera, and enable/disable status
+bar. The `MOCK_WIPE`
 simulation exists only in the separate fail-safe registry. Registries are
 immutable, reject duplicate commands and action types, and expose no runtime
 registration API.
@@ -74,9 +75,10 @@ The only permitted `DevicePolicyManager` mutators are:
 
 - `setScreenCaptureDisabled`, verified by
   `getScreenCaptureDisabled(expectedAdmin)`;
-- `setCameraDisabled`, verified by `getCameraDisabled(expectedAdmin)`.
+- `setCameraDisabled`, verified by `getCameraDisabled(expectedAdmin)`;
+- `setStatusBarDisabled`, verified by `isStatusBarDisabled()` on API 34+.
 
-Direct `DevicePolicyManager` access is confined to four explicitly named classes
+Direct `DevicePolicyManager` access is confined to five explicitly named classes
 compiled from `AndroidDeviceManagementInfrastructure.kt` in
 `device-management-impl`. An Android Components guard consumes the final project
 class artifacts for every discovered production variant. JVM production source
@@ -92,15 +94,25 @@ SAM conversions are compiled as classes rather than LambdaMetafactory call sites
 Android variants also inspect merged native libraries, while production source
 inputs reject native code and libraries.
 
-DeviceAdmin metadata declares exactly `disable-camera`. Screen-capture control
-does not require a `uses-policies` declaration. Metadata tests reject every
-other capability, including `wipe-data`, `reset-password`, and `force-lock`.
+DeviceAdmin metadata declares exactly `disable-camera`. Screen-capture and
+status-bar control do not require a `uses-policies` declaration. Metadata tests
+reject every other capability, including `wipe-data`, `reset-password`, and
+`force-lock`.
 In addition to the source XML test, Android Components registers verification
 for every application variant. Each variant's assemble, unit-test, and check
 lifecycle validates the merged manifest, requires one exact DeviceAdmin receiver,
 and decodes the linked resource. New flavors and build types inherit the guard
 automatically; alternate receivers and manifest or resource overrides must still
 resolve to exactly the approved metadata.
+
+## Status-bar policy notes
+
+Status-bar enable/disable is available only on Android API 34+, because verified
+mutation requires `setStatusBarDisabled` followed immediately by
+`isStatusBarDisabled()`. On older SDKs the capability is reported unavailable and
+mutations fail closed without calling the setter. Status-bar disabling does not
+apply on the lock screen. LockTask is a separate Android capability and is not
+part of this policy surface.
 
 ## Adding a future capability safely
 
