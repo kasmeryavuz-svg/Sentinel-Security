@@ -175,7 +175,9 @@ is not called. After the existing trusted path returns, exactly one terminal
 event is appended: `APPLIED`, `REJECTED`, `FAILED`, or `SIMULATED`.
 Production bytecode allows those append invocations only from
 `DefaultSensitiveActionController.submit`, whether the call owner is
-`SensitiveActionAuditWriter` or `DurableAuditRepository`.
+`SensitiveActionAuditWriter` or `DurableAuditRepository`. Store insert and
+retention `deleteOldest` are allowed only from `DurableAuditRepository.append`,
+whether the call owner is `AuditRecordStore` or `SqliteAuditRecordStore`.
 
 SQLite and DevicePolicyManager are not one atomic transaction. If a mutation
 returns Applied and the terminal audit append then fails, the action result

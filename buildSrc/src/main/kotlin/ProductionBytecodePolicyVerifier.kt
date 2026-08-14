@@ -291,6 +291,48 @@ internal object ProductionBytecodePolicyVerifier {
             trustedAuditAppendOrigin,
     )
 
+    private val trustedAuditStoreMutationOrigin = InvocationOrigin(
+        "com/example/devicemanagement/audit/DurableAuditRepository",
+        "append",
+        "(Lcom/example/devicemanagement/audit/AuditAppendRequest;)" +
+            "Lcom/example/devicemanagement/audit/AuditAppendResult;",
+    )
+
+    /**
+     * Audit record insert and retention deletion are bound to
+     * DurableAuditRepository.append whether the bytecode call owner is the
+     * store interface or a concrete production adapter. Restricting only the
+     * interface leaves a concrete-type / cast bypass: a rogue class can still
+     * instantiate SqliteAuditRecordStore and mutate rows while SQLite itself
+     * remains allowlisted inside that adapter.
+     */
+    private val trustedAuditStoreMutationOrigins = mapOf(
+        "com/example/devicemanagement/audit/AuditRecordStore." +
+            "insert(Lcom/example/devicemanagement/audit/NewAuditRecord;)J" to
+            trustedAuditStoreMutationOrigin,
+        "com/example/devicemanagement/audit/SqliteAuditRecordStore." +
+            "insert(Lcom/example/devicemanagement/audit/NewAuditRecord;)J" to
+            trustedAuditStoreMutationOrigin,
+        "com/example/devicemanagement/audit/InMemoryAuditRecordStore." +
+            "insert(Lcom/example/devicemanagement/audit/NewAuditRecord;)J" to
+            trustedAuditStoreMutationOrigin,
+        "com/example/devicemanagement/audit/UnavailableAuditRecordStore." +
+            "insert(Lcom/example/devicemanagement/audit/NewAuditRecord;)J" to
+            trustedAuditStoreMutationOrigin,
+        "com/example/devicemanagement/audit/AuditRecordStore." +
+            "deleteOldest(I)V" to
+            trustedAuditStoreMutationOrigin,
+        "com/example/devicemanagement/audit/SqliteAuditRecordStore." +
+            "deleteOldest(I)V" to
+            trustedAuditStoreMutationOrigin,
+        "com/example/devicemanagement/audit/InMemoryAuditRecordStore." +
+            "deleteOldest(I)V" to
+            trustedAuditStoreMutationOrigin,
+        "com/example/devicemanagement/audit/UnavailableAuditRecordStore." +
+            "deleteOldest(I)V" to
+            trustedAuditStoreMutationOrigin,
+    )
+
     fun verify(targets: Iterable<PolicyVerificationTarget>): List<String> {
         return targets.flatMap(::verifyClass)
     }
@@ -434,6 +476,7 @@ internal object ProductionBytecodePolicyVerifier {
                 checkDpmInvocation(owner, name, descriptor, location)
                 checkVerifiedMutationInvocation(owner, name, descriptor, location)
                 checkTrustedAuditAppendInvocation(owner, name, descriptor, location)
+                checkTrustedAuditStoreMutationInvocation(owner, name, descriptor, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
                 checkContextDatabaseInvocation(owner, name, location)
                 checkDatabaseUtilsOwner(owner, "$location invocation $owner.$name$descriptor")
@@ -494,6 +537,12 @@ internal object ProductionBytecodePolicyVerifier {
                 "$location method handle",
             )
             checkTrustedAuditAppendInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
+            checkTrustedAuditStoreMutationInvocation(
                 handle.owner,
                 handle.name,
                 handle.desc,
@@ -581,6 +630,30 @@ internal object ProductionBytecodePolicyVerifier {
                 violation(
                     "$location invokes audit append $invocation outside " +
                         "DefaultSensitiveActionController",
+                )
+            }
+        }
+
+        private fun checkTrustedAuditStoreMutationInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            val invocation = "$owner.$name$descriptor"
+            val approvedOrigin = trustedAuditStoreMutationOrigins[invocation] ?: return
+            val actualOrigin = InvocationOrigin(
+                className,
+                methodName(location),
+                methodDescriptor(location),
+            )
+            if (
+                target.artifactPath != ":sensitive-actions" ||
+                actualOrigin != approvedOrigin
+            ) {
+                violation(
+                    "$location invokes audit store mutation $invocation outside " +
+                        "DurableAuditRepository",
                 )
             }
         }

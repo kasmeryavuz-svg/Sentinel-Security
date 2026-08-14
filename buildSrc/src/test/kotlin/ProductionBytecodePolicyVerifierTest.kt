@@ -1231,6 +1231,181 @@ class ProductionBytecodePolicyVerifierTest {
         assertTrue(violations.any { "outside DefaultSensitiveActionController" in it })
     }
 
+    @Test
+    fun `direct SqliteAuditRecordStore insert from rogue implementation class is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            sqliteAuditRecordStoreStub(),
+            newAuditRecordStub(),
+            "attack/RogueSqliteInsertBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.NewAuditRecord;
+                import com.example.devicemanagement.audit.SqliteAuditRecordStore;
+                public final class RogueSqliteInsertBypass {
+                    void forge(SqliteAuditRecordStore store, NewAuditRecord record) {
+                        store.insert(record);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "SqliteAuditRecordStore.insert" in it })
+    }
+
+    @Test
+    fun `AuditRecordStore interface insert outside DurableAuditRepository is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            newAuditRecordStub(),
+            "attack/RogueAuditRecordStoreInsertBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.AuditRecordStore;
+                import com.example.devicemanagement.audit.NewAuditRecord;
+                public final class RogueAuditRecordStoreInsertBypass {
+                    void forge(AuditRecordStore store, NewAuditRecord record) {
+                        store.insert(record);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "AuditRecordStore.insert" in it })
+    }
+
+    @Test
+    fun `cast from audit store interface to concrete SqliteAuditRecordStore insert is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            sqliteAuditRecordStoreStub(implementInterface = true),
+            newAuditRecordStub(),
+            "attack/CastSqliteInsertBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.AuditRecordStore;
+                import com.example.devicemanagement.audit.NewAuditRecord;
+                import com.example.devicemanagement.audit.SqliteAuditRecordStore;
+                public final class CastSqliteInsertBypass {
+                    void forge(AuditRecordStore store, NewAuditRecord record) {
+                        ((SqliteAuditRecordStore) store).insert(record);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "SqliteAuditRecordStore.insert" in it })
+    }
+
+    @Test
+    fun `direct SqliteAuditRecordStore deleteOldest outside DurableAuditRepository is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            sqliteAuditRecordStoreStub(),
+            newAuditRecordStub(),
+            "attack/RogueSqliteDeleteOldestBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.SqliteAuditRecordStore;
+                public final class RogueSqliteDeleteOldestBypass {
+                    void prune(SqliteAuditRecordStore store) {
+                        store.deleteOldest(1);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "SqliteAuditRecordStore.deleteOldest" in it })
+    }
+
+    @Test
+    fun `AuditRecordStore interface deleteOldest outside DurableAuditRepository is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            newAuditRecordStub(),
+            "attack/RogueAuditRecordStoreDeleteOldestBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.AuditRecordStore;
+                public final class RogueAuditRecordStoreDeleteOldestBypass {
+                    void prune(AuditRecordStore store) {
+                        store.deleteOldest(1);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "AuditRecordStore.deleteOldest" in it })
+    }
+
+    @Test
+    fun `authorized DurableAuditRepository append may insert and prune through the store`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            newAuditRecordStub(),
+            *auditAppendTypes(),
+            "com/example/devicemanagement/audit/DurableAuditRepository.java" to
+                """
+                package com.example.devicemanagement.audit;
+                public final class DurableAuditRepository {
+                    private final AuditRecordStore records;
+                    public DurableAuditRepository(AuditRecordStore records) {
+                        this.records = records;
+                    }
+                    public AuditAppendResult append(AuditAppendRequest request) {
+                        records.insert(null);
+                        records.count();
+                        records.deleteOldest(1);
+                        return null;
+                    }
+                    public void latest(int limit) {
+                        records.latest(limit);
+                        records.count();
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "outside DurableAuditRepository" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `repository store mutation from a non-append method is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            newAuditRecordStub(),
+            "com/example/devicemanagement/audit/DurableAuditRepository.java" to
+                """
+                package com.example.devicemanagement.audit;
+                public final class DurableAuditRepository {
+                    void bypass(AuditRecordStore store, NewAuditRecord record) {
+                        store.insert(record);
+                        store.deleteOldest(1);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "AuditRecordStore.insert" in it })
+        assertTrue(violations.any { "AuditRecordStore.deleteOldest" in it })
+    }
+
     private fun concreteCameraServiceStub(
         implementInterface: Boolean = false,
     ): Pair<String, String> {
@@ -1344,6 +1519,51 @@ class ProductionBytecodePolicyVerifierTest {
                     return null;
                 }
             }
+            """.trimIndent()
+    }
+
+    private fun auditRecordStoreStub(): Pair<String, String> {
+        return "com/example/devicemanagement/audit/AuditRecordStore.java" to
+            """
+            package com.example.devicemanagement.audit;
+            public interface AuditRecordStore {
+                long insert(NewAuditRecord record);
+                AuditRecordRead latest(int limit);
+                int count();
+                void deleteOldest(int count);
+            }
+            final class AuditRecordRead {}
+            """.trimIndent()
+    }
+
+    private fun sqliteAuditRecordStoreStub(
+        implementInterface: Boolean = false,
+    ): Pair<String, String> {
+        val implementsClause =
+            if (implementInterface) " implements AuditRecordStore" else ""
+        return "com/example/devicemanagement/audit/SqliteAuditRecordStore.java" to
+            """
+            package com.example.devicemanagement.audit;
+            public final class SqliteAuditRecordStore$implementsClause {
+                public long insert(NewAuditRecord record) {
+                    return 0L;
+                }
+                public AuditRecordRead latest(int limit) {
+                    return null;
+                }
+                public int count() {
+                    return 0;
+                }
+                public void deleteOldest(int count) {}
+            }
+            """.trimIndent()
+    }
+
+    private fun newAuditRecordStub(): Pair<String, String> {
+        return "com/example/devicemanagement/audit/NewAuditRecord.java" to
+            """
+            package com.example.devicemanagement.audit;
+            public final class NewAuditRecord {}
             """.trimIndent()
     }
 

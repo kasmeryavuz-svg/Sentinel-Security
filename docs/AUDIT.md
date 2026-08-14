@@ -48,6 +48,12 @@ creation/manipulation APIs, android.system.Os file-manipulation syscalls,
 OsConstants file flags, or java.io.File APIs capable of targeting the audit
 store. Production bytecode also binds `SensitiveActionAuditWriter.append` and
 `DurableAuditRepository.append` to `DefaultSensitiveActionController.submit`.
+`AuditRecordStore.insert`, `AuditRecordStore.deleteOldest`,
+`SqliteAuditRecordStore.insert`, and `SqliteAuditRecordStore.deleteOldest` are
+bound to `DurableAuditRepository.append`, so a future implementation class
+cannot instantiate or cast the SQLite adapter and forge or prune durable
+records while SQLite remains allowlisted inside that adapter. Read-only store
+operations (`latest`, `count`) remain available to the trusted audit pipeline.
 Audit records may be read only through `AuditHistoryProvider` and
 `AuditStorageStatusProvider`. Audit persistence cannot authorize actions,
 create approvals, replay commands, call DevicePolicyManager, or influence
