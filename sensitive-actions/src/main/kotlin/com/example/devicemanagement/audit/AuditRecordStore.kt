@@ -43,6 +43,8 @@ class AuditStoreException(message: String) : Exception(message)
  *
  * Implementations must not call DevicePolicyManager, consume approvals, or
  * authorize actions. Retention pruning belongs to the repository, not callers.
+ * Production bytecode allows [insert] and [deleteOldest] only from
+ * [DurableAuditRepository.append].
  */
 interface AuditRecordStore {
     fun insert(record: NewAuditRecord): Long

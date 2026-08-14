@@ -901,6 +901,511 @@ class ProductionBytecodePolicyVerifierTest {
         )
     }
 
+    @Test
+    fun `app bytecode cannot call Context moveDatabaseFrom`() {
+        val classes = compileJava(
+            "attack/ContextMoveDatabaseBypass.java" to
+                """
+                package attack;
+                import android.content.Context;
+                public final class ContextMoveDatabaseBypass {
+                    void reach(Context context, Context source) {
+                        context.moveDatabaseFrom(source, "sentinel_audit.db");
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "moveDatabaseFrom")
+        assertRejected(classes, "trusted audit pipeline")
+        assertRejected(classes, "sentinel_audit.db")
+    }
+
+    @Test
+    fun `custom ContextWrapper subclass inherited moveDatabaseFrom is rejected`() {
+        val classes = compileJava(
+            customContextWrapperSubclass(
+                className = "CustomMoveDatabaseFromContext",
+                methodName = "reach",
+                statement = "moveDatabaseFrom(this, \"sentinel_audit.db\");",
+            ),
+        )
+
+        assertInvocationOwner(
+            classes = classes,
+            callerClass = "attack/CustomMoveDatabaseFromContext",
+            callerMethod = "reach",
+            invokedName = "moveDatabaseFrom",
+            expectedOwner = "attack/CustomMoveDatabaseFromContext",
+        )
+        assertRejected(classes, "attack/CustomMoveDatabaseFromContext.moveDatabaseFrom")
+        assertRejected(classes, "trusted audit pipeline")
+    }
+
+    @Test
+    fun `app bytecode cannot create the audit database through DatabaseUtils`() {
+        val classes = compileJava(
+            "attack/DatabaseUtilsCreateBypass.java" to
+                """
+                package attack;
+                import android.content.Context;
+                import android.database.DatabaseUtils;
+                public final class DatabaseUtilsCreateBypass {
+                    void reach(Context context) {
+                        DatabaseUtils.createDbFromSqlStatements(
+                            context,
+                            "other.db",
+                            1,
+                            "CREATE TABLE audit_events (sequence INTEGER);"
+                        );
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "DatabaseUtils")
+        assertRejected(classes, "create or populate")
+    }
+
+    @Test
+    fun `DatabaseUtils InsertHelper is rejected outside trusted audit classes`() {
+        val classes = compileJava(
+            "attack/DatabaseUtilsInsertHelperBypass.java" to
+                """
+                package attack;
+                import android.database.DatabaseUtils;
+                import android.database.sqlite.SQLiteDatabase;
+                public final class DatabaseUtilsInsertHelperBypass {
+                    Object reach(SQLiteDatabase db) {
+                        return new DatabaseUtils.InsertHelper(db, "audit_events");
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "DatabaseUtils" in it && "create or populate" in it })
+    }
+
+    @Test
+    fun `app bytecode cannot open audit files through android system Os`() {
+        val classes = compileJava(
+            "attack/OsOpenBypass.java" to
+                """
+                package attack;
+                import android.system.Os;
+                import java.io.FileDescriptor;
+                public final class OsOpenBypass {
+                    FileDescriptor reach(String path) throws Exception {
+                        return Os.open(path, 2, 0600);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "android/system/Os.open")
+        assertRejected(classes, "open, unlink, rename")
+    }
+
+    @Test
+    fun `app bytecode cannot unlink rename truncate or chmod through Os`() {
+        val classes = compileJava(
+            "attack/OsMutateBypass.java" to
+                """
+                package attack;
+                import android.system.Os;
+                import java.io.FileDescriptor;
+                public final class OsMutateBypass {
+                    void reach(String path, FileDescriptor fd) throws Exception {
+                        Os.unlink(path);
+                        Os.rename(path, path + ".bak");
+                        Os.truncate(path, 0L);
+                        Os.ftruncate(fd, 0L);
+                        Os.chmod(path, 0600);
+                        Os.chown(path, 0, 0);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "android/system/Os.unlink")
+        assertRejected(classes, "android/system/Os.rename")
+        assertRejected(classes, "android/system/Os.truncate")
+        assertRejected(classes, "android/system/Os.ftruncate")
+        assertRejected(classes, "android/system/Os.chmod")
+        assertRejected(classes, "android/system/Os.chown")
+    }
+
+    @Test
+    fun `OsConstants file flags are rejected outside trusted audit classes`() {
+        val classes = compileJava(
+            "attack/OsConstantsBypass.java" to
+                """
+                package attack;
+                import android.system.Os;
+                import android.system.OsConstants;
+                public final class OsConstantsBypass {
+                    Object reach(String path) throws Exception {
+                        return Os.open(path, OsConstants.O_RDWR | OsConstants.O_CREAT, 0600);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "android/system/OsConstants")
+        assertRejected(classes, "android/system/Os.open")
+    }
+
+    @Test
+    fun `Os file syscalls are rejected from a future implementation class`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/RogueOsAuditMutator.java" to
+                """
+                package com.example.devicemanagement.management;
+                import android.system.Os;
+                public final class RogueOsAuditMutator {
+                    void reach(String path) throws Exception {
+                        Os.unlink(path);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "android/system/Os.unlink" in it })
+    }
+
+    @Test
+    fun `unrelated Os getpid remains accepted from app bytecode`() {
+        val classes = compileJava(
+            "safe/OsGetpid.java" to
+                """
+                package safe;
+                import android.system.Os;
+                public final class OsGetpid {
+                    int pid() {
+                        return Os.getpid();
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":app", classes)
+        assertTrue(
+            violations.none { "android/system/Os" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `direct SensitiveActionAuditWriter append outside controller is rejected`() {
+        val classes = compileJava(
+            auditWriterStub(),
+            *auditAppendTypes(),
+            "attack/DirectAuditWriterAppendBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.AuditAppendRequest;
+                import com.example.devicemanagement.audit.SensitiveActionAuditWriter;
+                public final class DirectAuditWriterAppendBypass {
+                    void reach(SensitiveActionAuditWriter writer, AuditAppendRequest request) {
+                        writer.append(request);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "outside DefaultSensitiveActionController" in it })
+        assertTrue(violations.any { "SensitiveActionAuditWriter.append" in it })
+    }
+
+    @Test
+    fun `direct DurableAuditRepository append outside controller is rejected`() {
+        val classes = compileJava(
+            auditWriterStub(),
+            durableAuditRepositoryStub(),
+            *auditAppendTypes(),
+            "attack/DirectDurableRepositoryAppendBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.AuditAppendRequest;
+                import com.example.devicemanagement.audit.DurableAuditRepository;
+                public final class DirectDurableRepositoryAppendBypass {
+                    void reach(DurableAuditRepository repository, AuditAppendRequest request) {
+                        repository.append(request);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "outside DefaultSensitiveActionController" in it })
+        assertTrue(violations.any { "DurableAuditRepository.append" in it })
+    }
+
+    @Test
+    fun `cast from audit writer interface to concrete repository append is rejected`() {
+        val classes = compileJava(
+            auditWriterStub(),
+            durableAuditRepositoryStub(implementInterface = true),
+            *auditAppendTypes(),
+            "attack/CastDurableRepositoryAppendBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.AuditAppendRequest;
+                import com.example.devicemanagement.audit.DurableAuditRepository;
+                import com.example.devicemanagement.audit.SensitiveActionAuditWriter;
+                public final class CastDurableRepositoryAppendBypass {
+                    void reach(SensitiveActionAuditWriter writer, AuditAppendRequest request) {
+                        ((DurableAuditRepository) writer).append(request);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "outside DefaultSensitiveActionController" in it })
+        assertTrue(violations.any { "DurableAuditRepository.append" in it })
+    }
+
+    @Test
+    fun `authorized DefaultSensitiveActionController may append through the writer`() {
+        val classes = compileJava(
+            auditWriterStub(),
+            *auditAppendTypes(),
+            "com/example/devicemanagement/trigger/Trigger.java" to
+                """
+                package com.example.devicemanagement.trigger;
+                public final class Trigger {}
+                """.trimIndent(),
+            "com/example/devicemanagement/action/ActionResult.java" to
+                """
+                package com.example.devicemanagement.action;
+                public abstract class ActionResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/action/DefaultSensitiveActionController.java" to
+                """
+                package com.example.devicemanagement.action;
+                import com.example.devicemanagement.audit.SensitiveActionAuditWriter;
+                import com.example.devicemanagement.trigger.Trigger;
+                public final class DefaultSensitiveActionController {
+                    private final SensitiveActionAuditWriter auditWriter;
+                    public DefaultSensitiveActionController(SensitiveActionAuditWriter auditWriter) {
+                        this.auditWriter = auditWriter;
+                    }
+                    public ActionResult submit(Trigger trigger) {
+                        auditWriter.append(null);
+                        auditWriter.append(null);
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "outside DefaultSensitiveActionController" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `controller append from a non-submit method is rejected`() {
+        val classes = compileJava(
+            auditWriterStub(),
+            *auditAppendTypes(),
+            "com/example/devicemanagement/action/DefaultSensitiveActionController.java" to
+                """
+                package com.example.devicemanagement.action;
+                import com.example.devicemanagement.audit.SensitiveActionAuditWriter;
+                public final class DefaultSensitiveActionController {
+                    void bypass(SensitiveActionAuditWriter writer) {
+                        writer.append(null);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "outside DefaultSensitiveActionController" in it })
+    }
+
+    @Test
+    fun `direct SqliteAuditRecordStore insert from rogue implementation class is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            sqliteAuditRecordStoreStub(),
+            newAuditRecordStub(),
+            "attack/RogueSqliteInsertBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.NewAuditRecord;
+                import com.example.devicemanagement.audit.SqliteAuditRecordStore;
+                public final class RogueSqliteInsertBypass {
+                    void forge(SqliteAuditRecordStore store, NewAuditRecord record) {
+                        store.insert(record);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "SqliteAuditRecordStore.insert" in it })
+    }
+
+    @Test
+    fun `AuditRecordStore interface insert outside DurableAuditRepository is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            newAuditRecordStub(),
+            "attack/RogueAuditRecordStoreInsertBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.AuditRecordStore;
+                import com.example.devicemanagement.audit.NewAuditRecord;
+                public final class RogueAuditRecordStoreInsertBypass {
+                    void forge(AuditRecordStore store, NewAuditRecord record) {
+                        store.insert(record);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "AuditRecordStore.insert" in it })
+    }
+
+    @Test
+    fun `cast from audit store interface to concrete SqliteAuditRecordStore insert is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            sqliteAuditRecordStoreStub(implementInterface = true),
+            newAuditRecordStub(),
+            "attack/CastSqliteInsertBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.AuditRecordStore;
+                import com.example.devicemanagement.audit.NewAuditRecord;
+                import com.example.devicemanagement.audit.SqliteAuditRecordStore;
+                public final class CastSqliteInsertBypass {
+                    void forge(AuditRecordStore store, NewAuditRecord record) {
+                        ((SqliteAuditRecordStore) store).insert(record);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "SqliteAuditRecordStore.insert" in it })
+    }
+
+    @Test
+    fun `direct SqliteAuditRecordStore deleteOldest outside DurableAuditRepository is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            sqliteAuditRecordStoreStub(),
+            newAuditRecordStub(),
+            "attack/RogueSqliteDeleteOldestBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.SqliteAuditRecordStore;
+                public final class RogueSqliteDeleteOldestBypass {
+                    void prune(SqliteAuditRecordStore store) {
+                        store.deleteOldest(1);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "SqliteAuditRecordStore.deleteOldest" in it })
+    }
+
+    @Test
+    fun `AuditRecordStore interface deleteOldest outside DurableAuditRepository is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            newAuditRecordStub(),
+            "attack/RogueAuditRecordStoreDeleteOldestBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.audit.AuditRecordStore;
+                public final class RogueAuditRecordStoreDeleteOldestBypass {
+                    void prune(AuditRecordStore store) {
+                        store.deleteOldest(1);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "AuditRecordStore.deleteOldest" in it })
+    }
+
+    @Test
+    fun `authorized DurableAuditRepository append may insert and prune through the store`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            newAuditRecordStub(),
+            *auditAppendTypes(),
+            "com/example/devicemanagement/audit/DurableAuditRepository.java" to
+                """
+                package com.example.devicemanagement.audit;
+                public final class DurableAuditRepository {
+                    private final AuditRecordStore records;
+                    public DurableAuditRepository(AuditRecordStore records) {
+                        this.records = records;
+                    }
+                    public AuditAppendResult append(AuditAppendRequest request) {
+                        records.insert(null);
+                        records.count();
+                        records.deleteOldest(1);
+                        return null;
+                    }
+                    public void latest(int limit) {
+                        records.latest(limit);
+                        records.count();
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "outside DurableAuditRepository" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `repository store mutation from a non-append method is rejected`() {
+        val classes = compileJava(
+            auditRecordStoreStub(),
+            newAuditRecordStub(),
+            "com/example/devicemanagement/audit/DurableAuditRepository.java" to
+                """
+                package com.example.devicemanagement.audit;
+                public final class DurableAuditRepository {
+                    void bypass(AuditRecordStore store, NewAuditRecord record) {
+                        store.insert(record);
+                        store.deleteOldest(1);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "outside DurableAuditRepository" in it })
+        assertTrue(violations.any { "AuditRecordStore.insert" in it })
+        assertTrue(violations.any { "AuditRecordStore.deleteOldest" in it })
+    }
+
     private fun concreteCameraServiceStub(
         implementInterface: Boolean = false,
     ): Pair<String, String> {
@@ -989,6 +1494,92 @@ class ProductionBytecodePolicyVerifierTest {
                 }
             }
             """.trimIndent()
+    }
+
+    private fun auditWriterStub(): Pair<String, String> {
+        return "com/example/devicemanagement/audit/SensitiveActionAuditWriter.java" to
+            """
+            package com.example.devicemanagement.audit;
+            public interface SensitiveActionAuditWriter {
+                AuditAppendResult append(AuditAppendRequest request);
+            }
+            """.trimIndent()
+    }
+
+    private fun durableAuditRepositoryStub(
+        implementInterface: Boolean = false,
+    ): Pair<String, String> {
+        val implementsClause =
+            if (implementInterface) " implements SensitiveActionAuditWriter" else ""
+        return "com/example/devicemanagement/audit/DurableAuditRepository.java" to
+            """
+            package com.example.devicemanagement.audit;
+            public final class DurableAuditRepository$implementsClause {
+                public AuditAppendResult append(AuditAppendRequest request) {
+                    return null;
+                }
+            }
+            """.trimIndent()
+    }
+
+    private fun auditRecordStoreStub(): Pair<String, String> {
+        return "com/example/devicemanagement/audit/AuditRecordStore.java" to
+            """
+            package com.example.devicemanagement.audit;
+            public interface AuditRecordStore {
+                long insert(NewAuditRecord record);
+                AuditRecordRead latest(int limit);
+                int count();
+                void deleteOldest(int count);
+            }
+            final class AuditRecordRead {}
+            """.trimIndent()
+    }
+
+    private fun sqliteAuditRecordStoreStub(
+        implementInterface: Boolean = false,
+    ): Pair<String, String> {
+        val implementsClause =
+            if (implementInterface) " implements AuditRecordStore" else ""
+        return "com/example/devicemanagement/audit/SqliteAuditRecordStore.java" to
+            """
+            package com.example.devicemanagement.audit;
+            public final class SqliteAuditRecordStore$implementsClause {
+                public long insert(NewAuditRecord record) {
+                    return 0L;
+                }
+                public AuditRecordRead latest(int limit) {
+                    return null;
+                }
+                public int count() {
+                    return 0;
+                }
+                public void deleteOldest(int count) {}
+            }
+            """.trimIndent()
+    }
+
+    private fun newAuditRecordStub(): Pair<String, String> {
+        return "com/example/devicemanagement/audit/NewAuditRecord.java" to
+            """
+            package com.example.devicemanagement.audit;
+            public final class NewAuditRecord {}
+            """.trimIndent()
+    }
+
+    private fun auditAppendTypes(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/audit/AuditAppendRequest.java" to
+                """
+                package com.example.devicemanagement.audit;
+                public final class AuditAppendRequest {}
+                """.trimIndent(),
+            "com/example/devicemanagement/audit/AuditAppendResult.java" to
+                """
+                package com.example.devicemanagement.audit;
+                public abstract class AuditAppendResult {}
+                """.trimIndent(),
+        )
     }
 
     private fun customContextWrapperSubclass(
@@ -1128,6 +1719,9 @@ class ProductionBytecodePolicyVerifierTest {
                 public File getDatabasePath(String name) {
                     return new File(name);
                 }
+                public boolean moveDatabaseFrom(Context sourceContext, String name) {
+                    return false;
+                }
             }
             """.trimIndent(),
         "android/content/ContextWrapper.java" to
@@ -1163,6 +1757,48 @@ class ProductionBytecodePolicyVerifierTest {
                 ) {}
                 public abstract void onCreate(SQLiteDatabase db);
                 public abstract void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion);
+            }
+            """.trimIndent(),
+        "android/database/DatabaseUtils.java" to
+            """
+            package android.database;
+            import android.content.Context;
+            import android.database.sqlite.SQLiteDatabase;
+            public final class DatabaseUtils {
+                public static void createDbFromSqlStatements(
+                    Context context,
+                    String dbName,
+                    int dbVersion,
+                    String sql
+                ) {}
+                public static final class InsertHelper {
+                    public InsertHelper(SQLiteDatabase db, String tableName) {}
+                }
+            }
+            """.trimIndent(),
+        "android/system/Os.java" to
+            """
+            package android.system;
+            import java.io.FileDescriptor;
+            public final class Os {
+                public static FileDescriptor open(String path, int flags, int mode) {
+                    return null;
+                }
+                public static void unlink(String path) {}
+                public static void rename(String oldPath, String newPath) {}
+                public static void truncate(String path, long length) {}
+                public static void ftruncate(FileDescriptor fd, long length) {}
+                public static void chmod(String path, int mode) {}
+                public static void chown(String path, int uid, int gid) {}
+                public static int getpid() { return 0; }
+            }
+            """.trimIndent(),
+        "android/system/OsConstants.java" to
+            """
+            package android.system;
+            public final class OsConstants {
+                public static int O_RDWR = 2;
+                public static int O_CREAT = 64;
             }
             """.trimIndent(),
         "android/app/admin/DevicePolicyManager.java" to
