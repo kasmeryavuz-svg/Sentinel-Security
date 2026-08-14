@@ -1,5 +1,12 @@
 package com.example.devicemanagement.ui
 
+import com.example.devicemanagement.audit.AuditActionNames
+import com.example.devicemanagement.audit.AuditEvent
+import com.example.devicemanagement.audit.AuditEventPhase
+import com.example.devicemanagement.audit.AuditHistory
+import com.example.devicemanagement.audit.AuditSchema
+import com.example.devicemanagement.audit.AuditStorageHealth
+import com.example.devicemanagement.audit.AuditStorageStatus
 import com.example.devicemanagement.management.CameraPolicyState
 import com.example.devicemanagement.management.CameraPolicyStatus
 import com.example.devicemanagement.management.DeviceOwnerValidationResult
@@ -11,42 +18,46 @@ import com.example.devicemanagement.management.StatusBarPolicyState
 import com.example.devicemanagement.management.StatusBarPolicyStatus
 
 /**
- * Maps read-only provider values and NON-PERSISTENT session history into
- * dashboard presentation state.
+ * Maps read-only provider values and durable audit history into dashboard
+ * presentation state.
  *
  * Policy and ownership states are copied from provider APIs. This mapper does
- * not infer current policy from the last mutation result.
+ * not infer current policy from audit events, and never treats an unmatched
+ * REQUESTED event as Applied.
  */
 object DashboardStateMapper {
     fun map(
         snapshot: DashboardSnapshot,
-        sessionEntries: List<SessionActivityEntry>,
+        auditHistory: AuditHistory,
+        auditStatus: AuditStorageStatus,
         pendingCapability: PolicyCapability?,
     ): DashboardViewState {
         val verification = snapshot.validation.result.toPresentation()
         val operationInProgress = pendingCapability != null
+        val auditLog = AuditLogMapper.rows(auditHistory.events)
         return DashboardViewState(
             header = HeaderViewState(verification = verification),
             management = mapManagement(snapshot, verification),
             screenCapture = mapScreenCapture(
                 status = snapshot.screenCapture,
-                sessionEntries = sessionEntries,
+                auditLog = auditLog,
                 pendingCapability = pendingCapability,
                 operationInProgress = operationInProgress,
             ),
             camera = mapCamera(
                 status = snapshot.camera,
-                sessionEntries = sessionEntries,
+                auditLog = auditLog,
                 pendingCapability = pendingCapability,
                 operationInProgress = operationInProgress,
             ),
             statusBar = mapStatusBar(
                 status = snapshot.statusBar,
-                sessionEntries = sessionEntries,
+                auditLog = auditLog,
                 pendingCapability = pendingCapability,
                 operationInProgress = operationInProgress,
             ),
-            sessionActivity = sessionEntries,
+            auditLog = auditLog,
+            auditStorageHealth = auditStatus.health,
             operationInProgress = operationInProgress,
         )
     }
@@ -83,7 +94,7 @@ object DashboardStateMapper {
 
     private fun mapScreenCapture(
         status: ScreenCapturePolicyStatus,
-        sessionEntries: List<SessionActivityEntry>,
+        auditLog: List<AuditLogRow>,
         pendingCapability: PolicyCapability?,
         operationInProgress: Boolean,
     ): PolicyCardViewState {
@@ -92,7 +103,7 @@ object DashboardStateMapper {
             state = status.state.toPresentation(),
             reasons = status.reasons,
             requiresApi34Notice = false,
-            sessionEntries = sessionEntries,
+            auditLog = auditLog,
             pendingCapability = pendingCapability,
             operationInProgress = operationInProgress,
         )
@@ -100,7 +111,7 @@ object DashboardStateMapper {
 
     private fun mapCamera(
         status: CameraPolicyStatus,
-        sessionEntries: List<SessionActivityEntry>,
+        auditLog: List<AuditLogRow>,
         pendingCapability: PolicyCapability?,
         operationInProgress: Boolean,
     ): PolicyCardViewState {
@@ -109,7 +120,7 @@ object DashboardStateMapper {
             state = status.state.toPresentation(),
             reasons = status.reasons,
             requiresApi34Notice = false,
-            sessionEntries = sessionEntries,
+            auditLog = auditLog,
             pendingCapability = pendingCapability,
             operationInProgress = operationInProgress,
         )
@@ -117,7 +128,7 @@ object DashboardStateMapper {
 
     private fun mapStatusBar(
         status: StatusBarPolicyStatus,
-        sessionEntries: List<SessionActivityEntry>,
+        auditLog: List<AuditLogRow>,
         pendingCapability: PolicyCapability?,
         operationInProgress: Boolean,
     ): PolicyCardViewState {
@@ -127,7 +138,7 @@ object DashboardStateMapper {
             state = status.state.toPresentation(),
             reasons = status.reasons,
             requiresApi34Notice = requiresApi34Notice,
-            sessionEntries = sessionEntries,
+            auditLog = auditLog,
             pendingCapability = pendingCapability,
             operationInProgress = operationInProgress,
         )
@@ -138,11 +149,13 @@ object DashboardStateMapper {
         state: PolicyPresentationState,
         reasons: List<String>,
         requiresApi34Notice: Boolean,
-        sessionEntries: List<SessionActivityEntry>,
+        auditLog: List<AuditLogRow>,
         pendingCapability: PolicyCapability?,
         operationInProgress: Boolean,
     ): PolicyCardViewState {
-        val latest = sessionEntries.firstOrNull { it.capability == capability }
+        val latest = auditLog.firstOrNull { row ->
+            capabilityForAction(row.actionName) == capability
+        }
         val pending = pendingCapability == capability
         return PolicyCardViewState(
             capability = capability,
@@ -153,11 +166,77 @@ object DashboardStateMapper {
             latestOutcome = if (pending) {
                 OperationOutcomePresentation.PENDING
             } else {
-                latest?.outcome ?: OperationOutcomePresentation.NONE
+                latest?.status.toOperationOutcome()
             },
-            latestOutcomeDetail = if (pending) null else latest?.reason,
+            latestOutcomeDetail = if (pending) null else latest?.reasonCode,
             latestCorrelationId = if (pending) null else latest?.correlationId,
         )
+    }
+}
+
+internal object AuditLogMapper {
+    fun rows(
+        events: List<AuditEvent>,
+        limit: Int = AuditSchema.DASHBOARD_LIMIT,
+    ): List<AuditLogRow> {
+        val newestFirst = events.sortedByDescending { it.sequence }
+        val rows = LinkedHashMap<String, AuditLogRow>()
+        newestFirst.forEach { event ->
+            if (event.correlationId in rows) {
+                return@forEach
+            }
+            rows[event.correlationId] = rowForSequence(event, newestFirst)
+        }
+        return rows.values.take(limit)
+    }
+
+    private fun rowForSequence(
+        newest: AuditEvent,
+        newestFirst: List<AuditEvent>,
+    ): AuditLogRow {
+        val sequence = newestFirst.filter { it.correlationId == newest.correlationId }
+        val terminal = sequence.firstOrNull { it.phase != AuditEventPhase.REQUESTED }
+        val displayed = terminal ?: newest
+        val status = when (displayed.phase) {
+            AuditEventPhase.APPLIED -> AuditLogStatus.APPLIED
+            AuditEventPhase.REJECTED -> AuditLogStatus.REJECTED
+            AuditEventPhase.FAILED -> AuditLogStatus.FAILED
+            AuditEventPhase.SIMULATED -> AuditLogStatus.SIMULATED
+            AuditEventPhase.REQUESTED -> AuditLogStatus.INTERRUPTED
+        }
+        return AuditLogRow(
+            timestampMillis = displayed.presentationWallClockMillis,
+            actionName = displayed.actionName,
+            status = status,
+            correlationId = displayed.correlationId,
+            reasonCode = displayed.reasonCode?.name,
+        )
+    }
+}
+
+internal fun capabilityForAction(actionName: String): PolicyCapability? {
+    return when (actionName) {
+        AuditActionNames.DISABLE_SCREEN_CAPTURE,
+        AuditActionNames.ENABLE_SCREEN_CAPTURE,
+        -> PolicyCapability.SCREEN_CAPTURE
+        AuditActionNames.DISABLE_CAMERA,
+        AuditActionNames.ENABLE_CAMERA,
+        -> PolicyCapability.CAMERA
+        AuditActionNames.DISABLE_STATUS_BAR,
+        AuditActionNames.ENABLE_STATUS_BAR,
+        -> PolicyCapability.STATUS_BAR
+        else -> null
+    }
+}
+
+internal fun AuditLogStatus?.toOperationOutcome(): OperationOutcomePresentation {
+    return when (this) {
+        AuditLogStatus.APPLIED -> OperationOutcomePresentation.APPLIED
+        AuditLogStatus.REJECTED -> OperationOutcomePresentation.DENIED
+        AuditLogStatus.FAILED -> OperationOutcomePresentation.FAILED
+        AuditLogStatus.SIMULATED -> OperationOutcomePresentation.SIMULATED
+        AuditLogStatus.INTERRUPTED -> OperationOutcomePresentation.INTERRUPTED
+        null -> OperationOutcomePresentation.NONE
     }
 }
 

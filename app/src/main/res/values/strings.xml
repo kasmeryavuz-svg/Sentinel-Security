@@ -78,16 +78,19 @@
     <string name="outcome_applied">Applied</string>
     <string name="outcome_denied">Denied</string>
     <string name="outcome_failed">Failed</string>
+    <string name="outcome_simulated">Simulated</string>
+    <string name="outcome_interrupted">Interrupted</string>
     <string name="outcome_with_reason">%1$s: %2$s</string>
     <string name="outcome_with_correlation">%1$s\nCorrelation ID: %2$s</string>
-    <string name="section_session_activity">Session activity</string>
-    <string name="session_activity_notice">NON-PERSISTENT session history. These entries stay in memory for this app session only and are cleared when the app restarts. This is not an audit log.</string>
-    <string name="session_activity_empty">No actions in this session yet.</string>
-    <string name="session_requested_blocked">requested blocked</string>
-    <string name="session_requested_allowed">requested allowed</string>
-    <string name="session_entry">%1$s\n%2$s · %3$s · %4$s\nCorrelation ID: %5$s</string>
-    <string name="session_entry_with_reason">%1$s\n%2$s · %3$s · %4$s\n%5$s\nCorrelation ID: %6$s</string>
+    <string name="section_audit_log">Audit log</string>
+    <string name="audit_notice">Local durable audit history. Oldest records are pruned after 8,000 events. This is not cryptographically tamper-proof archival and is not synced to the cloud.</string>
+    <string name="audit_degraded">Audit degraded. Local audit storage could not record a later event. Incomplete sequences stay visible and are never shown as Applied.</string>
+    <string name="audit_unavailable">Audit unavailable. Sensitive policy changes are blocked until audit storage can be written again.</string>
+    <string name="audit_empty">No audit events yet.</string>
+    <string name="audit_entry">%1$s\n%2$s · %3$s\nCorrelation ID: %4$s</string>
+    <string name="audit_entry_with_reason">%1$s\n%2$s · %3$s\n%4$s\nCorrelation ID: %5$s</string>
     <string name="reason_post_write_mismatch">The device did not confirm the requested change.</string>
+    <string name="reason_audit_unavailable">Audit storage could not be written.</string>
     <string name="card_content_description">%1$s. %2$s</string>
     <string name="banner_content_description">Device management status: %1$s</string>
 </resources>

@@ -1,5 +1,13 @@
 package com.example.devicemanagement.ui
 
+import com.example.devicemanagement.audit.AuditActionNames
+import com.example.devicemanagement.audit.AuditEvent
+import com.example.devicemanagement.audit.AuditEventPhase
+import com.example.devicemanagement.audit.AuditHistory
+import com.example.devicemanagement.audit.AuditReasonCode
+import com.example.devicemanagement.audit.AuditSchema
+import com.example.devicemanagement.audit.AuditStorageHealth
+import com.example.devicemanagement.audit.AuditStorageStatus
 import com.example.devicemanagement.management.CameraPolicyState
 import com.example.devicemanagement.management.CameraPolicyStatus
 import com.example.devicemanagement.management.DeviceManagementStatus
@@ -82,21 +90,37 @@ internal object DashboardTestFixtures {
         )
     }
 
-    fun sessionEntry(
-        capability: PolicyCapability,
-        requestedDisabled: Boolean = true,
-        outcome: OperationOutcomePresentation = OperationOutcomePresentation.APPLIED,
+    fun auditEvent(
+        actionName: String = AuditActionNames.DISABLE_CAMERA,
+        phase: AuditEventPhase = AuditEventPhase.APPLIED,
         correlationId: String = "corr-1",
-        sessionTimestampMillis: Long = 1_000L,
-        reason: String? = null,
-    ): SessionActivityEntry {
-        return SessionActivityEntry(
-            capability = capability,
-            requestedDisabled = requestedDisabled,
-            outcome = outcome,
+        sequence: Long = 1L,
+        timestamp: Long = 1_000L,
+        reason: AuditReasonCode? = null,
+    ): AuditEvent {
+        return AuditEvent(
+            sequence = sequence,
+            eventId = "event-$sequence",
             correlationId = correlationId,
-            sessionTimestampMillis = sessionTimestampMillis,
-            reason = reason,
+            actionName = actionName,
+            phase = phase,
+            presentationWallClockMillis = timestamp,
+            reasonCode = reason,
+        )
+    }
+
+    fun history(vararg events: AuditEvent): AuditHistory {
+        return AuditHistory(
+            events = events.toList(),
+            storedCount = events.size,
+            retentionBound = AuditSchema.RETENTION_BOUND,
+        )
+    }
+
+    fun healthyStatus(): AuditStorageStatus {
+        return AuditStorageStatus(
+            health = AuditStorageHealth.HEALTHY,
+            reasonCode = null,
         )
     }
 }

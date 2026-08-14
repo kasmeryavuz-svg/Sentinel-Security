@@ -10,6 +10,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.example.devicemanagement.R
 import com.example.devicemanagement.app.DeviceManagementApp
+import com.example.devicemanagement.audit.AuditActionNames
+import com.example.devicemanagement.audit.AuditStorageHealth
 import java.util.Date
 
 class MainActivity : Activity() {
@@ -27,8 +29,9 @@ class MainActivity : Activity() {
     private lateinit var screenCaptureCard: PolicyCardViews
     private lateinit var cameraCard: PolicyCardViews
     private lateinit var statusBarCard: PolicyCardViews
-    private lateinit var sessionEmpty: TextView
-    private lateinit var sessionList: LinearLayout
+    private lateinit var auditStatus: TextView
+    private lateinit var auditEmpty: TextView
+    private lateinit var auditList: LinearLayout
     private var detailsVisible = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,7 +50,8 @@ class MainActivity : Activity() {
                 )
             },
             sensitiveActions = container.sensitiveActions,
-            sessionActivity = SessionActivityStore(),
+            auditHistory = container.auditHistory,
+            auditStorageStatus = container.auditStorageStatus,
         )
         bindViews()
         bindState(presenter.currentState())
@@ -69,8 +73,9 @@ class MainActivity : Activity() {
         screenCaptureCard = PolicyCardViews(findViewById(R.id.card_screen_capture))
         cameraCard = PolicyCardViews(findViewById(R.id.card_camera))
         statusBarCard = PolicyCardViews(findViewById(R.id.card_status_bar))
-        sessionEmpty = findViewById(R.id.session_empty)
-        sessionList = findViewById(R.id.session_list)
+        auditStatus = findViewById(R.id.audit_status)
+        auditEmpty = findViewById(R.id.audit_empty)
+        auditList = findViewById(R.id.audit_list)
 
         managementDetailsToggle.setOnClickListener {
             detailsVisible = !detailsVisible
@@ -124,7 +129,7 @@ class MainActivity : Activity() {
             disableDescription = getString(R.string.action_disable_status_bar),
             enableDescription = getString(R.string.action_enable_status_bar),
         )
-        bindSessionActivity(state.sessionActivity)
+        bindAuditLog(state)
     }
 
     private fun bindHeader(header: HeaderViewState) {
@@ -203,19 +208,22 @@ class MainActivity : Activity() {
         views.outcome.setTextColor(outcomeColor(card.latestOutcome))
     }
 
-    private fun bindSessionActivity(entries: List<SessionActivityEntry>) {
-        sessionList.removeAllViews()
-        if (entries.isEmpty()) {
-            sessionEmpty.visibility = View.VISIBLE
-            sessionList.visibility = View.GONE
+    private fun bindAuditLog(state: DashboardViewState) {
+        auditStatus.text = auditStatusText(state.auditStorageHealth)
+        auditStatus.setTextColor(auditStatusColor(state.auditStorageHealth))
+        auditStatus.contentDescription = auditStatus.text
+        auditList.removeAllViews()
+        if (state.auditLog.isEmpty()) {
+            auditEmpty.visibility = View.VISIBLE
+            auditList.visibility = View.GONE
             return
         }
-        sessionEmpty.visibility = View.GONE
-        sessionList.visibility = View.VISIBLE
+        auditEmpty.visibility = View.GONE
+        auditList.visibility = View.VISIBLE
         val timeFormat = DateFormat.getTimeFormat(this)
-        entries.forEach { entry ->
+        state.auditLog.forEach { entry ->
             val row = TextView(this).apply {
-                text = sessionEntryText(entry, timeFormat.format(Date(entry.sessionTimestampMillis)))
+                text = auditEntryText(entry, timeFormat.format(Date(entry.timestampMillis)))
                 setTextColor(resources.getColor(R.color.dashboard_text_primary, theme))
                 setTextSize(
                     TypedValue.COMPLEX_UNIT_PX,
@@ -225,39 +233,55 @@ class MainActivity : Activity() {
                 setTextIsSelectable(true)
                 contentDescription = text
             }
-            sessionList.addView(row)
+            auditList.addView(row)
         }
     }
 
-    private fun sessionEntryText(entry: SessionActivityEntry, time: String): String {
-        val action = actionLabel(entry.capability, entry.requestedDisabled)
-        val outcome = outcomeLabel(entry.outcome)
-        val requested = if (entry.requestedDisabled) {
-            getString(R.string.session_requested_blocked)
-        } else {
-            getString(R.string.session_requested_allowed)
-        }
-        val reason = friendlyReason(entry.reason)
+    private fun auditEntryText(entry: AuditLogRow, time: String): String {
+        val action = auditActionLabel(entry.actionName)
+        val status = auditStatusLabel(entry.status)
+        val reason = friendlyReason(entry.reasonCode)
         return if (reason == null) {
             getString(
-                R.string.session_entry,
+                R.string.audit_entry,
                 action,
-                outcome,
-                requested,
+                status,
                 time,
                 entry.correlationId,
             )
         } else {
             getString(
-                R.string.session_entry_with_reason,
+                R.string.audit_entry_with_reason,
                 action,
-                outcome,
-                requested,
+                status,
                 time,
                 reason,
                 entry.correlationId,
             )
         }
+    }
+
+    private fun auditStatusText(health: AuditStorageHealth): String {
+        return when (health) {
+            AuditStorageHealth.HEALTHY ->
+                getString(R.string.audit_notice)
+            AuditStorageHealth.DEGRADED ->
+                getString(R.string.audit_degraded)
+            AuditStorageHealth.UNAVAILABLE ->
+                getString(R.string.audit_unavailable)
+        }
+    }
+
+    private fun auditStatusColor(health: AuditStorageHealth): Int {
+        val color = when (health) {
+            AuditStorageHealth.HEALTHY ->
+                R.color.dashboard_text_secondary
+            AuditStorageHealth.DEGRADED ->
+                R.color.dashboard_warning_text
+            AuditStorageHealth.UNAVAILABLE ->
+                R.color.dashboard_danger_text
+        }
+        return resources.getColor(color, theme)
     }
 
     private fun outcomeText(card: PolicyCardViewState): String {
@@ -410,6 +434,8 @@ class MainActivity : Activity() {
             OperationOutcomePresentation.APPLIED -> getString(R.string.outcome_applied)
             OperationOutcomePresentation.DENIED -> getString(R.string.outcome_denied)
             OperationOutcomePresentation.FAILED -> getString(R.string.outcome_failed)
+            OperationOutcomePresentation.SIMULATED -> getString(R.string.outcome_simulated)
+            OperationOutcomePresentation.INTERRUPTED -> getString(R.string.outcome_interrupted)
         }
     }
 
@@ -418,7 +444,9 @@ class MainActivity : Activity() {
             OperationOutcomePresentation.APPLIED -> R.color.dashboard_verified_text
             OperationOutcomePresentation.DENIED,
             OperationOutcomePresentation.FAILED,
+            OperationOutcomePresentation.INTERRUPTED,
             -> R.color.dashboard_danger_text
+            OperationOutcomePresentation.SIMULATED -> R.color.dashboard_warning_text
             OperationOutcomePresentation.PENDING,
             OperationOutcomePresentation.NONE,
             -> R.color.dashboard_text_secondary
@@ -426,31 +454,41 @@ class MainActivity : Activity() {
         return resources.getColor(color, theme)
     }
 
-    private fun actionLabel(capability: PolicyCapability, disable: Boolean): String {
-        return when (capability) {
-            PolicyCapability.SCREEN_CAPTURE -> if (disable) {
+    private fun auditActionLabel(actionName: String): String {
+        return when (actionName) {
+            AuditActionNames.DISABLE_SCREEN_CAPTURE ->
                 getString(R.string.action_disable_screen_capture)
-            } else {
+            AuditActionNames.ENABLE_SCREEN_CAPTURE ->
                 getString(R.string.action_enable_screen_capture)
-            }
-            PolicyCapability.CAMERA -> if (disable) {
+            AuditActionNames.DISABLE_CAMERA ->
                 getString(R.string.action_disable_camera)
-            } else {
+            AuditActionNames.ENABLE_CAMERA ->
                 getString(R.string.action_enable_camera)
-            }
-            PolicyCapability.STATUS_BAR -> if (disable) {
+            AuditActionNames.DISABLE_STATUS_BAR ->
                 getString(R.string.action_disable_status_bar)
-            } else {
+            AuditActionNames.ENABLE_STATUS_BAR ->
                 getString(R.string.action_enable_status_bar)
-            }
+            else -> actionName
+        }
+    }
+
+    private fun auditStatusLabel(status: AuditLogStatus): String {
+        return when (status) {
+            AuditLogStatus.APPLIED -> getString(R.string.outcome_applied)
+            AuditLogStatus.REJECTED -> getString(R.string.outcome_denied)
+            AuditLogStatus.FAILED -> getString(R.string.outcome_failed)
+            AuditLogStatus.SIMULATED -> getString(R.string.outcome_simulated)
+            AuditLogStatus.INTERRUPTED -> getString(R.string.outcome_interrupted)
         }
     }
 
     private fun friendlyReason(reason: String?): String? {
         return when (reason) {
             null, "" -> null
-            "post_write_read_back_mismatch" ->
-                getString(R.string.reason_post_write_mismatch)
+            "post_write_read_back_mismatch",
+            "POST_WRITE_READ_BACK_MISMATCH",
+            -> getString(R.string.reason_post_write_mismatch)
+            "AUDIT_PERSISTENCE_UNAVAILABLE" -> getString(R.string.reason_audit_unavailable)
             else -> reason
         }
     }
