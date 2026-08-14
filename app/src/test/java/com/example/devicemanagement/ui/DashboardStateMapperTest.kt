@@ -358,4 +358,31 @@ class DashboardStateMapperTest {
         assertEquals(AuditStorageHealth.DEGRADED, degraded.auditStorageHealth)
         assertEquals(AuditStorageHealth.UNAVAILABLE, unavailable.auditStorageHealth)
     }
+
+    @Test
+    fun `unreadable terminal leaves REQUESTED Interrupted and never Failed`() {
+        val state = DashboardStateMapper.map(
+            snapshot = DashboardTestFixtures.snapshot(),
+            auditHistory = DashboardTestFixtures.history(
+                DashboardTestFixtures.auditEvent(
+                    actionName = AuditActionNames.DISABLE_CAMERA,
+                    phase = AuditEventPhase.REQUESTED,
+                    correlationId = "corrupt-terminal",
+                ),
+            ),
+            auditStatus = AuditStorageStatus(
+                health = AuditStorageHealth.DEGRADED,
+                reasonCode = AuditReasonCode.AUDIT_PERSISTENCE_UNAVAILABLE,
+            ),
+            pendingCapability = null,
+        )
+
+        assertEquals(AuditLogStatus.INTERRUPTED, state.auditLog.single().status)
+        assertEquals(OperationOutcomePresentation.INTERRUPTED, state.camera.latestOutcome)
+        assertNotEquals(AuditLogStatus.FAILED, state.auditLog.single().status)
+        assertNotEquals(AuditLogStatus.APPLIED, state.auditLog.single().status)
+        assertNotEquals(AuditLogStatus.REJECTED, state.auditLog.single().status)
+        assertNotEquals(AuditLogStatus.SIMULATED, state.auditLog.single().status)
+        assertEquals(AuditStorageHealth.DEGRADED, state.auditStorageHealth)
+    }
 }

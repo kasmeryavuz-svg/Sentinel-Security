@@ -109,6 +109,34 @@ internal object ProductionBytecodePolicyVerifier {
         "dalvik/system/DexFile",
     )
 
+    private val authorizedAuditSqliteClasses = setOf(
+        "com/example/devicemanagement/audit/SentinelAuditOpenHelper",
+        "com/example/devicemanagement/audit/SqliteAuditRecordStore",
+        "com/example/devicemanagement/audit/NonDestructiveAuditDatabaseErrorHandler",
+    )
+
+    private val forbiddenContextDatabaseMethods = setOf(
+        "openOrCreateDatabase",
+        "deleteDatabase",
+        "getDatabasePath",
+    )
+
+    private val appForbiddenFileOwners = setOf(
+        "java/io/File",
+        "java/io/FileInputStream",
+        "java/io/FileOutputStream",
+        "java/io/RandomAccessFile",
+        "java/io/FileWriter",
+        "java/io/FileReader",
+        "java/nio/file/Files",
+        "java/nio/file/Paths",
+        "java/nio/file/Path",
+        "java/nio/channels/FileChannel",
+    )
+
+    private const val AUDIT_DATABASE_FILE = "sentinel_audit.db"
+    private const val SQLITE_PACKAGE = "android/database/sqlite/"
+
     private val verifiedMutationExecutorScreenCapture = InvocationOrigin(
         "com/example/devicemanagement/management/VerifiedPolicyMutationExecutor",
         "executeScreenCapture",
@@ -280,6 +308,8 @@ internal object ProductionBytecodePolicyVerifier {
                 descriptor: String,
             ) {
                 checkDpmOwner(owner, "$location field $name")
+                checkSqliteOwner(owner, "$location field $name")
+                checkAppFileOwner(owner, "$location field $name")
                 checkDescriptor(descriptor, "$location field $name")
             }
 
@@ -292,7 +322,10 @@ internal object ProductionBytecodePolicyVerifier {
             ) {
                 checkDpmInvocation(owner, name, descriptor, location)
                 checkVerifiedMutationInvocation(owner, name, descriptor, location)
+                checkSqliteInvocation(owner, name, descriptor, location)
+                checkContextDatabaseInvocation(owner, name, location)
                 checkForbiddenOwner(owner, name, location)
+                checkAppFileOwner(owner, location)
                 checkDescriptor(descriptor, "$location invocation")
             }
 
@@ -334,6 +367,7 @@ internal object ProductionBytecodePolicyVerifier {
             when (value) {
                 is Type -> checkDescriptor(value.descriptor, location)
                 is Handle -> checkHandle(value, location)
+                is String -> checkAuditDatabaseFilename(value, location)
             }
         }
 
@@ -345,7 +379,15 @@ internal object ProductionBytecodePolicyVerifier {
                 handle.desc,
                 "$location method handle",
             )
+            checkSqliteInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
+            checkContextDatabaseInvocation(handle.owner, handle.name, "$location method handle")
             checkForbiddenOwner(handle.owner, handle.name, "$location method handle")
+            checkAppFileOwner(handle.owner, "$location method handle")
             checkDescriptor(handle.desc, "$location method handle")
         }
 
@@ -417,12 +459,22 @@ internal object ProductionBytecodePolicyVerifier {
         private fun checkType(type: String?, location: String) {
             if (type == null) return
             checkDpmOwner(type, location)
+            checkSqliteOwner(type, location)
+            checkAppFileOwner(type, location)
             checkForbiddenOwner(type, "<type>", location)
         }
 
         private fun checkDescriptor(descriptor: String, location: String) {
             if (descriptor.contains("L$DPM;")) {
                 checkDpmOwner(DPM, location)
+            }
+            sqliteTypesIn(descriptor).forEach { owner ->
+                checkSqliteOwner(owner, location)
+            }
+            appForbiddenFileOwners.forEach { owner ->
+                if (descriptor.contains("L$owner;")) {
+                    checkAppFileOwner(owner, location)
+                }
             }
             forbiddenLoaderOwners.forEach { owner ->
                 if (descriptor.contains("L$owner;")) {
@@ -436,6 +488,96 @@ internal object ProductionBytecodePolicyVerifier {
             ) {
                 violation("$location references a forbidden reflection or method-handle type")
             }
+        }
+
+        private fun sqliteTypesIn(descriptor: String): List<String> {
+            val prefix = "L$SQLITE_PACKAGE"
+            val owners = mutableListOf<String>()
+            var start = 0
+            while (true) {
+                val index = descriptor.indexOf(prefix, start)
+                if (index < 0) {
+                    return owners
+                }
+                val end = descriptor.indexOf(';', index)
+                if (end < 0) {
+                    return owners
+                }
+                owners += descriptor.substring(index + 1, end)
+                start = end + 1
+            }
+        }
+
+        private fun checkSqliteOwner(owner: String, location: String) {
+            if (!owner.startsWith(SQLITE_PACKAGE)) {
+                return
+            }
+            if (!authorizedAuditSqliteAccess()) {
+                violation(
+                    "$location references $owner outside the trusted audit SQLite implementation",
+                )
+            }
+        }
+
+        private fun checkSqliteInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            checkSqliteOwner(owner, "$location invocation $owner.$name$descriptor")
+        }
+
+        private fun checkContextDatabaseInvocation(
+            owner: String,
+            name: String,
+            location: String,
+        ) {
+            if (name !in forbiddenContextDatabaseMethods) {
+                return
+            }
+            val contextLike =
+                owner == "android/content/Context" ||
+                    owner == "android/content/ContextWrapper" ||
+                    owner == "android/app/Activity" ||
+                    owner == "android/app/Application" ||
+                    owner == "android/app/Service"
+            if (!contextLike) {
+                return
+            }
+            if (!authorizedAuditSqliteAccess()) {
+                violation(
+                    "$location invokes $owner.$name, which can open, locate, or delete " +
+                        "the Sentinel audit database outside the trusted audit pipeline",
+                )
+            }
+        }
+
+        private fun checkAppFileOwner(owner: String, location: String) {
+            if (target.artifactPath != ":app" || owner !in appForbiddenFileOwners) {
+                return
+            }
+            violation(
+                "$location uses $owner, which can directly access the Sentinel audit " +
+                    "database file from app/UI code",
+            )
+        }
+
+        private fun checkAuditDatabaseFilename(value: String, location: String) {
+            if (value != AUDIT_DATABASE_FILE) {
+                return
+            }
+            if (!authorizedAuditSqliteAccess()) {
+                violation(
+                    "$location embeds the Sentinel audit database filename " +
+                        "$AUDIT_DATABASE_FILE outside the trusted audit SQLite implementation",
+                )
+            }
+        }
+
+        private fun authorizedAuditSqliteAccess(): Boolean {
+            return target.artifactPath == ":device-management-impl" &&
+                className in authorizedAuditSqliteClasses
         }
 
         private fun checkForbiddenOwner(owner: String, name: String, location: String) {

@@ -57,6 +57,12 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(uiSources.contains("DurableAuditRepository"))
         assertFalse(uiSources.contains("SqliteAuditRecordStore"))
         assertFalse(uiSources.contains("SentinelAuditOpenHelper"))
+        assertFalse(uiSources.contains("AuditPersistedCodec"))
+        assertFalse(uiSources.contains("AuditSqliteIdentity"))
+        assertFalse(uiSources.contains("openOrCreateDatabase"))
+        assertFalse(uiSources.contains("deleteDatabase"))
+        assertFalse(uiSources.contains("getDatabasePath"))
+        assertFalse(uiSources.contains("sentinel_audit.db"))
         assertFalse(uiSources.contains("AuditRecordStore"))
         assertFalse(uiSources.contains("DeviceAction"))
         assertFalse(uiSources.contains("wipeData"))
@@ -104,6 +110,12 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(appSources.contains("SensitiveActionAuditWriter"))
         assertFalse(appSources.contains("DurableAuditRepository"))
         assertFalse(appSources.contains("SqliteAuditRecordStore"))
+        assertFalse(appSources.contains("openOrCreateDatabase"))
+        assertFalse(appSources.contains("deleteDatabase"))
+        assertFalse(appSources.contains("getDatabasePath"))
+        assertFalse(appSources.contains("sentinel_audit.db"))
+        assertFalse(appSources.contains("SQLiteOpenHelper"))
+        assertFalse(appSources.contains("SQLiteDatabase"))
     }
 
     @Test

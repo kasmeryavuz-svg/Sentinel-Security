@@ -31,6 +31,11 @@ data class PersistedAuditRecord(
     }
 }
 
+data class AuditRecordRead(
+    val records: List<PersistedAuditRecord>,
+    val unreadableRecords: Boolean = false,
+)
+
 class AuditStoreException(message: String) : Exception(message)
 
 /**
@@ -42,7 +47,7 @@ class AuditStoreException(message: String) : Exception(message)
 interface AuditRecordStore {
     fun insert(record: NewAuditRecord): Long
 
-    fun latest(limit: Int): List<PersistedAuditRecord>
+    fun latest(limit: Int): AuditRecordRead
 
     fun count(): Int
 

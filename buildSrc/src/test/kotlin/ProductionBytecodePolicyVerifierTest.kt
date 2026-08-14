@@ -658,6 +658,160 @@ class ProductionBytecodePolicyVerifierTest {
         assertRejected(classes, "outside the explicitly authorized")
     }
 
+    @Test
+    fun `app bytecode cannot open the audit database through SQLiteDatabase`() {
+        val classes = compileJava(
+            "attack/SqliteDatabaseBypass.java" to
+                """
+                package attack;
+                import android.database.sqlite.SQLiteDatabase;
+                public final class SqliteDatabaseBypass {
+                    SQLiteDatabase open(String path) {
+                        return SQLiteDatabase.openOrCreateDatabase(path, null);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "SQLiteDatabase")
+        assertRejected(classes, "trusted audit SQLite implementation")
+    }
+
+    @Test
+    fun `app bytecode cannot subclass SQLiteOpenHelper`() {
+        val classes = compileJava(
+            "attack/RogueAuditHelper.java" to
+                """
+                package attack;
+                import android.content.Context;
+                import android.database.sqlite.SQLiteDatabase;
+                import android.database.sqlite.SQLiteOpenHelper;
+                public final class RogueAuditHelper extends SQLiteOpenHelper {
+                    public RogueAuditHelper(Context context) {
+                        super(context, "sentinel_audit.db", null, 1);
+                    }
+                    public void onCreate(SQLiteDatabase db) {}
+                    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {}
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "SQLiteOpenHelper")
+        assertRejected(classes, "sentinel_audit.db")
+    }
+
+    @Test
+    fun `app bytecode cannot call Context openOrCreateDatabase or deleteDatabase`() {
+        val classes = compileJava(
+            "attack/ContextDatabaseBypass.java" to
+                """
+                package attack;
+                import android.content.Context;
+                public final class ContextDatabaseBypass {
+                    void reach(Context context) {
+                        context.openOrCreateDatabase("sentinel_audit.db", 0, null);
+                        context.deleteDatabase("sentinel_audit.db");
+                        context.getDatabasePath("sentinel_audit.db");
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "openOrCreateDatabase")
+        assertRejected(classes, "deleteDatabase")
+        assertRejected(classes, "getDatabasePath")
+        assertRejected(classes, "sentinel_audit.db")
+    }
+
+    @Test
+    fun `app bytecode cannot open the audit database file directly`() {
+        val classes = compileJava(
+            "attack/AuditFileBypass.java" to
+                """
+                package attack;
+                import java.io.File;
+                public final class AuditFileBypass {
+                    File reach() {
+                        return new File("sentinel_audit.db");
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "java/io/File")
+        assertRejected(classes, "sentinel_audit.db")
+    }
+
+    @Test
+    fun `unicode escaped audit database filename is still rejected from app bytecode`() {
+        val classes = compileJava(
+            "attack/UnicodeAuditFile.java" to
+                """
+                package attack;
+                public final class UnicodeAuditFile {
+                    String name() {
+                        return "sentinel_audi\u0074.db";
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "sentinel_audit.db")
+    }
+
+    @Test
+    fun `authorized audit SQLite helper may use SQLiteOpenHelper in device-management-impl`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/audit/SentinelAuditOpenHelper.java" to
+                """
+                package com.example.devicemanagement.audit;
+                import android.content.Context;
+                import android.database.sqlite.SQLiteDatabase;
+                import android.database.sqlite.SQLiteOpenHelper;
+                public final class SentinelAuditOpenHelper extends SQLiteOpenHelper {
+                    public SentinelAuditOpenHelper(Context context) {
+                        super(context, "sentinel_audit.db", null, 1);
+                    }
+                    public void onCreate(SQLiteDatabase db) {}
+                    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {}
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(
+            violations.none { "trusted audit SQLite implementation" in it },
+            violations.joinToString("\n"),
+        )
+        assertTrue(
+            violations.none { "sentinel_audit.db" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `SQLite helper outside the trusted audit classes is rejected even in impl`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/RogueSqliteHelper.java" to
+                """
+                package com.example.devicemanagement.management;
+                import android.content.Context;
+                import android.database.sqlite.SQLiteDatabase;
+                import android.database.sqlite.SQLiteOpenHelper;
+                public final class RogueSqliteHelper extends SQLiteOpenHelper {
+                    public RogueSqliteHelper(Context context) {
+                        super(context, "sentinel_audit.db", null, 1);
+                    }
+                    public void onCreate(SQLiteDatabase db) {}
+                    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {}
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "trusted audit SQLite implementation" in it })
+    }
+
     private fun concreteCameraServiceStub(
         implementInterface: Boolean = false,
     ): Pair<String, String> {
@@ -795,6 +949,55 @@ class ProductionBytecodePolicyVerifierTest {
             """
             package android.content;
             public final class ComponentName {}
+            """.trimIndent(),
+        "android/content/Context.java" to
+            """
+            package android.content;
+            import android.database.sqlite.SQLiteDatabase;
+            import java.io.File;
+            public class Context {
+                public SQLiteDatabase openOrCreateDatabase(
+                    String name,
+                    int mode,
+                    SQLiteDatabase.CursorFactory factory
+                ) {
+                    return null;
+                }
+                public boolean deleteDatabase(String name) {
+                    return false;
+                }
+                public File getDatabasePath(String name) {
+                    return new File(name);
+                }
+            }
+            """.trimIndent(),
+        "android/database/sqlite/SQLiteDatabase.java" to
+            """
+            package android.database.sqlite;
+            public class SQLiteDatabase {
+                public interface CursorFactory {}
+                public static SQLiteDatabase openOrCreateDatabase(
+                    String path,
+                    CursorFactory factory
+                ) {
+                    return null;
+                }
+            }
+            """.trimIndent(),
+        "android/database/sqlite/SQLiteOpenHelper.java" to
+            """
+            package android.database.sqlite;
+            import android.content.Context;
+            public abstract class SQLiteOpenHelper {
+                public SQLiteOpenHelper(
+                    Context context,
+                    String name,
+                    SQLiteDatabase.CursorFactory factory,
+                    int version
+                ) {}
+                public abstract void onCreate(SQLiteDatabase db);
+                public abstract void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion);
+            }
             """.trimIndent(),
         "android/app/admin/DevicePolicyManager.java" to
             """

@@ -44,9 +44,11 @@ internal class InMemoryAuditRecordStore(
         return sequence
     }
 
-    override fun latest(limit: Int): List<PersistedAuditRecord> {
+    override fun latest(limit: Int): AuditRecordRead {
         failIfReadsBroken()
-        return state.rows.sortedByDescending { it.sequence }.take(limit)
+        return AuditRecordRead(
+            records = state.rows.sortedByDescending { it.sequence }.take(limit),
+        )
     }
 
     override fun count(): Int {
@@ -75,7 +77,7 @@ class UnavailableAuditRecordStore : AuditRecordStore {
         throw AuditStoreException("audit store unavailable")
     }
 
-    override fun latest(limit: Int): List<PersistedAuditRecord> {
+    override fun latest(limit: Int): AuditRecordRead {
         throw AuditStoreException("audit store unavailable")
     }
 

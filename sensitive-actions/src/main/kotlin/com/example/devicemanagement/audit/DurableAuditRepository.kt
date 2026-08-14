@@ -9,6 +9,8 @@ import com.example.devicemanagement.logging.StructuredLogger
  * clear/delete API, and this class cannot authorize or replay actions.
  *
  * Ordinary app-private storage is not cryptographically tamper-proof.
+ * Unreadable persisted phases are omitted and mark storage degraded; they
+ * never become fabricated terminal outcomes.
  */
 class DurableAuditRepository(
     private val records: AuditRecordStore,
@@ -61,9 +63,13 @@ class DurableAuditRepository(
         val safeLimit = limit.coerceAtLeast(0)
         return synchronized(lock) {
             try {
-                val events = records.latest(safeLimit).map(PersistedAuditRecord::toEvent)
+                val page = records.latest(safeLimit)
+                val events = page.records.map(PersistedAuditRecord::toEvent)
                 val storedCount = records.count()
-                if (health == AuditStorageHealth.UNAVAILABLE) {
+                if (page.unreadableRecords) {
+                    health = AuditStorageHealth.DEGRADED
+                    healthReason = AuditReasonCode.AUDIT_PERSISTENCE_UNAVAILABLE
+                } else if (health == AuditStorageHealth.UNAVAILABLE) {
                     health = AuditStorageHealth.DEGRADED
                     healthReason = AuditReasonCode.AUDIT_PERSISTENCE_UNAVAILABLE
                 }
