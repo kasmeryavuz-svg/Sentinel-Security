@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+        Sentinel has no production network control plane. This config is
+        defense in depth: deny cleartext by default and trust only the
+        platform system CAs. There is no debug-overrides block, so a debug
+        trust-user-certs exception cannot leak into release.
+    -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

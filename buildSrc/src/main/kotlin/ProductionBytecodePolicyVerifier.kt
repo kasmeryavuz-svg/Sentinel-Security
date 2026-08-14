@@ -498,6 +498,8 @@ internal object ProductionBytecodePolicyVerifier {
                 checkDatabaseUtilsOwner(owner, "$location field $name")
                 checkLowLevelFileApi(owner, name, "$location field $name")
                 checkAppFileOwner(owner, "$location field $name")
+                checkDiagnosticOutput(owner, name, descriptor, "$location field $name")
+                checkForbiddenOwner(owner, name, "$location field $name")
                 checkDescriptor(descriptor, "$location field $name")
             }
 
@@ -518,6 +520,7 @@ internal object ProductionBytecodePolicyVerifier {
                 checkDatabaseUtilsOwner(owner, "$location invocation $owner.$name$descriptor")
                 checkLowLevelFileApi(owner, name, location)
                 checkForbiddenOwner(owner, name, location)
+                checkDiagnosticOutput(owner, name, descriptor, location)
                 checkAppFileOwner(owner, location)
                 checkDescriptor(descriptor, "$location invocation")
             }
@@ -598,6 +601,12 @@ internal object ProductionBytecodePolicyVerifier {
             )
             checkLowLevelFileApi(handle.owner, handle.name, "$location method handle")
             checkForbiddenOwner(handle.owner, handle.name, "$location method handle")
+            checkDiagnosticOutput(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
             checkAppFileOwner(handle.owner, "$location method handle")
             checkDescriptor(handle.desc, "$location method handle")
         }
@@ -916,6 +925,48 @@ internal object ProductionBytecodePolicyVerifier {
         private fun authorizedAuditSqliteAccess(): Boolean {
             return target.artifactPath == ":device-management-impl" &&
                 className in authorizedAuditSqliteClasses
+        }
+
+        private fun diagnosticOutputRestricted(): Boolean {
+            return target.artifactPath != ":provisioning-qr"
+        }
+
+        /**
+         * Production diagnostic streams must not dump secrets, extras, or
+         * exception traces. Structured audit persistence is a separate path
+         * and is not written through System.out / printStackTrace.
+         */
+        private fun checkDiagnosticOutput(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            if (isFrameworkClass() || !diagnosticOutputRestricted()) {
+                return
+            }
+            if (
+                owner == "java/lang/System" &&
+                name in setOf("out", "err")
+            ) {
+                violation("$location uses forbidden diagnostic stream System.$name")
+            }
+            if (
+                owner == "java/io/PrintStream" &&
+                name in setOf("print", "println", "printf", "format", "append", "write")
+            ) {
+                violation("$location uses forbidden diagnostic stream $owner.$name")
+            }
+            if (
+                name == "printStackTrace" &&
+                (
+                    descriptor == "()V" ||
+                        descriptor.startsWith("(Ljava/io/PrintStream;)") ||
+                        descriptor.startsWith("(Ljava/io/PrintWriter;)")
+                    )
+            ) {
+                violation("$location uses forbidden $owner.printStackTrace")
+            }
         }
 
         private fun checkForbiddenOwner(owner: String, name: String, location: String) {
