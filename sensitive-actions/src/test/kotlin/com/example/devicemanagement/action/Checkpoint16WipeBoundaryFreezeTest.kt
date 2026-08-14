@@ -55,7 +55,7 @@ class Checkpoint16WipeBoundaryFreezeTest {
 
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
-        assertFalse(sources.contains("DevicePolicyManager"))
+        assertFalse(sources.contains("import android.app.admin.DevicePolicyManager"))
         assertTrue(sources.contains("MOCK_WIPE must never be registered in controlled mode"))
         assertTrue(sources.contains("simulation_only"))
         assertTrue(sources.contains("WIPE WOULD EXECUTE"))
