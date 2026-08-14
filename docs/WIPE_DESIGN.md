@@ -24,11 +24,16 @@ Trigger
   -> assessment
   -> arming / safety checks
   -> authorization
-  -> final Device Owner + target revalidation
-  -> destructive executor
+  -> destructive executor (one synchronous trusted chain):
+       consume / verify capability
+       durable pre-execution audit append (fail closed)
+       THEN live final validation
+       immediately invoke the narrow DPM wrapper
 ```
 
-A trigger must **never** directly call a wipe executor.
+A trigger must **never** directly call a wipe executor. Audit
+commitment and live validation are distinct executor steps. Live
+validation is not an operation that precedes the audit append.
 
 Current production mutation remains exactly:
 
@@ -69,8 +74,9 @@ from audit history.
 | `ASSESSED` | Eligibility and target snapshot recorded in memory | Assessment only |
 | `ARMED` | Process-local arming token active | Arming only; not authorization |
 | `AUTHORIZED` | Process-local destructive capability issued | Single-use capability; not yet executable |
-| `FINAL_VALIDATION` | Execution-time revalidation in progress inside the executor | Not a reusable allow result; DPM not yet called |
-| `EXECUTION_COMMITTED` | Pre-execution audit written; same synchronous chain as invocation | Last pre-call state; not independently resumable |
+| `PRE_EXECUTION_AUDIT` | Executor is writing durable pre-execution evidence | No wipe authority; append failure is NO WIPE |
+| `EXECUTION_COMMITTED` | Durable pre-execution evidence exists | Audit commitment only; **not** permission to wipe |
+| `FINAL_VALIDATION` | Authoritative live revalidation after the audit append | Last pre-call phase; immediately followed by the DPM wrapper |
 
 ### 2.2 Terminal outcomes
 
@@ -113,26 +119,40 @@ ARMED
   -- process_death --> OUTCOME_UNKNOWN
 
 AUTHORIZED
-  -- enter_executor_sync_chain --> FINAL_VALIDATION
+  -- enter_executor_sync_chain_and_consume_capability --> PRE_EXECUTION_AUDIT
   -- expire / cancel --> EXPIRED or CANCELLED
   -- process_death --> OUTCOME_UNKNOWN
 
-FINAL_VALIDATION
-  -- same_stack_all_checks_ok_and_pre_exec_audit_ok --> EXECUTION_COMMITTED
-  -- any_mismatch_or_uncertainty --> FAILED_PRE_EXECUTION
+PRE_EXECUTION_AUDIT
+  -- durable_pre_exec_append_ok --> EXECUTION_COMMITTED
+  -- append_fail --> FAILED_PRE_EXECUTION
   -- process_death --> OUTCOME_UNKNOWN
 
 EXECUTION_COMMITTED
-  -- same_stack_destructive_api_invoked --> EXECUTION_INITIATED
+  -- same_stack_live_final_validation --> FINAL_VALIDATION
+  -- process_death --> OUTCOME_UNKNOWN
+
+FINAL_VALIDATION
+  -- same_stack_immediately_invoke --> EXECUTION_INITIATED
+  -- any_mismatch_or_uncertainty --> FAILED_PRE_EXECUTION
   -- invoke_throws_before_call_or_aborted --> FAILED_PRE_EXECUTION
-  -- process_death_before_invoke --> OUTCOME_UNKNOWN
+  -- process_death --> OUTCOME_UNKNOWN
 ```
 
-`FINAL_VALIDATION` and `EXECUTION_COMMITTED` are logical phases of
-**one synchronous trusted execution chain** inside the destructive
-executor. They are not independently schedulable states. The executor
-must not return a Boolean “allowed” to UI, a callback, a queue, or
-persistence and later invoke DPM. See §6.
+These last phases are logical steps of **one synchronous trusted execution chain**
+inside the destructive executor. They are not independently schedulable.
+Order is mandatory:
+
+1. Consume / verify the destructive capability
+2. Write durable pre-execution evidence (`PRE_EXECUTION_AUDIT` →
+   `EXECUTION_COMMITTED`). Append failure is NO WIPE
+3. **After** the append, perform the final authoritative live
+   revalidation (`FINAL_VALIDATION`)
+4. Immediately invoke the narrow DPM wrapper in the same stack
+
+`EXECUTION_COMMITTED` means the audit row exists. It is not a wipe
+permit. No UI, async, callback, queue, or persistence boundary may
+exist between step 3 and step 4. See §6.
 
 Rules:
 
@@ -159,8 +179,9 @@ Rules:
 | `ASSESSED` | In-memory snapshot gone. Same as interrupted REQUESTED evidence. New request required. |
 | `ARMED` | Arming token gone. Disarmed by death. New request required. |
 | `AUTHORIZED` | Destructive capability gone. Cannot be consumed. New request required. |
-| `FINAL_VALIDATION` | No DPM call. `FAILED_PRE_EXECUTION` or interrupted evidence. No retry. Any in-memory permit is dead. Cooldown marker remains. |
-| `EXECUTION_COMMITTED` before invoke | Pre-execution row may exist. Treat as `OUTCOME_UNKNOWN`. **Do not** invoke on restart. Cooldown marker remains. |
+| `PRE_EXECUTION_AUDIT` | Append may or may not have landed. Interrupted evidence only. No retry. No invoke. Cooldown marker, if present, remains deny-only. |
+| `EXECUTION_COMMITTED` | Pre-execution row may exist. Treat as `OUTCOME_UNKNOWN`. **Do not** treat the row as authorization or skip live validation. **Do not** invoke on restart. Cooldown marker remains deny-only. |
+| `FINAL_VALIDATION` | No DPM call, or the call had not begun. `FAILED_PRE_EXECUTION` or interrupted evidence. No retry. Any in-memory permit is dead. Cooldown marker remains deny-only. |
 | After invoke | Device may be resetting. If the app still runs, state is `EXECUTION_INITIATED` / `OUTCOME_UNKNOWN`. Never retry. |
 
 ## 3. Explicit target binding
@@ -219,10 +240,12 @@ process-local capability identity.
 
 ### 3.4 Binding comparison
 
-At `FINAL_VALIDATION`, every bound field is compared to a **fresh**
-read of the same facts. Any mismatch, blank package, blank component,
-duplicate admin receiver, Profile Owner, or `UNAVAILABLE` validation
-is NO WIPE.
+At `FINAL_VALIDATION` — after the pre-execution audit append, and
+immediately before the DPM wrapper — every bound field is compared to
+a **fresh** read of the same facts. Any mismatch, blank package, blank
+component, duplicate admin receiver, Profile Owner, or `UNAVAILABLE`
+validation is NO WIPE. A successful audit append is not a substitute
+for this live comparison.
 
 ## 4. Anti-replay and single-use authorization
 
@@ -333,52 +356,64 @@ validation still follow.
 
 Checkpoint 16 does **not** implement an arming executor.
 
-## 6. Final pre-wipe validation
+## 6. Executor chain: audit commitment, then live validation
 
-Immediately before any future destructive call, the destructive
-executor must freshly re-check the following. This is
-`DestructiveFinalValidator` work, but it is **not** a standalone
-allow/deny API that other components may call and later honor.
+The destructive executor owns one synchronous trusted chain. Audit
+commitment and final live validation are **distinct** steps. A SQLite
+append can take time; Device Owner, admin, target, or circuit-breaker
+state can change during that I/O. Therefore live validation must
+happen **after** the append, not before it.
 
-1. Device Owner: `VERIFIED_DEVICE_OWNER`
-2. Expected admin component equals the bound component
-3. Expected admin is active
-4. Package / context consistency (running package, registered receiver
-   set size == 1, expected member of that set)
-5. Target / scope binding equality
-6. Destructive capability freshness (monotonic)
-7. Single-use status (consume succeeds exactly once)
-8. Arming freshness and identity
-9. Cooldown / rate-limit / circuit-breaker state (deny if locked or
-   uncertain)
-10. Audit precondition: required pre-execution append succeeded
-11. Policy service / DPM availability; any exception is denial
+Mandatory order:
 
-Any mismatch, uncertainty, exception, unavailable service, stale state,
-expiry, or failed check: **NO WIPE** (`FAILED_PRE_EXECUTION`).
+1. Consume / verify the destructive authorization capability as
+   required (single-use, identity-bound, process-local).
+2. Write the required durable pre-execution evidence. If the append
+   fails: **NO WIPE**. This reaches `EXECUTION_COMMITTED` (audit
+   commitment only).
+3. **After** the audit append, perform the final authoritative live
+   revalidation (`FINAL_VALIDATION` / `DestructiveFinalValidator`):
+   - `VERIFIED_DEVICE_OWNER`
+   - expected admin component
+   - active admin
+   - package / receiver consistency
+   - target / scope binding
+   - capability freshness and single-use status
+   - arming freshness
+   - deny-only cooldown / circuit-breaker
+   - DPM / policy-service availability
+4. Immediately invoke the narrow DPM wrapper in the same synchronous
+   trusted chain.
 
-Decision-time authorization never substitutes for this step.
+This is **not** a standalone allow/deny API that other components may
+call and later honor. Decision-time authorization never substitutes
+for step 3. A successful step-2 append never substitutes for step 3.
 
-### 6.1 No TOCTOU gap after “allowed”
+Any mismatch, uncertainty, exception, unavailable service, stale
+state, expiry, or failed check at step 3: **NO WIPE**
+(`FAILED_PRE_EXECUTION`).
+
+### 6.1 No TOCTOU gap after live validation
 
 Forbidden:
 
+- Validating, then appending audit, then invoking (the append is a
+  delay window)
 - A reusable Boolean “allowed” / `true` result
 - A cached or persisted final-validation result
 - Returning validation success to UI, an async callback, a work queue,
   or another process
-- Any persistence, Intent, or Binder boundary between validation and
-  the destructive API invocation
+- Any UI, async, callback, queue, persistence, Intent, or Binder
+  boundary between step 3 and step 4
 
-Required: final validation and the narrow DPM wrapper call occur in
-**one synchronous trusted execution chain** inside the destructive
-executor. The executor performs the checks and, only if they all pass
-in that same stack, invokes the wrapper immediately.
+Required: step 3 and step 4 occur back-to-back in the same stack
+inside the destructive executor.
 
 ### 6.2 Optional internal `FinalExecutionPermit`
 
 If Checkpoint 17 splits helper functions inside that chain, the only
-acceptable hand-off is an opaque `FinalExecutionPermit` that:
+acceptable hand-off **after step 3** is an opaque
+`FinalExecutionPermit` that:
 
 - is process-local
 - is bound to action type, authoritative correlation ID, target
@@ -393,13 +428,15 @@ acceptable hand-off is an opaque `FinalExecutionPermit` that:
 
 The executor must consume this permit immediately before calling the
 narrow DPM wrapper. Any state mismatch, expiry, or change after issue
-is NO WIPE. A Boolean is not a permit.
+is NO WIPE. A Boolean is not a permit. The permit is not issued until
+the pre-execution audit append has already succeeded.
 
 Unlike reversible policies, there is **no** post-write read-back that
 can prove a factory reset. The current
 `VerifiedPolicyMutationExecutor` pattern (setter then getter) does not
-apply. Absence of read-back is why final validation and pre-execution
-audit are mandatory, and why success must not be claimed.
+apply. Absence of read-back is why audit commitment, then live
+validation, then immediate invocation are mandatory, and why success
+must not be claimed.
 
 ## 7. Audit semantics
 
@@ -410,22 +447,30 @@ presentation only.
 
 ### 7.1 What must be recorded before a future destructive call
 
-Minimum durable pre-execution evidence:
+Minimum durable pre-execution evidence, written **before** final live
+validation (see §6 step 2):
 
 - Authoritative correlation ID
 - Canonical action name for the future destructive type (not
   `mock_wipe`)
-- Phase that means “about to invoke” (design name:
-  `EXECUTION_COMMITTED` evidence / pre-execution record)
-- Bound package, expected admin component, and scope **or** a reason
-  code that those bindings were validated (do not persist secrets)
+- Phase that means “pre-execution evidence committed” (design name:
+  `EXECUTION_COMMITTED` / pre-execution audit commitment)
+- Bound package, expected admin component, and scope as requested
+  context (do not persist secrets or capabilities)
 - Presentation wall-clock for operators (not for authorization)
 
 If this append fails: **NO WIPE**.
 
+`EXECUTION_COMMITTED` is evidence that the pipeline intended to
+proceed. It is **not** authorization, not a substitute for live
+revalidation, and not a resume token. After the append, the same
+synchronous chain must still pass `FINAL_VALIDATION` and then invoke
+immediately. If the process dies after the append, recovery classifies
+interrupted evidence and must not invoke.
+
 The existing fail-closed REQUESTED-before-mutation rule remains. For
-wipe, REQUESTED alone is not enough; the committed pre-execution record
-is also required because the process may never run again.
+wipe, REQUESTED alone is not enough; the committed pre-execution
+record is also required because the process may never run again.
 
 ### 7.2 After a destructive call
 
@@ -521,10 +566,14 @@ and arming. It is **not** acceptable as the only cooldown.
 
 Checkpoint 17 must persist a cooldown-required marker after a
 destructive attempt (including failed authorization or arming
-attempts that should count). Requirements:
+attempts that should count). This marker is mandatory against
+**untrusted trigger / input attackers** who crash, force-stop, or
+reboot the process to reset in-memory counters (T19).
+
+Requirements:
 
 - Process death or reboot must **never shorten or clear** destructive
-  cooldown
+  cooldown for that untrusted-input attacker
 - Persisted state may **only deny**. It can never arm, authorize,
   resume, or execute
 - Persist **no** approvals, capabilities, nonces, executor permits,
@@ -534,21 +583,46 @@ attempts that should count). Requirements:
 - A safe accepted design: the persisted value is only
   “cooldown required.” After every process start or reboot, a present
   marker causes a **fresh full** monotonic cooldown before any new
-  destructive request may proceed. Restarting therefore cannot help
-  an attacker; it restarts the full wait
-- Corruption, unreadable store, missing expected record after an
-  attempt, or any uncertainty: **fail closed** (NO WIPE)
+  destructive request may proceed
+- Malformed, corrupt, unreadable, or backup-restored cooldown state
+  must **fail closed** (NO WIPE)
+- In-process: if the executor just wrote a marker and cannot read it
+  back, fail closed
 - Do not key the marker by caller `requestId`
 
 The marker is not a permit to continue a previous request. After
-restart the process is `IDLE` and still denied until the new
-monotonic window elapses.
+restart the process is `IDLE` and, if a valid marker is present, still
+denied until the new monotonic window elapses.
 
-### 9.3 What must remain process-local
+### 9.3 Trust boundary: this is not same-UID code containment
+
+Ordinary app-private persistence is **not** cryptographically
+tamper-proof and has no independent anti-rollback memory after
+process death. Do not claim ordinary app-private persistence solves
+arbitrary same-UID code compromise. A local marker does not survive
+an attacker who can run arbitrary code as Sentinel’s UID or freely
+rewrite Sentinel’s private files.
+
+Distinguish:
+
+| Attacker | In scope for the marker? |
+| --- | --- |
+| Untrusted trigger / UI / Intent / crash / reboot | Yes. The marker is mandatory so killing the process cannot clear cooldown. |
+| Malformed, corrupt, or backup-restored cooldown bytes | Yes. Fail closed. Absence of a well-formed marker after restart is treated as “no cooldown recorded,” not as authorization. |
+| Arbitrary same-UID code execution (application compromise) | **Out of scope** for a purely local in-app authorization pipeline. That attacker can delete the marker, call DPM if the allowlist later includes wipe, or disable the app. Do not invent a hardware-backed or server integrity scheme here. |
+
+Checkpoint 17 must not treat “we wrote a file” as integrity against
+same-UID compromise. If a later review brings same-UID arbitrary
+writes into scope, integrity / anti-rollback of the cooldown becomes
+a blocking unresolved requirement and the default remains NO WIPE
+until a trustworthy mechanism is proven. That mechanism is not
+specified here.
+
+### 9.4 What must remain process-local
 
 Arming tokens, destructive capabilities, and `FinalExecutionPermit`
 objects remain process-local and die with the process. Only the
-deny-only cooldown marker may persist.
+deny-only cooldown marker may persist, and only as a deny signal.
 
 ## 10. Android destructive API boundary (research only)
 
@@ -667,12 +741,12 @@ grants execution capability.
 | Destructive assessor | Read current DO/admin/status; build target snapshot | Arm, authorize, execute |
 | `DestructiveArmingAuthority` | Issue / cancel process-local arming tokens | Authorize or execute |
 | `DestructiveAuthorizationAuthority` | Issue / consume target-bound capabilities | Call DPM; accept reversible `Approval` |
-| `DestructiveFinalValidator` | Run fresh DO/admin/target/freshness/rate-limit/audit checks **inside** the executor chain | Return a reusable Boolean allow; cache or persist a result; expose an API to UI |
-| `FinalExecutionPermit` | Optional opaque in-chain hand-off to the paired executor | Be serialized, delayed, queued, or accepted from UI |
+| `DestructiveFinalValidator` | Run live DO/admin/target/freshness/cooldown/DPM checks **after** pre-execution audit commitment, inside the executor chain | Return a reusable Boolean allow; run before the audit append as the last check; cache or persist a result; expose an API to UI |
+| `FinalExecutionPermit` | Optional opaque in-chain hand-off **after** live validation | Be serialized, delayed, queued, issued before audit commitment, or accepted from UI |
 | Narrow destructive DPM service | The single future wrapper method, bytecode-bound | Be reachable from UI, recovery, audit, or reversible executor |
 | Sealed destructive mutation type | Isolated from `VerifiedPolicyMutation` | Share dispatch with camera/screen/status-bar |
-| Destructive executor | Perform or consume final validation and immediately invoke the wrapper in one synchronous trusted chain | Accept a Boolean allow, a delayed callback, or a persisted permit; be the reversible `ActionExecutor` or `VerifiedPolicyMutationExecutor` |
-| Audit writer | Append evidence from the trusted controller | Authorize, replay, or execute |
+| Destructive executor | Consume capability, append pre-execution audit, live-validate, then immediately invoke in one synchronous trusted chain | Validate then append then invoke; accept a Boolean allow, a delayed callback, or a persisted permit; be the reversible `ActionExecutor` or `VerifiedPolicyMutationExecutor` |
+| Audit writer | Append REQUESTED and pre-execution evidence | Authorize, replay, execute, or skip live validation |
 | `RecoveryInspectionProvider` | Classify interrupted evidence | Submit, approve, retry, or mutate |
 
 `VerifiedPolicyMutation` stays `{ScreenCapture, Camera, StatusBar}`.
@@ -699,14 +773,21 @@ is allowed. Partial completion is not permission to add
 - [ ] Anti-replay complete in a **separate** destructive authorization
       domain
 - [ ] Arming design implemented as a non-executing, process-local phase
-- [ ] Final validation complete and fail-closed, with no Boolean allow
-      result and no UI/async/queue/persistence gap before invocation
-      (synchronous executor chain or single-use `FinalExecutionPermit`)
-- [ ] Mandatory cross-process / reboot deny-only circuit breaker /
-      cooldown implemented: process death and reboot never shorten or
-      clear it; persisted state denies only; corruption fails closed
-- [ ] Audit semantics implemented: pre-execution append required;
-      no false `APPLIED`; no audit replay
+- [ ] Executor order implemented exactly: consume capability → durable
+      pre-execution audit append (fail closed) → **then** final live
+      revalidation → immediate DPM wrapper call in the same
+      synchronous chain. No Boolean allow result. No
+      UI/async/queue/persistence gap between live validation and
+      invocation
+- [ ] Mandatory deny-only cooldown / circuit breaker against
+      untrusted-trigger crash/restart/reboot bypass: process death and
+      reboot never shorten or clear a well-formed marker; persisted
+      state denies only; malformed/corrupt/restored state fails
+      closed. Do not claim the marker securely contains arbitrary
+      same-UID code execution
+- [ ] Audit semantics implemented: pre-execution append required
+      **before** live validation; append is not authorization; no
+      false `APPLIED`; no audit replay
 - [ ] Lifecycle behavior complete: no boot path, no recovery execution,
       no persisted-approval resurrection
 - [ ] Destructive API semantics verified on the intended OS

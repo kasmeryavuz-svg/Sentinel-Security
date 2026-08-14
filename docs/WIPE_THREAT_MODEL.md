@@ -70,9 +70,11 @@ destructive authorization authority   <-- separate domain from ApprovalAuthority
   |  single-use, target-bound, process-local
   v
 destructive executor                  <-- one synchronous trusted chain
-  |  final validation + optional FinalExecutionPermit
-  |  no Boolean allow, no UI/async/queue gap
-  |  immediately invokes the narrow wrapper
+  |  1 consume capability
+  |  2 durable pre-execution audit append (fail closed)
+  |  3 AFTER append: live FINAL_VALIDATION
+  |  4 immediately invoke the narrow wrapper
+  |  no Boolean allow, no UI/async/queue gap between 3 and 4
   v
 narrow destructive DPM service        <-- isolated from reversible policy services
   |  future Checkpoint 17 only; absent now
@@ -102,13 +104,15 @@ Cross-boundary rules:
 - Assessment may read current Device Owner / admin / policy status
 - Arming may create and cancel a process-local arming token only
 - Authorization may issue and consume a destructive capability only
-- Final validation is not a reusable allow/deny result. It occurs only
-  inside the destructive executor’s synchronous trusted chain, or
-  produces an opaque single-use `FinalExecutionPermit` that that
-  executor consumes immediately
+- Final live validation occurs only **after** the pre-execution audit
+  append, inside the destructive executor’s synchronous trusted chain.
+  It is not a reusable allow/deny result. An optional
+  `FinalExecutionPermit` may exist only after that live check
 - The executor is the only future component that may call a destructive
-  DPM wrapper, and only in the same chain as final validation
-- Audit may record evidence and must never approve, arm, or execute
+  DPM wrapper, and only immediately after live validation in the same
+  stack
+- Audit may record evidence and must never approve, arm, execute, or
+  skip live validation
 - Recovery may classify interrupted evidence and must never continue a
   wipe
 
@@ -125,8 +129,8 @@ This model assumes an attacker may have one or more of:
 - Ability to reboot the device or interrupt execution after a
   destructive API returns
 - Ability to manipulate wall-clock time
-- Ability, as same-UID code or a compromised local file, to alter
-  app-private SQLite / preferences if such files exist
+- Ability to present malformed, corrupt, or backup-restored
+  app-private files (SQLite / preferences) as input to Sentinel
 - Ability to present a stale or forged approval-shaped object
 - Ability to change Device Owner / admin / package state between
   decision time and execution time
@@ -134,6 +138,14 @@ This model assumes an attacker may have one or more of:
   and update policy are weak
 - No assumed ability to break Android UID isolation, forge a production
   signing key, or call hidden APIs from this application
+
+**Same-UID arbitrary code execution is application compromise.** An
+attacker who can run their own code as Sentinel’s UID, or freely
+rewrite Sentinel’s private files from that UID, is outside what a
+purely local in-app authorization pipeline can securely contain. This
+model still requires fail-closed handling of malformed, corrupt, or
+restored persisted bytes. It does **not** claim ordinary app-private
+persistence survives that compromised-UID attacker.
 
 `SafeMockWipeAction` is not a destructive capability. It logs
 `WIPE WOULD EXECUTE` and returns `ActionResult.Simulated`. Treating it
@@ -251,16 +263,16 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 | --- | --- |
 | Threat | Sentinel was Device Owner at decision time and is not at execution time, or the expected admin is inactive, unregistered, duplicated, or replaced. |
 | Required invariant | Execution requires a fresh `VERIFIED_DEVICE_OWNER` result, expected admin registered and active, and component-set consistency. Cached decision-time validation is insufficient. |
-| Mitigation | Reuse the current `DeviceOwnerMutationGuard` / `DeviceOwnerValidationProvider` pattern: obtain validation again immediately before the destructive call. Any `UNAVAILABLE`, `CONFIGURATION_ERROR`, Profile Owner, or inconsistency is denial. |
+| Mitigation | Reuse the current `DeviceOwnerMutationGuard` / `DeviceOwnerValidationProvider` pattern: obtain validation again **after** the pre-execution audit append and immediately before the destructive call. Any `UNAVAILABLE`, `CONFIGURATION_ERROR`, Profile Owner, or inconsistency is denial. |
 | Failure behavior | `REJECTED` / `FAILED_PRE_EXECUTION`. NO WIPE. |
 
 ### T13. Race between decision-time and execution-time authorization
 
 | Field | Content |
 | --- | --- |
-| Threat | TOCTOU: state changes after assessment/authorization and before the destructive call. A Boolean “allowed” result, cached validator output, UI callback, async task, queue, or persisted permit is reused or delayed after Device Owner, admin, target, arming, or cooldown state has changed. |
-| Required invariant | Decision-time authorization never substitutes for execution-time validation. There is no reusable Boolean allow result, no cached or persisted final-validation result, and no UI, async, callback, queue, or persistence boundary between final validation and the destructive API invocation. Final validation and invocation occur in one synchronous trusted execution chain. If an internal permit is used, it is an opaque process-local `FinalExecutionPermit`: target/scope/correlation-bound, extremely short monotonic lifetime, consumable exactly once only by the paired destructive executor, and not serializable. The executor performs or consumes this final validation immediately before calling the narrow DPM wrapper. |
-| Mitigation | Keep `FINAL_VALIDATION` and the DPM wrapper call inside the destructive executor’s single trusted method. Do not return “allowed” to UI or another component. Any mismatch, expiry, state change, exception, or unavailable service is NO WIPE. |
+| Threat | TOCTOU: state changes after assessment/authorization and before the destructive call. A Boolean “allowed” result, cached validator output, UI callback, async task, queue, or persisted permit is reused or delayed. Separately, a durable pre-execution SQLite append after an earlier validation can take time, during which Device Owner, admin, target, arming, or circuit-breaker state can change before the DPM call. |
+| Required invariant | Decision-time authorization never substitutes for execution-time validation. A successful pre-execution audit append never substitutes for live revalidation. Order is consume capability → write pre-execution evidence (fail closed) → **then** final live revalidation → immediately invoke. There is no reusable Boolean allow result, no cached or persisted final-validation result, and no UI, async, callback, queue, or persistence boundary between live validation and the destructive API invocation. If an internal permit is used, it is issued only after the append and the live check: an opaque process-local `FinalExecutionPermit`, target/scope/correlation-bound, extremely short monotonic lifetime, consumable exactly once only by the paired destructive executor, and not serializable. |
+| Mitigation | Keep audit commitment, `FINAL_VALIDATION`, and the DPM wrapper call inside the destructive executor’s single trusted method, in that order. Do not validate-then-append-then-invoke. Do not return “allowed” to UI. Any mismatch, expiry, state change, exception, or unavailable service is NO WIPE. |
 | Failure behavior | `FAILED_PRE_EXECUTION`. NO WIPE. |
 
 ### T14. Audit failure before execution
@@ -268,8 +280,8 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 | Field | Content |
 | --- | --- |
 | Threat | The pipeline proceeds to wipe after a failed pre-execution audit append, leaving no durable evidence. |
-| Required invariant | Durable pre-execution evidence must be written before any future destructive call. If that append fails, execution fails closed. |
-| Mitigation | Same fail-closed rule as current `DefaultSensitiveActionController`: a failed REQUESTED (and, for wipe, failed pre-execution) append returns rejection and does not mutate. |
+| Required invariant | Durable pre-execution evidence must be written before live final validation and before any future destructive call. If that append fails, execution fails closed. A successful append is evidence only and is not authorization to skip live validation. |
+| Mitigation | Same fail-closed rule as current `DefaultSensitiveActionController` for the append itself. After a successful wipe pre-execution append, the same stack still performs live revalidation and only then may invoke. |
 | Failure behavior | `REJECTED` (`audit_persistence_unavailable`) or `FAILED_PRE_EXECUTION`. NO WIPE. |
 
 ### T15. Audit failure or impossibility after a destructive call
@@ -313,8 +325,8 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 | Field | Content |
 | --- | --- |
 | Threat | Rapid repeated triggers, failed authorization loops, or scripted submits try to brute-force a race or exhaust operator attention. The attacker also crashes, force-stops, or reboots the app to reset process-local counters and immediately retry. |
-| Required invariant | Fail-closed rate limiting and a **mandatory** cross-process / reboot deny-only circuit breaker. Process death or reboot must never shorten or clear destructive cooldown. Rate-limit and cooldown state is never authorization, arming, resume, or an executor permit. |
-| Mitigation | Keep an in-process latch and monotonic counter for double-taps. Persist only a cooldown-required marker with no approvals, capabilities, nonces, executor permits, or resume flags. After every process start or reboot, a present marker starts a **fresh full** monotonic cooldown. Do not rely on attacker-controlled wall clock. Corruption, unreadable store, or uncertainty fails closed (deny). Checkpoint 16 does not implement the limiter. |
+| Required invariant | Fail-closed rate limiting and a **mandatory** cross-process / reboot deny-only circuit breaker against this untrusted-trigger attacker. Process death or reboot must never shorten or clear a well-formed destructive cooldown. Rate-limit and cooldown state is never authorization, arming, resume, or an executor permit. Ordinary app-private persistence is not claimed to survive arbitrary same-UID code execution (see T21). |
+| Mitigation | Keep an in-process latch and monotonic counter for double-taps. Persist only a cooldown-required marker with no approvals, capabilities, nonces, executor permits, or resume flags. After every process start or reboot, a present well-formed marker starts a **fresh full** monotonic cooldown. Do not rely on attacker-controlled wall clock. Malformed, corrupt, or restored cooldown bytes fail closed. Checkpoint 16 does not implement the limiter. |
 | Failure behavior | `REJECTED`. NO WIPE. |
 
 ### T20. Downgrade / rollback of a future wipe-capable artifact
@@ -330,9 +342,9 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 
 | Field | Content |
 | --- | --- |
-| Threat | Same-UID or backup-restore attacker inserts a fake REQUESTED/AUTHORIZED row, a fake cooldown, or a serialized approval and expects execution. |
-| Required invariant | No persisted reusable approval. Backup and device-to-device transfer remain disabled / excluded. Persisted rows never authorize. Corrupt or unknown persisted state fails closed. |
-| Mitigation | Preserve `allowBackup=false` and extraction-exclusion rules. Do not persist arming, destructive capabilities, or `FinalExecutionPermit` objects. Treat unknown audit phases as corruption. The mandatory cooldown-required marker, if corrupt or unreadable, denies wipe rather than skipping the limiter. |
+| Threat | Backup-restore or malformed local files insert a fake REQUESTED/AUTHORIZED row, a fake cooldown, or a serialized approval and expect execution. Separately, arbitrary code running as Sentinel’s UID can delete or replace the cooldown marker. |
+| Required invariant | No persisted reusable approval, capability, nonce, or `FinalExecutionPermit`. Backup and device-to-device transfer remain disabled / excluded. Persisted rows never authorize. Malformed, corrupt, or restored persisted state fails closed. Arbitrary same-UID code execution is application compromise and is outside what a purely local in-app pipeline can securely contain; do not claim the marker solves that. |
+| Mitigation | Preserve `allowBackup=false` and extraction-exclusion rules. Do not persist arming or destructive capabilities. Treat unknown audit phases as corruption. A corrupt or unreadable cooldown marker denies wipe. A well-formed marker only denies. Absence of a marker after restart is not authorization; it also cannot be proven to be “deleted by an attacker” without independent trusted memory, which this design does not invent. |
 | Failure behavior | `REJECTED` or interrupted evidence only. NO WIPE. |
 
 ### T22. Recovery-path abuse
@@ -376,7 +388,7 @@ call has already been invoked. Checkpoint 16 introduces no such call.
 | Field | Content |
 | --- | --- |
 | Threat | Future code lets assessment, UI, recovery, or audit invoke the destructive DPM service directly. |
-| Required invariant | Trigger → assessment → arming → authorization → executor-owned final validation → immediate DPM wrapper call. No component holds more authority than required. The executor does not accept a Boolean allow flag or a delayed validator result from UI, a queue, or persistence. |
+| Required invariant | Trigger → assessment → arming → authorization → executor-owned pre-execution audit → executor-owned live final validation → immediate DPM wrapper call. No component holds more authority than required. The executor does not accept a Boolean allow flag or a delayed validator result from UI, a queue, or persistence. |
 | Mitigation | Isolate the future destructive DPM service from the reversible `VerifiedPolicyMutationExecutor`. Do not place the executor on the app compile classpath. Bytecode-bind the future setter the same way reversible setters are bound today. |
 | Failure behavior | Build reject or runtime DENY. NO WIPE. |
 
@@ -404,7 +416,10 @@ These risks exist today and remain acceptable only because **no real wipe
 exists**:
 
 - Local SQLite audit is not cryptographically tamper-proof
-- Same-UID attackers can alter app-private files
+- Ordinary app-private files are not anti-rollback. The deny-only
+  cooldown marker is for untrusted-trigger crash/reboot bypass and
+  fail-closed corrupt/restored bytes. It does not contain arbitrary
+  same-UID code execution (application compromise)
 - Wall-clock trigger expiry is attacker-influenced for reversible
   actions; reversible actions still use monotonic approval age and
   execution-time Device Owner revalidation

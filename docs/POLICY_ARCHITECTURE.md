@@ -243,9 +243,10 @@ Checkpoint 17:
 - `docs/WIPE_THREAT_MODEL.md` — assets, trust boundaries, and
   threat → invariant → mitigation → DENY / NO WIPE
 - `docs/WIPE_DESIGN.md` — explicit destructive state machine, target
-  binding, separate authorization domain, arming, final validation,
-  audit, lifecycle, rate limiting, researched Android API limits, and
-  the Checkpoint 17 entry checklist
+  binding, separate authorization domain, arming, audit commitment
+  then live final validation in one synchronous trusted chain,
+  lifecycle, deny-only cooldown (not same-UID code containment),
+  researched Android API limits, and the Checkpoint 17 entry checklist
 
 Until every Checkpoint 17 entry criterion is satisfied and explicitly
 approved, Sentinel must remain incapable of performing a real wipe. A
