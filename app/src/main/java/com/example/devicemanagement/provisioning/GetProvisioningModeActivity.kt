@@ -21,11 +21,7 @@ class GetProvisioningModeActivity : Activity() {
             return
         }
         val selection = FullyManagedProvisioningModeSelector.select(
-            ProvisioningAllowedModesParser.parse(
-                intent.extras?.get(
-                    FullyManagedProvisioningContract.EXTRA_ALLOWED_PROVISIONING_MODES,
-                ),
-            ),
+            ProvisioningAllowedModesParser.parse(allowedModesExtra(intent)),
         )
         when (selection) {
             is ProvisioningModeSelection.Selected -> {
@@ -44,6 +40,13 @@ class GetProvisioningModeActivity : Activity() {
             }
         }
         finish()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun allowedModesExtra(intent: Intent): Any? {
+        return intent.extras?.get(
+            FullyManagedProvisioningContract.EXTRA_ALLOWED_PROVISIONING_MODES,
+        )
     }
 
     private companion object {

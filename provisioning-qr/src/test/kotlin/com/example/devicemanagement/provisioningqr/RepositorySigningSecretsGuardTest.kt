@@ -19,14 +19,14 @@ class RepositorySigningSecretsGuardTest {
             "bks",
         )
         val forbiddenContent = listOf(
-            "-----BEGIN PRIVATE KEY-----",
-            "-----BEGIN RSA PRIVATE KEY-----",
-            "-----BEGIN EC PRIVATE KEY-----",
-            "-----BEGIN DSA PRIVATE KEY-----",
-            "-----BEGIN OPENSSH PRIVATE KEY-----",
-            "-----BEGIN PGP PRIVATE KEY BLOCK-----",
-            "storePassword=",
-            "keyPassword=",
+            listOf("-----BEGIN ", "PRIVATE KEY-----").joinToString(""),
+            listOf("-----BEGIN RSA ", "PRIVATE KEY-----").joinToString(""),
+            listOf("-----BEGIN EC ", "PRIVATE KEY-----").joinToString(""),
+            listOf("-----BEGIN DSA ", "PRIVATE KEY-----").joinToString(""),
+            listOf("-----BEGIN OPENSSH ", "PRIVATE KEY-----").joinToString(""),
+            listOf("-----BEGIN PGP PRIVATE ", "KEY BLOCK-----").joinToString(""),
+            listOf("store", "Password=").joinToString(""),
+            listOf("key", "Password=").joinToString(""),
         )
         val skippedDirectoryNames = setOf(
             ".git",
