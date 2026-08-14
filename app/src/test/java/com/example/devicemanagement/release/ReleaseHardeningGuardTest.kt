@@ -53,7 +53,17 @@ class ReleaseHardeningGuardTest {
         val extraction = File(main, "res/xml/data_extraction_rules.xml").readText()
         val network = File(main, "res/xml/network_security_config.xml").readText()
 
-        listOf("root", "file", "database", "sharedpref", "external").forEach { domain ->
+        listOf(
+            "root",
+            "file",
+            "database",
+            "sharedpref",
+            "external",
+            "device_root",
+            "device_file",
+            "device_database",
+            "device_sharedpref",
+        ).forEach { domain ->
             assertTrue(backup.contains("domain=\"$domain\""))
             assertTrue(extraction.contains("domain=\"$domain\""))
         }
@@ -103,6 +113,26 @@ class ReleaseHardeningGuardTest {
         assertFalse(activity.contains("intent.extras"))
         assertFalse(activity.contains("getParcelableExtra"))
         assertFalse(activity.contains("sensitiveActions.submit"))
+    }
+
+    @Test
+    fun `production distribution wiring is fail-closed and does not hardcode a certificate`() {
+        val appDir = File(requireNotNull(System.getProperty("appMainSourceDir"))).parentFile.parentFile
+        val gradle = File(appDir, "build.gradle.kts").readText()
+        assertTrue(gradle.contains("SENTINEL_RELEASE_CERT_SHA256"))
+        assertTrue(gradle.contains("assembleProductionRelease"))
+        assertTrue(gradle.contains("bundleProductionRelease"))
+        assertTrue(gradle.contains("checkReleaseProductionSecurity"))
+        assertTrue(gradle.contains("checkReleaseBundleProductionSecurity"))
+        assertTrue(gradle.contains("ApksignerLocator"))
+        assertTrue(gradle.contains("apksigner.bat") || gradle.contains("resolveFromBuildTools"))
+        assertTrue(gradle.contains("requestProductionDistribution"))
+        assertTrue(
+            gradle.contains("\"checkReleaseProductionSecurity\"") ||
+                gradle.contains("checkReleaseProductionSecurity"),
+        )
+        assertFalse(Regex("[0-9a-fA-F]{64}").containsMatchIn(gradle))
+        assertFalse(gradle.contains("CN=Sentinel"))
     }
 
     private fun parse(file: File) = DocumentBuilderFactory.newInstance().apply {

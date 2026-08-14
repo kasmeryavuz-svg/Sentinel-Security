@@ -95,9 +95,12 @@ execution security boundary behind its narrow API module.
 ./gradlew test
 ./gradlew assembleDebug
 ./gradlew assembleRelease
+./gradlew bundleRelease
 ./gradlew checkReleaseProductionSecurity
 ```
 
-`assembleRelease` is a local verification artifact. It is not a production
-distribution unless production signing secrets are supplied. See
+`assembleRelease` / `bundleRelease` are local verification artifacts. They
+are not production distributions. Production distribution requires
+keystore secrets plus `SENTINEL_RELEASE_CERT_SHA256` and must be built
+with `assembleProductionRelease` / `bundleProductionRelease`. See
 `docs/RELEASE_SECURITY.md`.

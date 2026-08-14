@@ -74,11 +74,26 @@ fun readProductionSigningSecrets(): ProductionSigningSecrets? {
     )
 }
 
+fun readExpectedProductionCertSha256(): String? {
+    return sentinelSecret("SENTINEL_RELEASE_CERT_SHA256")
+}
+
+fun productionDistributionTasksRequested(): Boolean {
+    return gradle.startParameter.taskNames.any { requested ->
+        val leaf = requested.substringAfterLast(':')
+        leaf.equals("assembleProductionRelease", ignoreCase = true) ||
+            leaf.equals("bundleProductionRelease", ignoreCase = true)
+    }
+}
+
 val productionSigningSecrets = readProductionSigningSecrets()
+val configuredProductionCertSha256 = readExpectedProductionCertSha256()
 val productionDistributionFlag =
     providers.gradleProperty("sentinel.productionDistribution")
         .map { it.equals("true", ignoreCase = true) }
         .orElse(false)
+val requestProductionDistribution =
+    productionDistributionFlag.get() || productionDistributionTasksRequested()
 
 android {
     namespace = "com.example.devicemanagement"
@@ -818,9 +833,8 @@ androidComponents {
                     "Inspects the release APK, merged manifest, R8 mapping, and signing boundary."
                 this.variantName.set("release")
                 requireNonDebuggable.set(true)
-                productionDistributionRequested.set(
-                    productionDistributionFlag.get(),
-                )
+                productionDistributionRequested.set(requestProductionDistribution)
+                expectedProductionCertSha256.set(configuredProductionCertSha256.orEmpty())
                 mergedManifest.set(mergedManifestArtifact)
                 backupRules.set(file("src/main/res/xml/backup_rules.xml"))
                 dataExtractionRules.set(file("src/main/res/xml/data_extraction_rules.xml"))
@@ -829,11 +843,15 @@ androidComponents {
                     variant.artifacts.get(SingleArtifact.OBFUSCATION_MAPPING_FILE),
                 )
                 apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
+                val buildToolsDir = file(
+                    "${android.sdkDirectory}/build-tools/" +
+                        "${android.buildToolsVersion}",
+                )
+                buildToolsDirectory.set(buildToolsDir.absolutePath)
                 apksignerPath.set(
-                    file(
-                        "${android.sdkDirectory}/build-tools/" +
-                            "${android.buildToolsVersion}/apksigner",
-                    ).absolutePath,
+                    ApksignerLocator.resolveFromBuildTools(buildToolsDir)
+                        ?.absolutePath
+                        .orEmpty(),
                 )
                 signingReport.set(
                     layout.buildDirectory.file(
@@ -846,10 +864,11 @@ androidComponents {
             ) {
                 group = "verification"
                 description =
-                    "Inspects the release AAB DEX and merged release security policy."
+                    "Inspects the release AAB DEX, signing identity, and merged release security policy."
                 this.variantName.set("release")
                 requireNonDebuggable.set(true)
-                productionDistributionRequested.set(false)
+                productionDistributionRequested.set(requestProductionDistribution)
+                expectedProductionCertSha256.set(configuredProductionCertSha256.orEmpty())
                 mergedManifest.set(mergedManifestArtifact)
                 backupRules.set(file("src/main/res/xml/backup_rules.xml"))
                 dataExtractionRules.set(file("src/main/res/xml/data_extraction_rules.xml"))
@@ -858,6 +877,16 @@ androidComponents {
                     variant.artifacts.get(SingleArtifact.OBFUSCATION_MAPPING_FILE),
                 )
                 bundleFile.set(variant.artifacts.get(SingleArtifact.BUNDLE))
+                val buildToolsDir = file(
+                    "${android.sdkDirectory}/build-tools/" +
+                        "${android.buildToolsVersion}",
+                )
+                buildToolsDirectory.set(buildToolsDir.absolutePath)
+                apksignerPath.set(
+                    ApksignerLocator.resolveFromBuildTools(buildToolsDir)
+                        ?.absolutePath
+                        .orEmpty(),
+                )
                 signingReport.set(
                     layout.buildDirectory.file(
                         "reports/release-bundle-security.txt",
@@ -924,6 +953,17 @@ val checkProductionDistributionSigning by tasks.registering {
                 "SENTINEL_RELEASE_KEY_PASSWORD from the environment or gitignored " +
                 "local.properties. Refusing to fall back to the Android debug key."
         }
+        val rawFingerprint = readExpectedProductionCertSha256()
+        check(!rawFingerprint.isNullOrBlank()) {
+            "Production distribution requires SENTINEL_RELEASE_CERT_SHA256 from the " +
+                "environment or gitignored local.properties. A random developer " +
+                "certificate is never treated as production."
+        }
+        check(
+            ReleaseArtifactSecurityVerifier.normalizeSha256Fingerprint(rawFingerprint) != null,
+        ) {
+            "SENTINEL_RELEASE_CERT_SHA256 is not a valid SHA-256 fingerprint"
+        }
         val releaseSigning = android.signingConfigs.findByName("production")
         check(releaseSigning != null) {
             "Production signing configuration was not applied"
@@ -937,8 +977,25 @@ val checkProductionDistributionSigning by tasks.registering {
 tasks.register("assembleProductionRelease") {
     group = "build"
     description =
-        "Release assemble that fails unless production signing secrets are present."
-    dependsOn(checkProductionDistributionSigning, "assembleRelease")
+        "Release assemble that inspects the produced APK and fails unless it is " +
+            "exactly PRODUCTION_SIGNED."
+    dependsOn(
+        checkProductionDistributionSigning,
+        "assembleRelease",
+        "checkReleaseProductionSecurity",
+    )
+}
+
+tasks.register("bundleProductionRelease") {
+    group = "build"
+    description =
+        "Release bundle that inspects the produced AAB and fails unless it is " +
+            "exactly PRODUCTION_SIGNED."
+    dependsOn(
+        checkProductionDistributionSigning,
+        "bundleRelease",
+        "checkReleaseBundleProductionSecurity",
+    )
 }
 
 tasks.matching { it.name == "preBuild" }.configureEach {

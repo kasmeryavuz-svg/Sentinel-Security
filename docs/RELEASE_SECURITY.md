@@ -68,9 +68,12 @@ that forbidden destructive API tokens are absent.
 
 - `android:allowBackup="false"`
 - `android:fullBackupContent="@xml/backup_rules"` — exclude root, file,
-  database, sharedpref, and external (legacy Auto Backup)
+  database, sharedpref, external, and the device-protected domains
+  `device_root`, `device_file`, `device_database`, and
+  `device_sharedpref` (legacy Auto Backup)
 - `android:dataExtractionRules="@xml/data_extraction_rules"` — exclude the
-  same domains from **cloud-backup** and **device-transfer** (API 31+)
+  same credential-protected and device-protected domains from
+  **cloud-backup** and **device-transfer** (API 31+)
 
 Do not rely on `allowBackup=false` alone. Android 12+ device-to-device
 transfer is independent of that flag. Sentinel audit SQLite
@@ -126,27 +129,54 @@ Required names:
 - `SENTINEL_RELEASE_STORE_PASSWORD`
 - `SENTINEL_RELEASE_KEY_ALIAS`
 - `SENTINEL_RELEASE_KEY_PASSWORD`
+- `SENTINEL_RELEASE_CERT_SHA256` — expected production signing certificate
+  SHA-256 fingerprint (colons, spaces, and case are normalized)
 
 Behavior:
 
-- all four absent: `assembleRelease` produces an **unsigned local
-  verification** artifact. Release is never assigned the Android debug
-  signing configuration. That artifact is **not** a production distribution.
-- any but not all four present: configuration **fails closed**. There is no
-  silent debug-key fallback.
+- all four keystore secrets absent: `assembleRelease` / `bundleRelease`
+  produce an **unsigned local verification** artifact. Release is never
+  assigned the Android debug signing configuration. That artifact is
+  **not** a production distribution.
+- any but not all four keystore secrets present: configuration **fails
+  closed**. There is no silent debug-key fallback.
 - all four present: release uses the `production` signing config, never the
   debug signing config.
+- a random developer or test certificate is **never** classified as
+  production merely because it is not the Android debug certificate.
+
+Classification is fail-closed:
+
+- unsigned → `UNSIGNED`
+- known Android debug/test certificate → `TEST_SIGNED`
+- signed but no expected production fingerprint configured → `UNKNOWN`
+- signed and fingerprint does not match the configured production
+  identity → `TEST_SIGNED` or `UNKNOWN`, never `PRODUCTION_SIGNED`
+- signed and fingerprint exactly matches the configured production
+  fingerprint → `PRODUCTION_SIGNED`
+
+Production distribution (`assembleProductionRelease` /
+`bundleProductionRelease`) fails unless classification is exactly
+`PRODUCTION_SIGNED`. Those tasks inspect the produced APK/AAB, require
+the keystore secrets and `SENTINEL_RELEASE_CERT_SHA256`, and require a
+usable `apksigner` or `apksigner.bat` for APK verification. A missing
+verifier is not acceptable for a production distribution.
 
 Tasks:
 
-- `./gradlew :app:checkReleaseProductionSecurity` — classifies the artifact
-  (`UNSIGNED` / `TEST_SIGNED` / `PRODUCTION_SIGNED`) into
-  `app/build/reports/release-signing-boundary.txt`
+- `./gradlew :app:checkReleaseProductionSecurity` — classifies the local
+  verification APK (`UNSIGNED` / `TEST_SIGNED` / `UNKNOWN` /
+  `PRODUCTION_SIGNED`) into `app/build/reports/release-signing-boundary.txt`
+- `./gradlew :app:checkReleaseBundleProductionSecurity` — same for the AAB
 - `./gradlew :app:checkProductionDistributionSigning` — **fails** unless
-  production secrets are present
-- `./gradlew :app:assembleProductionRelease` — same fail-closed production path
+  production secrets and the expected certificate fingerprint are present
+- `./gradlew :app:assembleProductionRelease` — fail-closed production APK
+  path; runs `checkReleaseProductionSecurity` with production distribution
+  requested
+- `./gradlew :app:bundleProductionRelease` — fail-closed production AAB path
 
-This repository does **not** generate a production signing key.
+This repository does **not** generate a production signing key and does
+**not** hardcode a production certificate fingerprint.
 
 ## Logging / information disclosure
 

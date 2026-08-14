@@ -4,12 +4,16 @@ import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
 
 object BackupPolicyVerifier {
-    private val requiredDomains = setOf(
+    val requiredExcludeDomains = setOf(
         "root",
         "file",
         "database",
         "sharedpref",
         "external",
+        "device_root",
+        "device_file",
+        "device_database",
+        "device_sharedpref",
     )
 
     fun verify(backupRules: File, dataExtractionRules: File): List<String> {
@@ -33,9 +37,9 @@ object BackupPolicyVerifier {
             violations += "${file.name} must not include any backup domain"
         }
         val excluded = excludedDomains(root)
-        if (excluded != requiredDomains) {
+        if (excluded != requiredExcludeDomains) {
             violations +=
-                "${file.name} must exclude exactly $requiredDomains; found $excluded"
+                "${file.name} must exclude exactly $requiredExcludeDomains; found $excluded"
         }
         return violations
     }
@@ -61,10 +65,10 @@ object BackupPolicyVerifier {
                 violations += "${file.name} <$sectionName> must not include any domain"
             }
             val excluded = excludedDomains(section)
-            if (excluded != requiredDomains) {
+            if (excluded != requiredExcludeDomains) {
                 violations +=
-                    "${file.name} <$sectionName> must exclude exactly $requiredDomains; " +
-                    "found $excluded"
+                    "${file.name} <$sectionName> must exclude exactly " +
+                    "$requiredExcludeDomains; found $excluded"
             }
         }
         return violations

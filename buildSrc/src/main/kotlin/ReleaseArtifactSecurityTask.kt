@@ -23,6 +23,10 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
     @get:Input
     abstract val productionDistributionRequested: Property<Boolean>
 
+    @get:Input
+    @get:Optional
+    abstract val expectedProductionCertSha256: Property<String>
+
     @get:InputFile
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val mergedManifest: RegularFileProperty
@@ -58,6 +62,10 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
     @get:Optional
     abstract val apksignerPath: Property<String>
 
+    @get:Input
+    @get:Optional
+    abstract val buildToolsDirectory: Property<String>
+
     @get:OutputFile
     abstract val signingReport: RegularFileProperty
 
@@ -66,6 +74,8 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
         val variant = variantName.get()
         val androidNamespace = "http://schemas.android.com/apk/res/android"
         val violations = mutableListOf<String>()
+        val productionRequested = productionDistributionRequested.get()
+        val expectedFingerprint = expectedProductionCertSha256.orNull
 
         val manifestFile = mergedManifest.get().asFile
         val manifest = EffectiveManifestSecurityVerifier.parse(manifestFile)
@@ -87,6 +97,11 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
             violations += "release R8 mapping file is missing"
         }
 
+        violations += ReleaseArtifactSecurityVerifier.verifyExpectedProductionFingerprint(
+            productionDistributionRequested = productionRequested,
+            expectedProductionFingerprint = expectedFingerprint,
+        )
+
         var classification = ReleaseArtifactSecurityVerifier.SigningClassification.UNKNOWN
         var artifactName = "none"
         if (apkDirectory.isPresent) {
@@ -94,11 +109,19 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
             artifactName = apk.name
             val strings = DexStringTable.stringsFromApk(apk)
             violations += ReleaseArtifactSecurityVerifier.verifyPackagedDex(strings, apk.name)
-            val signing = classifyApkSigning(apk)
-            classification = signing
+            val signing = classifyApkSigning(
+                apk = apk,
+                expectedFingerprint = expectedFingerprint,
+                productionRequested = productionRequested,
+            )
+            classification = signing.classification
+            violations += ReleaseArtifactSecurityVerifier.verifyApksignerAvailability(
+                productionDistributionRequested = productionRequested,
+                apksignerAvailable = signing.apksignerAvailable,
+            )
             violations += ReleaseArtifactSecurityVerifier.verifySigningBoundary(
-                classification = signing,
-                productionDistributionRequested = productionDistributionRequested.get(),
+                classification = signing.classification,
+                productionDistributionRequested = productionRequested,
             )
         }
         if (bundleFile.isPresent) {
@@ -106,6 +129,16 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
             artifactName = bundle.name
             val strings = DexStringTable.stringsFromAab(bundle)
             violations += ReleaseArtifactSecurityVerifier.verifyPackagedDex(strings, bundle.name)
+            val signing = classifyBundleSigning(bundle, expectedFingerprint)
+            classification = signing
+            violations += ReleaseArtifactSecurityVerifier.verifyApksignerAvailability(
+                productionDistributionRequested = productionRequested,
+                apksignerAvailable = resolveApksigner() != null,
+            )
+            violations += ReleaseArtifactSecurityVerifier.verifySigningBoundary(
+                classification = signing,
+                productionDistributionRequested = productionRequested,
+            )
         }
 
         val report = signingReport.get().asFile
@@ -133,27 +166,109 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
         return chosen
     }
 
+    private fun resolveApksigner(): File? {
+        ApksignerLocator.resolve(apksignerPath.orNull)?.let { return it }
+        val buildTools = buildToolsDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File)
+        return buildTools?.let(ApksignerLocator::resolveFromBuildTools)
+    }
+
     private fun classifyApkSigning(
         apk: File,
-    ): ReleaseArtifactSecurityVerifier.SigningClassification {
-        val apksigner = apksignerPath.orNull?.let(::File)
-        if (apksigner == null || !apksigner.isFile) {
-            return ReleaseArtifactSecurityVerifier.SigningClassification.UNKNOWN
+        expectedFingerprint: String?,
+        productionRequested: Boolean,
+    ): ApkSigningResult {
+        val apksigner = resolveApksigner()
+        if (apksigner == null) {
+            return archiveFallback(
+                apk = apk,
+                expectedFingerprint = expectedFingerprint,
+                apksignerAvailable = false,
+                productionRequested = productionRequested,
+            )
         }
-        val output = ByteArrayOutputStream()
-        val result = project.exec {
-            commandLine(
-                apksigner.absolutePath,
+        return try {
+            val output = ByteArrayOutputStream()
+            val verifierCommand = ApksignerLocator.commandLine(
+                apksigner,
                 "verify",
                 "--print-certs",
                 apk.absolutePath,
             )
-            standardOutput = output
-            errorOutput = output
-            isIgnoreExitValue = true
+            val result = project.exec {
+                commandLine(*verifierCommand.toTypedArray())
+                standardOutput = output
+                errorOutput = output
+                isIgnoreExitValue = true
+            }
+            val text = output.toString(Charsets.UTF_8)
+            val signed = result.exitValue == 0
+            val classification = ReleaseArtifactSecurityVerifier.classifySigning(
+                certOutput = text,
+                signed = signed,
+                expectedProductionFingerprint = expectedFingerprint,
+            )
+            ApkSigningResult(
+                classification = classification,
+                apksignerAvailable = true,
+            )
+        } catch (_: Exception) {
+            archiveFallback(
+                apk = apk,
+                expectedFingerprint = expectedFingerprint,
+                apksignerAvailable = false,
+                productionRequested = productionRequested,
+            )
         }
-        val text = output.toString(Charsets.UTF_8)
-        val signed = result.exitValue == 0
-        return ReleaseArtifactSecurityVerifier.classifySigning(text, signed)
     }
+
+    private fun archiveFallback(
+        apk: File,
+        expectedFingerprint: String?,
+        apksignerAvailable: Boolean,
+        productionRequested: Boolean,
+    ): ApkSigningResult {
+        val archive = ReleaseArtifactSecurityVerifier.inspectSignedArchive(apk)
+        val classification = if (!archive.signed) {
+            ReleaseArtifactSecurityVerifier.SigningClassification.UNSIGNED
+        } else if (productionRequested) {
+            ReleaseArtifactSecurityVerifier.SigningClassification.UNKNOWN
+        } else {
+            ReleaseArtifactSecurityVerifier.classifySigning(
+                certOutput = archive.certificateOutput,
+                signed = true,
+                expectedProductionFingerprint = expectedFingerprint,
+                observedFingerprints = archive.fingerprints,
+            ).let { classified ->
+                if (classified ==
+                    ReleaseArtifactSecurityVerifier.SigningClassification.PRODUCTION_SIGNED
+                ) {
+                    ReleaseArtifactSecurityVerifier.SigningClassification.UNKNOWN
+                } else {
+                    classified
+                }
+            }
+        }
+        return ApkSigningResult(
+            classification = classification,
+            apksignerAvailable = apksignerAvailable,
+        )
+    }
+
+    private fun classifyBundleSigning(
+        bundle: File,
+        expectedFingerprint: String?,
+    ): ReleaseArtifactSecurityVerifier.SigningClassification {
+        val evidence = ReleaseArtifactSecurityVerifier.inspectSignedArchive(bundle)
+        return ReleaseArtifactSecurityVerifier.classifySigning(
+            certOutput = evidence.certificateOutput,
+            signed = evidence.signed,
+            expectedProductionFingerprint = expectedFingerprint,
+            observedFingerprints = evidence.fingerprints,
+        )
+    }
+
+    private data class ApkSigningResult(
+        val classification: ReleaseArtifactSecurityVerifier.SigningClassification,
+        val apksignerAvailable: Boolean,
+    )
 }
