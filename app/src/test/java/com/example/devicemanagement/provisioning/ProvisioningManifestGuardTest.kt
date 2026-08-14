@@ -55,6 +55,7 @@ class ProvisioningManifestGuardTest {
         assertFalse(allActions.contains("android.app.action.PROVISION_MANAGED_PROFILE"))
         assertFalse(allActions.contains("android.intent.action.BOOT_COMPLETED"))
         assertFalse(allActions.contains("android.intent.action.LOCKED_BOOT_COMPLETED"))
+        assertFalse(allActions.contains("android.intent.action.QUICKBOOT_POWERON"))
         assertEquals(3, activities.size)
     }
 
@@ -64,6 +65,14 @@ class ProvisioningManifestGuardTest {
         val androidNamespace = "http://schemas.android.com/apk/res/android"
         val application = manifest.getElementsByTagName("application").asElements().single()
         assertEquals("false", application.getAttributeNS(androidNamespace, "allowBackup"))
+        assertEquals(
+            "@xml/backup_rules",
+            application.getAttributeNS(androidNamespace, "fullBackupContent"),
+        )
+        assertEquals(
+            "@xml/data_extraction_rules",
+            application.getAttributeNS(androidNamespace, "dataExtractionRules"),
+        )
     }
 
     @Test

@@ -98,4 +98,7 @@ used for authorization, freshness, cooldowns, or replay protection.
   `SIMULATED`. A readable `REQUESTED` sibling stays Interrupted.
 - Incompatible or corrupt databases fail closed. The helper does not drop or
   recreate the file.
-- Android backup remains disabled (`allowBackup=false`).
+- Android backup remains disabled (`allowBackup=false`). Explicit
+  full-backup and Android 12+ data-extraction rules also exclude databases,
+  files, shared preferences, and device-to-device transfer. See
+  `docs/RELEASE_SECURITY.md`.

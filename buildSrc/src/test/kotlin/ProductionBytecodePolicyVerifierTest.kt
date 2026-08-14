@@ -317,6 +317,58 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `System out diagnostic stream is rejected from production bytecode`() {
+        val classes = compileJava(
+            "attack/PrintlnLeak.java" to
+                """
+                package attack;
+                public final class PrintlnLeak {
+                    void leak(String value) {
+                        System.out.println(value);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "System.out")
+    }
+
+    @Test
+    fun `printStackTrace is rejected from production bytecode`() {
+        val classes = compileJava(
+            "attack/TraceLeak.java" to
+                """
+                package attack;
+                public final class TraceLeak {
+                    void leak(Exception error) {
+                        error.printStackTrace();
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        assertRejected(classes, "printStackTrace")
+    }
+
+    @Test
+    fun `workstation QR tooling may still use diagnostic streams`() {
+        val classes = compileJava(
+            "tool/QrPrinter.java" to
+                """
+                package tool;
+                public final class QrPrinter {
+                    void print(String payload) {
+                        System.out.println(payload);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":provisioning-qr", classes)
+        assertTrue(violations.isEmpty(), violations.joinToString("\n"))
+    }
+
+    @Test
     fun `legacy Class newInstance is rejected`() {
         val classes = compileJava(
             "attack/LegacyReflection.java" to

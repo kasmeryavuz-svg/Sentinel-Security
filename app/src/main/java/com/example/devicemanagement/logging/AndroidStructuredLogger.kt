@@ -14,10 +14,18 @@ class AndroidStructuredLogger(
     }
 
     override fun error(event: String, fields: Map<String, Any?>, throwable: Throwable?) {
-        Log.e(tag, format(event, fields), throwable)
+        val sanitized = ProductionLogSanitizer.sanitize(fields).toMutableMap()
+        if (throwable != null) {
+            sanitized["exception_class"] = throwable.javaClass.name
+        }
+        Log.e(tag, formatSanitized(event, sanitized))
     }
 
     private fun format(event: String, fields: Map<String, Any?>): String {
+        return formatSanitized(event, ProductionLogSanitizer.sanitize(fields))
+    }
+
+    private fun formatSanitized(event: String, fields: Map<String, String>): String {
         if (fields.isEmpty()) return event
         return buildString {
             append(event)
@@ -25,7 +33,7 @@ class AndroidStructuredLogger(
                 append(" ")
                 append(key)
                 append("=")
-                append(value?.toString() ?: "null")
+                append(value)
             }
         }
     }
