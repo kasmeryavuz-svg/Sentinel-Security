@@ -242,10 +242,8 @@ class DurableAuditRepositoryTest {
     )
 
     private class RawPhaseAuditRecordStore(
-        private val rows: MutableList<RawAuditRow>,
+        private val rows: List<RawAuditRow>,
     ) : AuditRecordStore {
-        constructor(rows: List<RawAuditRow>) : this(rows.toMutableList())
-
         override fun insert(record: NewAuditRecord): Long {
             throw AuditStoreException("raw phase fixture is read-only")
         }

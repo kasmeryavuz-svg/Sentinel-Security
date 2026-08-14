@@ -113,6 +113,7 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/audit/SentinelAuditOpenHelper",
         "com/example/devicemanagement/audit/SqliteAuditRecordStore",
         "com/example/devicemanagement/audit/NonDestructiveAuditDatabaseErrorHandler",
+        "com/example/devicemanagement/audit/AuditSqliteIdentity",
     )
 
     private val forbiddenContextDatabaseMethods = setOf(
