@@ -43,11 +43,16 @@ The writer, SQLite helper, database filename/table identity, and database
 mutation types are implementation artifacts. They are absent from the app
 compile classpath. Production app/UI bytecode cannot reference SQLiteDatabase,
 SQLiteOpenHelper, Context.openOrCreateDatabase, Context.deleteDatabase,
-Context.getDatabasePath, or java.io.File APIs capable of targeting the audit
-store. Audit records may be read only through `AuditHistoryProvider` and
+Context.getDatabasePath, Context.moveDatabaseFrom, DatabaseUtils database
+creation/manipulation APIs, android.system.Os file-manipulation syscalls,
+OsConstants file flags, or java.io.File APIs capable of targeting the audit
+store. Production bytecode also binds `SensitiveActionAuditWriter.append` and
+`DurableAuditRepository.append` to `DefaultSensitiveActionController.submit`.
+Audit records may be read only through `AuditHistoryProvider` and
 `AuditStorageStatusProvider`. Audit persistence cannot authorize actions,
 create approvals, replay commands, call DevicePolicyManager, or influence
-Device Owner verification.
+Device Owner verification. This remains same-UID architectural and build-time
+enforcement, not runtime cryptographic isolation.
 
 Unknown or malformed persisted `phase` values are treated as storage
 corruption. They are omitted from history and never decoded as `APPLIED`,

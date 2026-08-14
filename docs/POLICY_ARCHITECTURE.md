@@ -44,7 +44,8 @@ audit writers.
 The dashboard **Audit log** is loaded from the read-only `AuditHistoryProvider`.
 It is durable app-private SQLite evidence, not an authorization source and not
 cryptographically tamper-proof archival. The UI cannot open, modify, delete, or
-recreate `sentinel_audit.db`; compiled production guards reject SQLite and
+recreate `sentinel_audit.db`; compiled production guards reject SQLite,
+Context/DatabaseUtils database APIs, android.system.Os file syscalls, and
 direct file access to that store. `StructuredLogger` remains a logging
 abstraction and is not an audit subsystem. Audit persistence cannot approve
 actions, call DevicePolicyManager, or bypass the existing backend. Unknown
@@ -172,6 +173,9 @@ The trusted controller writes a durable `REQUESTED` event before any policy
 mutation. If that append fails, execution fails closed and DevicePolicyManager
 is not called. After the existing trusted path returns, exactly one terminal
 event is appended: `APPLIED`, `REJECTED`, `FAILED`, or `SIMULATED`.
+Production bytecode allows those append invocations only from
+`DefaultSensitiveActionController.submit`, whether the call owner is
+`SensitiveActionAuditWriter` or `DurableAuditRepository`.
 
 SQLite and DevicePolicyManager are not one atomic transaction. If a mutation
 returns Applied and the terminal audit append then fails, the action result

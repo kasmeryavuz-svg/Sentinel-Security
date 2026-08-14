@@ -120,6 +120,7 @@ internal object ProductionBytecodePolicyVerifier {
         "openOrCreateDatabase",
         "deleteDatabase",
         "getDatabasePath",
+        "moveDatabaseFrom",
     )
 
     private val appForbiddenFileOwners = setOf(
@@ -133,6 +134,90 @@ internal object ProductionBytecodePolicyVerifier {
         "java/nio/file/Paths",
         "java/nio/file/Path",
         "java/nio/channels/FileChannel",
+    )
+
+    private const val DATABASE_UTILS = "android/database/DatabaseUtils"
+
+    private val lowLevelFileOwners = setOf(
+        "android/system/Os",
+        "libcore/io/Os",
+        "libcore/io/Posix",
+        "libcore/io/Linux",
+        "libcore/io/ForwardingOs",
+        "libcore/io/BlockGuardOs",
+        "libcore/io/IoBridge",
+    )
+
+    /**
+     * POSIX/Android syscall names that can open, replace, unlink, rename,
+     * truncate, chmod/chown, or otherwise mutate app-private database files.
+     * Unrelated Os helpers such as getpid remain unrestricted.
+     */
+    private val forbiddenOsFileMethods = setOf(
+        "open",
+        "openat",
+        "creat",
+        "write",
+        "writev",
+        "pwrite",
+        "pwrite64",
+        "pwritev",
+        "lseek",
+        "lseek64",
+        "fcntl",
+        "fcntlInt",
+        "fcntlVoid",
+        "fcntlLong",
+        "flock",
+        "fsync",
+        "fdatasync",
+        "ftruncate",
+        "ftruncate64",
+        "truncate",
+        "unlink",
+        "unlinkat",
+        "remove",
+        "rename",
+        "renameat",
+        "renameat2",
+        "link",
+        "linkat",
+        "symlink",
+        "symlinkat",
+        "chmod",
+        "fchmod",
+        "fchmodat",
+        "chown",
+        "fchown",
+        "lchown",
+        "fchownat",
+        "mkdir",
+        "mkdirat",
+        "mkfifo",
+        "mkfifoat",
+        "mknod",
+        "mknodat",
+        "rmdir",
+        "mmap",
+        "mmap64",
+        "msync",
+        "sendfile",
+        "sendfile64",
+        "copy_file_range",
+        "posix_fallocate",
+        "fallocate",
+        "setxattr",
+        "lsetxattr",
+        "fsetxattr",
+        "removexattr",
+        "lremovexattr",
+        "fremovexattr",
+        "splice",
+        "memfd_create",
+        "ioctl",
+        "ioctlInt",
+        "ioctlint",
+        "ioctlLong",
     )
 
     private const val AUDIT_DATABASE_FILE = "sentinel_audit.db"
@@ -181,6 +266,29 @@ internal object ProductionBytecodePolicyVerifier {
             "setStatusBarDisabled(Z)Z" to verifiedMutationExecutorStatusBar,
         "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService." +
             "setStatusBarDisabled(Z)Z" to verifiedMutationExecutorStatusBar,
+    )
+
+    private val trustedAuditAppendOrigin = InvocationOrigin(
+        "com/example/devicemanagement/action/DefaultSensitiveActionController",
+        "submit",
+        "(Lcom/example/devicemanagement/trigger/Trigger;)" +
+            "Lcom/example/devicemanagement/action/ActionResult;",
+    )
+
+    /**
+     * Audit append is bound to DefaultSensitiveActionController whether the
+     * bytecode call owner is the writer interface or the concrete repository.
+     * Restricting only the interface leaves a concrete-type / cast bypass.
+     */
+    private val trustedAuditAppendOrigins = mapOf(
+        "com/example/devicemanagement/audit/SensitiveActionAuditWriter." +
+            "append(Lcom/example/devicemanagement/audit/AuditAppendRequest;)" +
+            "Lcom/example/devicemanagement/audit/AuditAppendResult;" to
+            trustedAuditAppendOrigin,
+        "com/example/devicemanagement/audit/DurableAuditRepository." +
+            "append(Lcom/example/devicemanagement/audit/AuditAppendRequest;)" +
+            "Lcom/example/devicemanagement/audit/AuditAppendResult;" to
+            trustedAuditAppendOrigin,
     )
 
     fun verify(targets: Iterable<PolicyVerificationTarget>): List<String> {
@@ -310,6 +418,8 @@ internal object ProductionBytecodePolicyVerifier {
             ) {
                 checkDpmOwner(owner, "$location field $name")
                 checkSqliteOwner(owner, "$location field $name")
+                checkDatabaseUtilsOwner(owner, "$location field $name")
+                checkLowLevelFileApi(owner, name, "$location field $name")
                 checkAppFileOwner(owner, "$location field $name")
                 checkDescriptor(descriptor, "$location field $name")
             }
@@ -323,8 +433,11 @@ internal object ProductionBytecodePolicyVerifier {
             ) {
                 checkDpmInvocation(owner, name, descriptor, location)
                 checkVerifiedMutationInvocation(owner, name, descriptor, location)
+                checkTrustedAuditAppendInvocation(owner, name, descriptor, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
                 checkContextDatabaseInvocation(owner, name, location)
+                checkDatabaseUtilsOwner(owner, "$location invocation $owner.$name$descriptor")
+                checkLowLevelFileApi(owner, name, location)
                 checkForbiddenOwner(owner, name, location)
                 checkAppFileOwner(owner, location)
                 checkDescriptor(descriptor, "$location invocation")
@@ -380,6 +493,12 @@ internal object ProductionBytecodePolicyVerifier {
                 handle.desc,
                 "$location method handle",
             )
+            checkTrustedAuditAppendInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
             checkSqliteInvocation(
                 handle.owner,
                 handle.name,
@@ -387,6 +506,11 @@ internal object ProductionBytecodePolicyVerifier {
                 "$location method handle",
             )
             checkContextDatabaseInvocation(handle.owner, handle.name, "$location method handle")
+            checkDatabaseUtilsOwner(
+                handle.owner,
+                "$location method handle invocation ${handle.owner}.${handle.name}${handle.desc}",
+            )
+            checkLowLevelFileApi(handle.owner, handle.name, "$location method handle")
             checkForbiddenOwner(handle.owner, handle.name, "$location method handle")
             checkAppFileOwner(handle.owner, "$location method handle")
             checkDescriptor(handle.desc, "$location method handle")
@@ -437,6 +561,30 @@ internal object ProductionBytecodePolicyVerifier {
             }
         }
 
+        private fun checkTrustedAuditAppendInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            val invocation = "$owner.$name$descriptor"
+            val approvedOrigin = trustedAuditAppendOrigins[invocation] ?: return
+            val actualOrigin = InvocationOrigin(
+                className,
+                methodName(location),
+                methodDescriptor(location),
+            )
+            if (
+                target.artifactPath != ":sensitive-actions" ||
+                actualOrigin != approvedOrigin
+            ) {
+                violation(
+                    "$location invokes audit append $invocation outside " +
+                        "DefaultSensitiveActionController",
+                )
+            }
+        }
+
         private fun methodName(location: String): String {
             return location.removePrefix("$className.").substringBefore('(')
         }
@@ -461,6 +609,8 @@ internal object ProductionBytecodePolicyVerifier {
             if (type == null) return
             checkDpmOwner(type, location)
             checkSqliteOwner(type, location)
+            checkDatabaseUtilsOwner(type, location)
+            checkLowLevelFileApi(type, "<type>", location)
             checkAppFileOwner(type, location)
             checkForbiddenOwner(type, "<type>", location)
         }
@@ -471,6 +621,12 @@ internal object ProductionBytecodePolicyVerifier {
             }
             sqliteTypesIn(descriptor).forEach { owner ->
                 checkSqliteOwner(owner, location)
+            }
+            if (descriptor.contains("L$DATABASE_UTILS")) {
+                checkDatabaseUtilsOwner(DATABASE_UTILS, location)
+            }
+            if (descriptor.contains("Landroid/system/OsConstants")) {
+                checkLowLevelFileApi("android/system/OsConstants", "<type>", location)
             }
             appForbiddenFileOwners.forEach { owner ->
                 if (descriptor.contains("L$owner;")) {
@@ -553,8 +709,46 @@ internal object ProductionBytecodePolicyVerifier {
             }
             if (!authorizedAuditSqliteAccess()) {
                 violation(
-                    "$location invokes $owner.$name, which can open, locate, or delete " +
+                    "$location invokes $owner.$name, which can open, locate, move, or delete " +
                         "the Sentinel audit database outside the trusted audit pipeline",
+                )
+            }
+        }
+
+        private fun checkDatabaseUtilsOwner(owner: String, location: String) {
+            if (
+                isFrameworkClass() ||
+                (owner != DATABASE_UTILS && !owner.startsWith("${DATABASE_UTILS}$"))
+            ) {
+                return
+            }
+            if (!authorizedAuditSqliteAccess()) {
+                violation(
+                    "$location references $owner, which can create or populate the " +
+                        "Sentinel audit database outside the trusted audit pipeline",
+                )
+            }
+        }
+
+        /**
+         * Low-level file syscalls can open, replace, or chmod the audit DB
+         * without touching java.io.File or Context database helpers.
+         */
+        private fun checkLowLevelFileApi(owner: String, name: String, location: String) {
+            if (isFrameworkClass()) {
+                return
+            }
+            val osConstants = owner == "android/system/OsConstants" ||
+                owner.startsWith("android/system/OsConstants\$")
+            val fileSyscall = owner in lowLevelFileOwners && name in forbiddenOsFileMethods
+            if (!osConstants && !fileSyscall) {
+                return
+            }
+            if (!authorizedAuditSqliteAccess()) {
+                violation(
+                    "$location uses $owner.$name, which can open, unlink, rename, " +
+                        "replace, truncate, chmod, or chown the Sentinel audit " +
+                        "database outside the trusted audit pipeline",
                 )
             }
         }
