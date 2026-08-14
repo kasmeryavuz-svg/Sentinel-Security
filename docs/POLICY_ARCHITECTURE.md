@@ -14,9 +14,9 @@ untrusted UI trigger
   -> DecisionEngine
   -> identity-bound ApprovalAuthority
   -> ActionExecutor (consumes approval once)
-  -> typed ScreenCapturePolicyAction or CameraPolicyAction
+  -> typed ScreenCapturePolicyAction, CameraPolicyAction, or StatusBarPolicyAction
   -> typed SensitiveActionPolicyBackend method
-  -> typed ScreenCapturePolicy or CameraPolicy
+  -> typed ScreenCapturePolicy, CameraPolicy, or StatusBarPolicy
   -> closed VerifiedPolicyMutation
   -> capability-specific DevicePolicyManager service
   -> DevicePolicyManager
@@ -28,6 +28,20 @@ bar. The `MOCK_WIPE`
 simulation exists only in the separate fail-safe registry. Registries are
 immutable, reject duplicate commands and action types, and expose no runtime
 registration API.
+
+## Presentation dashboard
+
+The Android UI is a presentation layer only. It reads Device Owner,
+management, provisioning, and policy status through the public read-only
+providers and submits the six trusted commands through
+`SensitiveActionController`. It does not receive or construct
+`DevicePolicyManager`, policy writers, mutation executors, approval
+authorities, action executors, policy backends, or authorization clocks.
+
+Session activity shown on the dashboard is **NON-PERSISTENT** in-memory
+history for the current process. It is cleared when the app restarts and
+is not durable audit storage. `StructuredLogger` remains a logging
+abstraction and is not an audit subsystem.
 
 The app has one direct project dependency: the `device-management` facade.
 That facade exposes contracts from `device-management-api` and

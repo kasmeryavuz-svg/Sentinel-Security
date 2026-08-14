@@ -2,296 +2,475 @@ package com.example.devicemanagement.ui
 
 import android.app.Activity
 import android.os.Bundle
-import android.view.Gravity
+import android.text.format.DateFormat
+import android.util.TypedValue
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
-import com.example.devicemanagement.action.ActionResult
+import com.example.devicemanagement.R
 import com.example.devicemanagement.app.DeviceManagementApp
-import com.example.devicemanagement.management.CameraPolicyStatus
-import com.example.devicemanagement.management.DeviceManagementStatus
-import com.example.devicemanagement.management.DeviceOwnerValidation
-import com.example.devicemanagement.management.DeviceOwnerValidationResult
-import com.example.devicemanagement.management.ManagementMode
-import com.example.devicemanagement.management.ProvisioningAvailability
-import com.example.devicemanagement.management.ProvisioningOption
-import com.example.devicemanagement.management.ProvisioningReadiness
-import com.example.devicemanagement.management.ScreenCapturePolicyStatus
-import com.example.devicemanagement.management.StatusBarPolicyStatus
-import com.example.devicemanagement.trigger.SensitiveActionCommands
-import com.example.devicemanagement.trigger.Trigger
-import java.util.UUID
+import java.util.Date
 
 class MainActivity : Activity() {
+    private lateinit var presenter: DashboardPresenter
+    private lateinit var headerSubtitle: TextView
+    private lateinit var headerVerification: TextView
+    private lateinit var managementMode: TextView
+    private lateinit var managementAdmin: TextView
+    private lateinit var managementValidation: TextView
+    private lateinit var managementDeviceOwnerProvisioning: TextView
+    private lateinit var managementProfileOwnerProvisioning: TextView
+    private lateinit var managementDetailsToggle: Button
+    private lateinit var managementDetails: View
+    private lateinit var managementDetailsText: TextView
+    private lateinit var screenCaptureCard: PolicyCardViews
+    private lateinit var cameraCard: PolicyCardViews
+    private lateinit var statusBarCard: PolicyCardViews
+    private lateinit var sessionEmpty: TextView
+    private lateinit var sessionList: LinearLayout
+    private var detailsVisible = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
         val container = (application as DeviceManagementApp).container
-        val validationText = TextView(this)
-        val screenCapturePolicyStatusText = TextView(this)
-        val cameraPolicyStatusText = TextView(this)
-        val statusBarPolicyStatusText = TextView(this)
-        val operationResultText = TextView(this).apply {
-            text = "Operation result: No operation requested.\n" +
-                "Failure/denial reason: none\nCorrelation ID: none"
-        }
+        presenter = DashboardPresenter(
+            readSnapshot = {
+                DashboardSnapshot(
+                    validation = container.deviceOwnerValidation.currentValidation(),
+                    managementStatus = container.deviceManagementStatus.currentStatus(),
+                    provisioningReadiness = container.provisioningReadiness.currentReadiness(),
+                    screenCapture = container.screenCapturePolicyStatus.currentStatus(),
+                    camera = container.cameraPolicyStatus.currentStatus(),
+                    statusBar = container.statusBarPolicyStatus.currentStatus(),
+                )
+            },
+            sensitiveActions = container.sensitiveActions,
+            sessionActivity = SessionActivityStore(),
+        )
+        bindViews()
+        bindState(presenter.currentState())
+    }
 
-        fun refreshStatus() {
-            val validation = container.deviceOwnerValidation.currentValidation()
-            validationText.text = validation.toDiagnosticsText()
-            screenCapturePolicyStatusText.text = container.screenCapturePolicyStatus
-                .currentStatus()
-                .toDisplayText(validation.result)
-            cameraPolicyStatusText.text = container.cameraPolicyStatus
-                .currentStatus()
-                .toDisplayText(validation.result)
-            statusBarPolicyStatusText.text = container.statusBarPolicyStatus
-                .currentStatus()
-                .toDisplayText(validation.result)
-        }
+    private fun bindViews() {
+        headerSubtitle = findViewById(R.id.header_subtitle)
+        headerVerification = findViewById(R.id.header_verification)
+        managementMode = findViewById(R.id.management_mode)
+        managementAdmin = findViewById(R.id.management_admin)
+        managementValidation = findViewById(R.id.management_validation)
+        managementDeviceOwnerProvisioning =
+            findViewById(R.id.management_device_owner_provisioning)
+        managementProfileOwnerProvisioning =
+            findViewById(R.id.management_profile_owner_provisioning)
+        managementDetailsToggle = findViewById(R.id.management_details_toggle)
+        managementDetails = findViewById(R.id.management_details)
+        managementDetailsText = findViewById(R.id.management_details_text)
+        screenCaptureCard = PolicyCardViews(findViewById(R.id.card_screen_capture))
+        cameraCard = PolicyCardViews(findViewById(R.id.card_camera))
+        statusBarCard = PolicyCardViews(findViewById(R.id.card_status_bar))
+        sessionEmpty = findViewById(R.id.session_empty)
+        sessionList = findViewById(R.id.session_list)
 
-        fun submit(command: String) {
-            val callerRequestId = UUID.randomUUID().toString()
-            val result = container.sensitiveActions.submit(
-                Trigger(
-                    command = command,
-                    requestId = callerRequestId,
-                    expiresAtEpochMillis =
-                        System.currentTimeMillis() + REQUEST_LIFETIME_MILLIS,
+        managementDetailsToggle.setOnClickListener {
+            detailsVisible = !detailsVisible
+            renderDetailsVisibility()
+        }
+        bindCardActions(screenCaptureCard, PolicyCapability.SCREEN_CAPTURE)
+        bindCardActions(cameraCard, PolicyCapability.CAMERA)
+        bindCardActions(statusBarCard, PolicyCapability.STATUS_BAR)
+    }
+
+    private fun bindCardActions(card: PolicyCardViews, capability: PolicyCapability) {
+        card.disable.setOnClickListener {
+            submit(capability, disable = true)
+        }
+        card.enable.setOnClickListener {
+            submit(capability, disable = false)
+        }
+    }
+
+    private fun submit(capability: PolicyCapability, disable: Boolean) {
+        val completed = presenter.submitAction(capability, disable) { pending ->
+            bindState(pending)
+        }
+        bindState(completed)
+    }
+
+    private fun bindState(state: DashboardViewState) {
+        bindHeader(state.header)
+        bindManagement(state.management)
+        bindPolicyCard(
+            views = screenCaptureCard,
+            card = state.screenCapture,
+            title = getString(R.string.policy_screen_capture_title),
+            explanation = getString(R.string.policy_screen_capture_explanation),
+            disableDescription = getString(R.string.action_disable_screen_capture),
+            enableDescription = getString(R.string.action_enable_screen_capture),
+        )
+        bindPolicyCard(
+            views = cameraCard,
+            card = state.camera,
+            title = getString(R.string.policy_camera_title),
+            explanation = getString(R.string.policy_camera_explanation),
+            disableDescription = getString(R.string.action_disable_camera),
+            enableDescription = getString(R.string.action_enable_camera),
+        )
+        bindPolicyCard(
+            views = statusBarCard,
+            card = state.statusBar,
+            title = getString(R.string.policy_status_bar_title),
+            explanation = getString(R.string.policy_status_bar_explanation),
+            disableDescription = getString(R.string.action_disable_status_bar),
+            enableDescription = getString(R.string.action_enable_status_bar),
+        )
+        bindSessionActivity(state.sessionActivity)
+    }
+
+    private fun bindHeader(header: HeaderViewState) {
+        val bannerText = verificationBanner(header.verification)
+        headerSubtitle.text = when (header.verification) {
+            VerificationPresentation.VERIFIED_DEVICE_OWNER ->
+                getString(R.string.dashboard_subtitle_verified)
+            VerificationPresentation.NOT_DEVICE_OWNER ->
+                getString(R.string.dashboard_subtitle_not_owner)
+            VerificationPresentation.CONFIGURATION_ERROR ->
+                getString(R.string.dashboard_subtitle_configuration)
+            VerificationPresentation.UNAVAILABLE ->
+                getString(R.string.dashboard_subtitle_unavailable)
+        }
+        headerVerification.text = bannerText
+        headerVerification.setTextColor(verificationColor(header.verification))
+        headerVerification.setBackgroundResource(verificationBackground(header.verification))
+        headerVerification.contentDescription =
+            getString(R.string.banner_content_description, bannerText)
+    }
+
+    private fun bindManagement(management: ManagementStatusViewState) {
+        val validationLabel = verificationLabel(management.verification)
+        managementMode.text = getString(
+            R.string.label_management_mode,
+            managementModeLabel(management.mode),
+        )
+        managementAdmin.text = getString(
+            R.string.label_expected_admin,
+            management.expectedAdminReceiver.ifBlank { getString(R.string.value_none) },
+        )
+        managementValidation.text = getString(
+            R.string.label_owner_validation,
+            validationLabel,
+        )
+        managementDeviceOwnerProvisioning.text = getString(
+            R.string.label_device_owner_provisioning,
+            provisioningLabel(management.deviceOwnerProvisioning),
+        )
+        managementProfileOwnerProvisioning.text = getString(
+            R.string.label_profile_owner_provisioning,
+            provisioningLabel(management.profileOwnerProvisioning),
+        )
+        managementDetailsText.text = technicalDetails(management)
+        renderDetailsVisibility()
+    }
+
+    private fun bindPolicyCard(
+        views: PolicyCardViews,
+        card: PolicyCardViewState,
+        title: String,
+        explanation: String,
+        disableDescription: String,
+        enableDescription: String,
+    ) {
+        val stateLabel = policyStateLabel(card.state)
+        views.title.text = title
+        views.state.text = stateLabel
+        views.explanation.text = explanation
+        views.root.contentDescription =
+            getString(R.string.card_content_description, title, stateLabel)
+        if (card.requiresApi34Notice) {
+            views.unavailable.visibility = View.VISIBLE
+            views.unavailable.text = getString(R.string.policy_status_bar_api_notice)
+        } else if (card.state == PolicyPresentationState.UNAVAILABLE && card.reasons.isNotEmpty()) {
+            views.unavailable.visibility = View.VISIBLE
+            views.unavailable.text = card.reasons.joinToString(separator = "\n")
+        } else {
+            views.unavailable.visibility = View.GONE
+        }
+        views.disable.isEnabled = card.actionsEnabled
+        views.enable.isEnabled = card.actionsEnabled
+        views.disable.contentDescription = disableDescription
+        views.enable.contentDescription = enableDescription
+        views.outcome.text = outcomeText(card)
+        views.outcome.setTextColor(outcomeColor(card.latestOutcome))
+    }
+
+    private fun bindSessionActivity(entries: List<SessionActivityEntry>) {
+        sessionList.removeAllViews()
+        if (entries.isEmpty()) {
+            sessionEmpty.visibility = View.VISIBLE
+            sessionList.visibility = View.GONE
+            return
+        }
+        sessionEmpty.visibility = View.GONE
+        sessionList.visibility = View.VISIBLE
+        val timeFormat = DateFormat.getTimeFormat(this)
+        entries.forEach { entry ->
+            val row = TextView(this).apply {
+                text = sessionEntryText(entry, timeFormat.format(Date(entry.sessionTimestampMillis)))
+                setTextColor(resources.getColor(R.color.dashboard_text_primary, theme))
+                setTextSize(
+                    TypedValue.COMPLEX_UNIT_PX,
+                    resources.getDimension(R.dimen.text_secondary),
+                )
+                setPadding(0, 0, 0, resources.getDimensionPixelSize(R.dimen.spacing_m))
+                setTextIsSelectable(true)
+                contentDescription = text
+            }
+            sessionList.addView(row)
+        }
+    }
+
+    private fun sessionEntryText(entry: SessionActivityEntry, time: String): String {
+        val action = actionLabel(entry.capability, entry.requestedDisabled)
+        val outcome = outcomeLabel(entry.outcome)
+        val requested = if (entry.requestedDisabled) {
+            getString(R.string.session_requested_blocked)
+        } else {
+            getString(R.string.session_requested_allowed)
+        }
+        val reason = friendlyReason(entry.reason)
+        return if (reason == null) {
+            getString(
+                R.string.session_entry,
+                action,
+                outcome,
+                requested,
+                time,
+                entry.correlationId,
+            )
+        } else {
+            getString(
+                R.string.session_entry_with_reason,
+                action,
+                outcome,
+                requested,
+                time,
+                reason,
+                entry.correlationId,
+            )
+        }
+    }
+
+    private fun outcomeText(card: PolicyCardViewState): String {
+        val label = outcomeLabel(card.latestOutcome)
+        val detail = friendlyReason(card.latestOutcomeDetail)
+        val withReason = if (detail == null) {
+            label
+        } else {
+            getString(R.string.outcome_with_reason, label, detail)
+        }
+        val correlationId = card.latestCorrelationId
+        return if (correlationId.isNullOrBlank()) {
+            withReason
+        } else {
+            getString(R.string.outcome_with_correlation, withReason, correlationId)
+        }
+    }
+
+    private fun technicalDetails(management: ManagementStatusViewState): String {
+        val registered = management.registeredAdminComponents
+            .ifEmpty { listOf(getString(R.string.value_none)) }
+            .joinToString()
+        return buildString {
+            appendLine(
+                getString(
+                    R.string.label_package,
+                    management.packageName.ifBlank { getString(R.string.value_none) },
                 ),
             )
-            operationResultText.text = result.toDisplayText()
-            refreshStatus()
+            appendLine(getString(R.string.label_registered_admins, registered))
+            appendLine(
+                getString(R.string.label_policy_service, yesNo(management.isPolicyServiceAvailable)),
+            )
+            appendLine(
+                getString(
+                    R.string.label_admin_registered,
+                    yesNo(management.isExpectedAdminReceiverRegistered),
+                ),
+            )
+            appendLine(getString(R.string.label_admin_active, yesNo(management.isAdminActive)))
+            appendLine(getString(R.string.label_is_device_owner, yesNo(management.isDeviceOwner)))
+            appendLine(getString(R.string.label_is_profile_owner, yesNo(management.isProfileOwner)))
+            appendLine(
+                getString(R.string.label_diagnostics, bulletList(management.diagnostics)),
+            )
+            appendLine(
+                getString(R.string.label_validation_reasons, bulletList(management.validationReasons)),
+            )
+            append(
+                getString(
+                    R.string.label_device_owner_provisioning_reasons,
+                    bulletList(management.deviceOwnerProvisioningReasons),
+                ),
+            )
+            appendLine()
+            append(
+                getString(
+                    R.string.label_profile_owner_provisioning_reasons,
+                    bulletList(management.profileOwnerProvisioningReasons),
+                ),
+            )
         }
+    }
 
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(32, 32, 32, 32)
-            addView(validationText)
-            addView(TextView(context).apply {
-                text = "\nTEST DEVICE — SCREEN CAPTURE POLICY"
-                textSize = 20f
-            })
-            addView(screenCapturePolicyStatusText)
-            addView(Button(context).apply {
-                text = "Disable screen capture"
-                setOnClickListener {
-                    submit(SensitiveActionCommands.DISABLE_SCREEN_CAPTURE)
-                }
-            })
-            addView(Button(context).apply {
-                text = "Enable screen capture"
-                setOnClickListener {
-                    submit(SensitiveActionCommands.ENABLE_SCREEN_CAPTURE)
-                }
-            })
-            addView(TextView(context).apply {
-                text = "\nTEST DEVICE — CAMERA POLICY"
-                textSize = 20f
-            })
-            addView(cameraPolicyStatusText)
-            addView(Button(context).apply {
-                text = "Disable camera"
-                setOnClickListener {
-                    submit(SensitiveActionCommands.DISABLE_CAMERA)
-                }
-            })
-            addView(Button(context).apply {
-                text = "Enable camera"
-                setOnClickListener {
-                    submit(SensitiveActionCommands.ENABLE_CAMERA)
-                }
-            })
-            addView(TextView(context).apply {
-                text = "\nTEST DEVICE — STATUS BAR POLICY"
-                textSize = 20f
-            })
-            addView(statusBarPolicyStatusText)
-            addView(Button(context).apply {
-                text = "Disable status bar"
-                setOnClickListener {
-                    submit(SensitiveActionCommands.DISABLE_STATUS_BAR)
-                }
-            })
-            addView(Button(context).apply {
-                text = "Enable status bar"
-                setOnClickListener {
-                    submit(SensitiveActionCommands.ENABLE_STATUS_BAR)
-                }
-            })
-            addView(operationResultText)
+    private fun renderDetailsVisibility() {
+        managementDetails.visibility = if (detailsVisible) View.VISIBLE else View.GONE
+        managementDetailsToggle.text = if (detailsVisible) {
+            getString(R.string.hide_technical_details)
+        } else {
+            getString(R.string.show_technical_details)
         }
-        setContentView(ScrollView(this).apply { addView(content) })
-        refreshStatus()
     }
 
-    private fun ScreenCapturePolicyStatus.toDisplayText(
-        validationResult: DeviceOwnerValidationResult,
-    ): String {
-        val reason = reasons.ifEmpty { listOf("none") }.joinToString("\n• ")
-        return """
-            Current screen-capture policy: ${state.name.lowercase()}
-            Device Owner verification state: ${validationResult.name}
-            Status reason:
-            • $reason
-        """.trimIndent()
+    private fun verificationBanner(verification: VerificationPresentation): String {
+        return when (verification) {
+            VerificationPresentation.VERIFIED_DEVICE_OWNER ->
+                getString(R.string.banner_verified)
+            VerificationPresentation.NOT_DEVICE_OWNER ->
+                getString(R.string.banner_not_owner)
+            VerificationPresentation.CONFIGURATION_ERROR ->
+                getString(R.string.banner_configuration)
+            VerificationPresentation.UNAVAILABLE ->
+                getString(R.string.banner_unavailable)
+        }
     }
 
-    private fun CameraPolicyStatus.toDisplayText(
-        validationResult: DeviceOwnerValidationResult,
-    ): String {
-        val reason = reasons.ifEmpty { listOf("none") }.joinToString("\n• ")
-        return """
-            Current camera policy: ${state.name.lowercase()}
-            Device Owner verification state: ${validationResult.name}
-            Status reason:
-            • $reason
-        """.trimIndent()
+    private fun verificationLabel(verification: VerificationPresentation): String {
+        return when (verification) {
+            VerificationPresentation.VERIFIED_DEVICE_OWNER ->
+                getString(R.string.validation_verified)
+            VerificationPresentation.NOT_DEVICE_OWNER ->
+                getString(R.string.validation_not_owner)
+            VerificationPresentation.CONFIGURATION_ERROR ->
+                getString(R.string.validation_configuration)
+            VerificationPresentation.UNAVAILABLE ->
+                getString(R.string.validation_unavailable)
+        }
     }
 
-    private fun StatusBarPolicyStatus.toDisplayText(
-        validationResult: DeviceOwnerValidationResult,
-    ): String {
-        val reason = reasons.ifEmpty { listOf("none") }.joinToString("\n• ")
-        return """
-            Current status-bar policy: ${state.name.lowercase()}
-            Device Owner verification state: ${validationResult.name}
-            Status reason:
-            • $reason
-        """.trimIndent()
+    private fun verificationColor(verification: VerificationPresentation): Int {
+        val color = when (verification) {
+            VerificationPresentation.VERIFIED_DEVICE_OWNER -> R.color.dashboard_verified_text
+            VerificationPresentation.NOT_DEVICE_OWNER,
+            VerificationPresentation.CONFIGURATION_ERROR,
+            -> R.color.dashboard_warning_text
+            VerificationPresentation.UNAVAILABLE -> R.color.dashboard_danger_text
+        }
+        return resources.getColor(color, theme)
     }
 
-    private fun ActionResult.toDisplayText(): String {
-        val result: String
-        val reason: String
-        val correlationId: String
-        when (this) {
-            is ActionResult.Applied -> {
-                result = "${operation.name}: requested disabled=$requestedDisabled, " +
-                    "observed disabled=$observedDisabled"
-                reason = "none"
-                correlationId = this.correlationId
+    private fun verificationBackground(verification: VerificationPresentation): Int {
+        return when (verification) {
+            VerificationPresentation.VERIFIED_DEVICE_OWNER -> R.drawable.banner_verified
+            VerificationPresentation.NOT_DEVICE_OWNER,
+            VerificationPresentation.CONFIGURATION_ERROR,
+            -> R.drawable.banner_warning
+            VerificationPresentation.UNAVAILABLE -> R.drawable.banner_danger
+        }
+    }
+
+    private fun managementModeLabel(mode: ManagementModePresentation): String {
+        return when (mode) {
+            ManagementModePresentation.DEVICE_OWNER -> getString(R.string.mode_device_owner)
+            ManagementModePresentation.PROFILE_OWNER -> getString(R.string.mode_profile_owner)
+            ManagementModePresentation.ORDINARY_APP -> getString(R.string.mode_ordinary_app)
+            ManagementModePresentation.UNAVAILABLE -> getString(R.string.mode_unavailable)
+        }
+    }
+
+    private fun provisioningLabel(presentation: ProvisioningPresentation): String {
+        return when (presentation) {
+            ProvisioningPresentation.ALLOWED -> getString(R.string.provisioning_allowed)
+            ProvisioningPresentation.NOT_ALLOWED -> getString(R.string.provisioning_not_allowed)
+            ProvisioningPresentation.UNAVAILABLE -> getString(R.string.provisioning_unavailable)
+        }
+    }
+
+    private fun policyStateLabel(state: PolicyPresentationState): String {
+        return when (state) {
+            PolicyPresentationState.DISABLED -> getString(R.string.policy_state_disabled)
+            PolicyPresentationState.ENABLED -> getString(R.string.policy_state_enabled)
+            PolicyPresentationState.UNAVAILABLE -> getString(R.string.policy_state_unavailable)
+        }
+    }
+
+    private fun outcomeLabel(outcome: OperationOutcomePresentation): String {
+        return when (outcome) {
+            OperationOutcomePresentation.NONE -> getString(R.string.outcome_none)
+            OperationOutcomePresentation.PENDING -> getString(R.string.outcome_pending)
+            OperationOutcomePresentation.APPLIED -> getString(R.string.outcome_applied)
+            OperationOutcomePresentation.DENIED -> getString(R.string.outcome_denied)
+            OperationOutcomePresentation.FAILED -> getString(R.string.outcome_failed)
+        }
+    }
+
+    private fun outcomeColor(outcome: OperationOutcomePresentation): Int {
+        val color = when (outcome) {
+            OperationOutcomePresentation.APPLIED -> R.color.dashboard_verified_text
+            OperationOutcomePresentation.DENIED,
+            OperationOutcomePresentation.FAILED,
+            -> R.color.dashboard_danger_text
+            OperationOutcomePresentation.PENDING,
+            OperationOutcomePresentation.NONE,
+            -> R.color.dashboard_text_secondary
+        }
+        return resources.getColor(color, theme)
+    }
+
+    private fun actionLabel(capability: PolicyCapability, disable: Boolean): String {
+        return when (capability) {
+            PolicyCapability.SCREEN_CAPTURE -> if (disable) {
+                getString(R.string.action_disable_screen_capture)
+            } else {
+                getString(R.string.action_enable_screen_capture)
             }
-            is ActionResult.Rejected -> {
-                result = "Denied"
-                reason = this.reason
-                correlationId = this.correlationId ?: "unavailable"
+            PolicyCapability.CAMERA -> if (disable) {
+                getString(R.string.action_disable_camera)
+            } else {
+                getString(R.string.action_enable_camera)
             }
-            is ActionResult.Failed -> {
-                result = "Failed"
-                reason = this.reason
-                correlationId = this.correlationId ?: "unavailable"
-            }
-            is ActionResult.Simulated -> {
-                result = "Simulation"
-                reason = message
-                correlationId = this.correlationId
-            }
-        }
-        return """
-            Operation result: $result
-            Failure/denial reason: $reason
-            Correlation ID: $correlationId
-        """.trimIndent()
-    }
-
-    private fun DeviceOwnerValidation.toDiagnosticsText(): String {
-        val resultLabel = when (result) {
-            DeviceOwnerValidationResult.VERIFIED_DEVICE_OWNER -> "Verified Device Owner"
-            DeviceOwnerValidationResult.NOT_DEVICE_OWNER -> "Not Device Owner"
-            DeviceOwnerValidationResult.CONFIGURATION_ERROR -> "Configuration error"
-            DeviceOwnerValidationResult.UNAVAILABLE -> "Unavailable"
-        }
-        val registeredComponents = registeredSentinelAdminComponents
-            .sorted()
-            .ifEmpty { listOf("none") }
-            .joinToString()
-        val validationReasons = reasons.joinToString(
-            separator = "\n• ",
-            prefix = "• ",
-        )
-
-        return """
-            TEST-DEVICE DEVICE OWNER VALIDATION
-
-            Package: $packageName
-            Expected admin receiver: $expectedAdminReceiverComponent
-            Registered Sentinel admin components: $registeredComponents
-            Device Owner verification: $resultLabel
-            Profile Owner: ${managementStatus.isProfileOwner.toYesNo()}
-
-            ${provisioningReadiness.toDiagnosticsText()}
-
-            Validation details:
-            $validationReasons
-        """.trimIndent()
-    }
-
-    private fun ProvisioningReadiness.toDiagnosticsText(): String {
-        val status = managementStatus
-        return """
-            ${status.toManagementDiagnosticsText()}
-
-            Device Owner provisioning:
-            ${deviceOwnerProvisioning.toDisplayText()}
-
-            Profile Owner provisioning:
-            ${profileOwnerProvisioning.toDisplayText()}
-        """.trimIndent()
-    }
-
-    private fun DeviceManagementStatus.toManagementDiagnosticsText(): String {
-        val modeLabel = when (mode) {
-            ManagementMode.DEVICE_OWNER -> "Device Owner"
-            ManagementMode.PROFILE_OWNER -> "Profile Owner"
-            ManagementMode.ORDINARY_APP -> "Ordinary app"
-            ManagementMode.UNAVAILABLE -> "Unavailable / not authorized"
-        }
-        val capabilities = availableCapabilities
-            .map { it.name.replace('_', ' ').lowercase() }
-            .sorted()
-            .ifEmpty { listOf("none") }
-            .joinToString(separator = "\n• ", prefix = "• ")
-        val diagnosticText = diagnostics
-            .ifEmpty { listOf("No additional diagnostics.") }
-            .joinToString("\n")
-
-        return """
-            Provisioning Readiness Diagnostics
-
-            Management state: $modeLabel
-            DevicePolicyManager available: ${isPolicyServiceAvailable.toYesNo()}
-            Expected admin receiver registered: ${isExpectedAdminReceiverRegistered.toYesNo()}
-            Expected admin active: ${isAdminActive.toYesNo()}
-            Device Owner: ${isDeviceOwner.toYesNo()}
-            Profile Owner: ${isProfileOwner.toYesNo()}
-
-            Available capabilities:
-            $capabilities
-
-            $diagnosticText
-        """.trimIndent()
-    }
-
-    private fun ProvisioningOption.toDisplayText(): String {
-        val availabilityLabel = when (availability) {
-            ProvisioningAvailability.ALLOWED -> "Allowed"
-            ProvisioningAvailability.NOT_ALLOWED -> "Not allowed"
-            ProvisioningAvailability.UNAVAILABLE -> "Unavailable"
-        }
-        return buildString {
-            append(availabilityLabel)
-            reasons.forEach { reason ->
-                append("\n• ")
-                append(reason)
+            PolicyCapability.STATUS_BAR -> if (disable) {
+                getString(R.string.action_disable_status_bar)
+            } else {
+                getString(R.string.action_enable_status_bar)
             }
         }
     }
 
-    private fun Boolean.toYesNo(): String = if (this) "Yes" else "No"
+    private fun friendlyReason(reason: String?): String? {
+        return when (reason) {
+            null, "" -> null
+            "post_write_read_back_mismatch" ->
+                getString(R.string.reason_post_write_mismatch)
+            else -> reason
+        }
+    }
 
-    private companion object {
-        const val REQUEST_LIFETIME_MILLIS = 30_000L
+    private fun yesNo(value: Boolean): String {
+        return if (value) getString(R.string.value_yes) else getString(R.string.value_no)
+    }
+
+    private fun bulletList(values: List<String>): String {
+        val items = values.ifEmpty { listOf(getString(R.string.value_none)) }
+        return items.joinToString(separator = "\n") { "• $it" }
+    }
+
+    private class PolicyCardViews(val root: View) {
+        val title: TextView = root.findViewById(R.id.policy_title)
+        val state: TextView = root.findViewById(R.id.policy_state)
+        val explanation: TextView = root.findViewById(R.id.policy_explanation)
+        val unavailable: TextView = root.findViewById(R.id.policy_unavailable)
+        val disable: Button = root.findViewById(R.id.policy_disable)
+        val enable: Button = root.findViewById(R.id.policy_enable)
+        val outcome: TextView = root.findViewById(R.id.policy_outcome)
     }
 }

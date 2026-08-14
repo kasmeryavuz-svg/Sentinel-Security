@@ -2,7 +2,12 @@
 <resources>
     <style name="Theme.SentinelSecurity" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#2457C5</item>
+        <item name="android:colorAccent">@color/dashboard_accent</item>
+        <item name="android:windowBackground">@color/dashboard_background</item>
+        <item name="android:statusBarColor">@color/dashboard_background</item>
+        <item name="android:navigationBarColor">@color/dashboard_background</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:textColorPrimary">@color/dashboard_text_primary</item>
+        <item name="android:textColorSecondary">@color/dashboard_text_secondary</item>
     </style>
 </resources>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/card_surface"
+    android:focusable="true"
+    android:orientation="vertical"
+    android:padding="@dimen/spacing_m">
+
+    <TextView
+        android:id="@+id/policy_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/dashboard_text_primary"
+        android:textSize="@dimen/text_section"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/policy_state"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_s"
+        android:textColor="@color/dashboard_text_primary"
+        android:textSize="@dimen/text_body"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/policy_explanation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_s"
+        android:textColor="@color/dashboard_text_secondary"
+        android:textSize="@dimen/text_secondary" />
+
+    <TextView
+        android:id="@+id/policy_unavailable"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_s"
+        android:textColor="@color/dashboard_warning_text"
+        android:textSize="@dimen/text_secondary"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_m"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/policy_disable"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/spacing_s"
+            android:layout_weight="1"
+            android:minHeight="@dimen/touch_min"
+            android:text="@string/action_disable" />
+
+        <Button
+            android:id="@+id/policy_enable"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/spacing_s"
+            android:layout_weight="1"
+            android:minHeight="@dimen/touch_min"
+            android:text="@string/action_enable" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/policy_outcome"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_s"
+        android:textColor="@color/dashboard_text_secondary"
+        android:textIsSelectable="true"
+        android:textSize="@dimen/text_secondary" />
+</LinearLayout>
