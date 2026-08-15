@@ -28,30 +28,40 @@ class Checkpoint19AWipeBoundaryFreezeTest {
             .map { it.tagName }
             .toSet()
 
-        assertEquals(setOf("disable-camera"), declared)
-        assertFalse("wipe-data" in declared)
+        assertEquals(setOf("disable-camera", "wipe-data"), declared)
+        assertTrue("wipe-data" in declared)
     }
 
     @Test
     fun `implementation sources still have no destructive wrapper executor or 19A wiring`() {
-        val sources = File(
+        val sourceRoot = File(
             requireNotNull(System.getProperty("deviceManagementSourceDir")),
             "java",
-        ).walkTopDown()
+        )
+        sourceRoot.walkTopDown()
+            .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
+            .forEach { file ->
+                val text = file.readText()
+                if (file.name == "AndroidDevicePolicyFactoryResetService.kt") {
+                    assertTrue(file.path, text.contains("wipeDevice(0)"))
+                    assertFalse(file.path, text.contains("wipeData"))
+                } else {
+                    assertFalse(file.path, text.contains("wipeDevice"))
+                    assertFalse(file.path, text.contains("wipeData"))
+                }
+            }
+        val sources = sourceRoot.walkTopDown()
             .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
             .joinToString("\n") { it.readText() }
 
-        assertFalse(sources.contains("wipeData"))
-        assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("DestructiveDevicePolicy"))
-        assertFalse(sources.contains("AndroidFutureDestructiveExecutor"))
-        assertFalse(sources.contains("AndroidDevicePolicyFactoryResetService"))
+        assertTrue(sources.contains("AndroidDevicePolicyFactoryResetService"))
         assertFalse(sources.contains("Checkpoint19ADecision"))
         assertFalse(sources.contains("SimulatedDestructiveExecutor"))
         assertFalse(sources.contains("FutureDestructiveRealChainBoundary"))
         assertFalse(sources.contains("assembleAndHandoff"))
         assertFalse(sources.contains("AndroidDestructiveSafetyPersistence.create"))
-        assertFalse(sources.contains("AndroidDestructiveSafetyPersistence.issueRuntimeDurability"))
+        assertTrue(sources.contains("AndroidDestructiveSafetyPersistence.issueRuntimeDurability"))
         assertTrue(sources.contains("setScreenCaptureDisabled"))
         assertTrue(sources.contains("setCameraDisabled"))
         assertTrue(sources.contains("setStatusBarDisabled"))

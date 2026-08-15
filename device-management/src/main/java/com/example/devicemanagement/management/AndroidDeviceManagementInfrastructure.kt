@@ -60,6 +60,15 @@ internal class AndroidDevicePolicyPlatform(
         )
     }
 
+    fun factoryResetService(): AndroidDevicePolicyFactoryResetService? {
+        val manager = context.getSystemService(DevicePolicyManager::class.java) ?: return null
+        return AndroidDevicePolicyFactoryResetService(
+            manager = manager,
+            packageName = context.packageName,
+            adminComponent = adminComponent,
+        )
+    }
+
     override fun screenCapturePolicyService(): DevicePolicyScreenCaptureService? {
         val manager = context.getSystemService(DevicePolicyManager::class.java) ?: return null
         return AndroidDevicePolicyScreenCaptureService(

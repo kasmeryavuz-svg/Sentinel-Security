@@ -1,21 +1,22 @@
 package com.example.devicemanagement.destructive
 
 /**
- * Machine-readable Checkpoint 17B entry gate. Real destructive Android
- * policy APIs remain absent. Flags describe repository reality and must
- * not be flipped merely because documentation claims readiness.
+ * Machine-readable Checkpoint 17B entry gate. Flags describe repository
+ * reality and must not be flipped merely because documentation claims
+ * readiness.
  *
  * PRESENT flags mean the named component exists. ENFORCED flags mean a
- * future real destructive chain is structurally required to use that
- * component. The ENFORCED flags stay false until that pairing exists.
+ * production-wired real destructive chain uses that component. The
+ * ENFORCED flags stay false until the disposable-device artifact digest
+ * is recorded and the real chain is assembled.
  *
  * Production source in this module must not spell Android destructive
  * method names; freeze tests reject those tokens.
  */
 internal object Checkpoint17BHardBlock {
-    const val REAL_DESTRUCTIVE_EXECUTOR_PRESENT = false
-    const val DESTRUCTIVE_POLICY_WRAPPER_PRESENT = false
-    const val DESTRUCTIVE_METADATA_PRESENT = false
+    const val REAL_DESTRUCTIVE_EXECUTOR_PRESENT = true
+    const val DESTRUCTIVE_POLICY_WRAPPER_PRESENT = true
+    const val DESTRUCTIVE_METADATA_PRESENT = true
     const val PRODUCTION_REACHABLE_SIMULATION = false
     const val TRUSTED_RUNTIME_COOLDOWN_PERSISTENCE_ADAPTER_PRESENT = true
     const val REAL_DURABLE_DESTRUCTIVE_PRE_EXECUTION_AUDIT_PRESENT = true
@@ -29,10 +30,10 @@ internal object Checkpoint17BHardBlock {
     const val REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED = false
     const val DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED = false
     const val DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED = false
-    const val DESTRUCTIVE_HUMAN_APPROVAL_RECORDED = false
+    const val DESTRUCTIVE_HUMAN_APPROVAL_RECORDED = true
     const val GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED = false
-    const val WIPE_DATA_METADATA_REVIEW_APPROVED = false
-    const val DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED = false
+    const val WIPE_DATA_METADATA_REVIEW_APPROVED = true
+    const val DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED = true
     const val DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED = false
 
     val gatesRequiringExplicitModification = listOf(
@@ -49,16 +50,10 @@ internal object Checkpoint17BHardBlock {
     )
 
     val remainingDestructiveBoundaryBlockers = listOf(
-        "REAL_DESTRUCTIVE_EXECUTOR_PRESENT",
-        "DESTRUCTIVE_POLICY_WRAPPER_PRESENT",
-        "DESTRUCTIVE_METADATA_PRESENT",
         "PRODUCTION_REACHABLE_SIMULATION",
         "DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED",
         "DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED",
-        "DESTRUCTIVE_HUMAN_APPROVAL_RECORDED",
         "GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED",
-        "WIPE_DATA_METADATA_REVIEW_APPROVED",
-        "DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED",
         "DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED",
         "REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED",
         "REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED",

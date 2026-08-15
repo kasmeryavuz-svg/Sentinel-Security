@@ -60,9 +60,9 @@ class SqliteAuditStoreGuardTest {
 
         assertTrue(composition.contains("AndroidAuditPersistence.create"))
         assertTrue(composition.contains("auditWriter = audit"))
-        assertTrue(composition.contains("override val auditHistory = audit"))
-        assertTrue(composition.contains("override val auditStorageStatus = audit"))
-        assertTrue(composition.contains("override val recoveryInspection = recoveryInspection"))
+        assertTrue(composition.contains("auditHistory = audit"))
+        assertTrue(composition.contains("auditStorageStatus = audit"))
+        assertTrue(composition.contains("recoveryInspection = recoveryInspection"))
         assertTrue(composition.contains("DeviceManagementRecoveryInspectionFactory.create"))
         assertTrue(composition.contains("AndroidElapsedRealtimeMonotonicTimeSource"))
         assertFalse(composition.contains("currentTimeMillis"))

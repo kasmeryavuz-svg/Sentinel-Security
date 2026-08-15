@@ -115,6 +115,10 @@ class Checkpoint17BAuthorityGraphTest {
             "RuntimeDurablePreExecutionCommitProof",
             "RealChainFinalLiveValidationPermit",
             "DestructiveWipeOptionPolicyProof",
+            "Checkpoint19BDecision",
+            "AuthorizedFactoryResetPort",
+            "ProductionDestructiveRealChain",
+            "AndroidFutureDestructiveExecutor",
         ).forEach { token ->
             assertFalse(recovery.contains(token))
             assertFalse(controller.contains(token))

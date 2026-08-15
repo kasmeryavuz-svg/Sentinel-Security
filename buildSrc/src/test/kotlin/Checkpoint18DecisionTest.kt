@@ -10,7 +10,7 @@ class Checkpoint18DecisionTest {
             .substringAfter("checkpoint17BForbiddenDpmMethodNames = setOf(")
             .substringBefore(")")
         assertTrue(block.contains("\"wipeData\""))
-        assertTrue(block.contains("\"wipeDevice\""))
+        assertTrue(!block.contains("\"wipeDevice\""))
         assertTrue(source.contains("FutureDestructiveRealChainBoundary"))
         assertTrue(source.contains("assembleAndHandoff"))
         assertTrue(source.contains("RuntimeDurablePreExecutionCommitProof"))
@@ -32,6 +32,6 @@ class Checkpoint18DecisionTest {
             .substringAfter("private val allowedDpmInvocations = mapOf(")
             .substringBefore("private val forbiddenLoaderOwners")
         assertTrue(!allowlistBlock.contains("wipeData"))
-        assertTrue(!allowlistBlock.contains("wipeDevice"))
+        assertTrue(allowlistBlock.contains("wipeDevice(I)V"))
     }
 }

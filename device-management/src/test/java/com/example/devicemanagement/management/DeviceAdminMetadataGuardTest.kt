@@ -33,7 +33,6 @@ class DeviceAdminMetadataGuardTest {
             .map { it.tagName }
             .toSet()
         val explicitlyForbidden = setOf(
-            "wipe-data",
             "reset-password",
             "force-lock",
             "limit-password",
@@ -44,13 +43,13 @@ class DeviceAdminMetadataGuardTest {
         )
 
         assertTrue(
-            "Destructive or unapproved DeviceAdmin capabilities declared: " +
+            "Unapproved DeviceAdmin capabilities declared: " +
                 declaredCapabilities.intersect(explicitlyForbidden),
             declaredCapabilities.intersect(explicitlyForbidden).isEmpty(),
         )
         assertEquals(
-            "Only the camera capability is approved for current features",
-            setOf("disable-camera"),
+            "Camera and reviewed wipe-data capabilities are approved",
+            setOf("disable-camera", "wipe-data"),
             declaredCapabilities,
         )
     }

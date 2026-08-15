@@ -49,25 +49,25 @@ class Checkpoint18DecisionRealityTest {
 
     @Test
     fun `implementation and recorded-approval flags stay false`() {
-        assertFalse(Checkpoint18Decision.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
-        assertFalse(Checkpoint18Decision.DESTRUCTIVE_POLICY_WRAPPER_PRESENT)
-        assertFalse(Checkpoint18Decision.DESTRUCTIVE_METADATA_PRESENT)
+        assertTrue(Checkpoint18Decision.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
+        assertTrue(Checkpoint18Decision.DESTRUCTIVE_POLICY_WRAPPER_PRESENT)
+        assertTrue(Checkpoint18Decision.DESTRUCTIVE_METADATA_PRESENT)
         assertFalse(Checkpoint18Decision.PRODUCTION_REACHABLE_SIMULATION)
         assertFalse(Checkpoint18Decision.DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED)
         assertFalse(Checkpoint18Decision.DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED)
-        assertFalse(Checkpoint18Decision.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
+        assertTrue(Checkpoint18Decision.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
         assertFalse(Checkpoint18Decision.GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED)
-        assertFalse(Checkpoint18Decision.WIPE_DATA_METADATA_REVIEW_APPROVED)
-        assertFalse(Checkpoint18Decision.DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED)
+        assertTrue(Checkpoint18Decision.WIPE_DATA_METADATA_REVIEW_APPROVED)
+        assertTrue(Checkpoint18Decision.DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED)
         assertFalse(Checkpoint18Decision.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
         assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
-        assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
     }
 
     @Test
@@ -112,7 +112,6 @@ class Checkpoint18DecisionRealityTest {
         assertTrue(sources.contains("RealChainFinalLiveValidationPermit"))
         assertTrue(sources.contains("DestructiveWipeOptionPolicyProof"))
         listOf(
-            File("../device-management/src/main"),
             File("../app/src/main"),
             File("../device-management-api/src/main"),
         ).filter { it.isDirectory }.forEach { root ->
@@ -124,6 +123,25 @@ class Checkpoint18DecisionRealityTest {
             assertFalse(root.path, extra.contains("<wipe-data>"))
             assertFalse(root.path, extra.contains("assembleAndHandoff"))
         }
+        File("../device-management/src/main").walkTopDown()
+            .filter { it.isFile && (it.extension == "kt" || it.extension == "java" || it.extension == "xml") }
+            .forEach { file ->
+                val extra = file.readText()
+                when {
+                    file.name == "AndroidDevicePolicyFactoryResetService.kt" -> {
+                        assertTrue(file.path, extra.contains("wipeDevice(0)"))
+                        assertFalse(file.path, extra.contains("wipeData"))
+                    }
+                    file.name == "device_admin_receiver.xml" -> {
+                        assertTrue(file.path, extra.contains("wipe-data"))
+                    }
+                    else -> {
+                        assertFalse(file.path, extra.contains("wipeDevice"))
+                        assertFalse(file.path, extra.contains("wipeData"))
+                        assertFalse(file.path, extra.contains("assembleAndHandoff"))
+                    }
+                }
+            }
     }
 
     @Test

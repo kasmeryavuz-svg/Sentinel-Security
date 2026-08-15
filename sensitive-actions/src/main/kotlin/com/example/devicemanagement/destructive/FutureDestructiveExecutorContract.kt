@@ -19,14 +19,16 @@ import java.util.IdentityHashMap
  * bytecode allows [execute] only from
  * [FutureDestructiveRealChainBoundary.assembleAndHandoff].
  *
- * There is no Android policy-manager implementation of this contract
- * in this checkpoint. Production DeviceManagement does not implement or
- * wire it.
+ * Checkpoint 19B adds [AndroidFutureDestructiveExecutor], which calls
+ * [AuthorizedFactoryResetPort] after handoff. The Android policy-manager
+ * token lives only in the device-management port implementation.
  */
 internal typealias FutureDestructiveExecutorContract =
     FutureDestructiveRealChainBoundary.FutureDestructiveExecutorContract
 
 internal sealed interface FutureDestructiveHandoffAcknowledgement {
+    data object Initiated : FutureDestructiveHandoffAcknowledgement
+
     data class Refused(val reason: String) : FutureDestructiveHandoffAcknowledgement
 }
 
@@ -127,9 +129,10 @@ private class IssuedFutureDestructiveExecutionBundle private constructor() :
  * It does not accept a caller-supplied runtime pre-execution proof.
  *
  * [RuntimeDurablePreExecutionCommitAuthority] performs the paired append
- * through the trusted runtime durability capability. Production still
- * does not wire this boundary or an executor. Append failure means no
- * permit, no bundle, and no executor call.
+ * through the trusted runtime durability capability. Checkpoint 19B
+ * retains a production executor, but this boundary is not assembled
+ * while the disposable-device artifact digest remains unrecorded.
+ * Append failure means no permit, no bundle, and no executor call.
  */
 internal class FutureDestructiveRealChainBoundary(
     private val durability: RuntimeDestructiveSafetyDurability,
@@ -302,6 +305,9 @@ internal class FutureDestructiveRealChainBoundary(
         val bundle = assembleBundleFromPermit(permit)
             ?: return FutureDestructiveHandoffResult.Failed("real_chain_permit_not_live")
         return when (val acknowledgement = executor.execute(bundle)) {
+            FutureDestructiveHandoffAcknowledgement.Initiated -> {
+                FutureDestructiveHandoffResult.Acknowledged(acknowledgement)
+            }
             is FutureDestructiveHandoffAcknowledgement.Refused -> {
                 FutureDestructiveHandoffResult.Acknowledged(acknowledgement)
             }

@@ -51,8 +51,12 @@ class LifecycleStartupGuardTest {
         assertFalse(container.contains("assembleAndHandoff"))
         assertFalse(app.contains("Checkpoint19ADecision"))
         assertFalse(container.contains("Checkpoint19ADecision"))
+        assertFalse(app.contains("Checkpoint19BDecision"))
+        assertFalse(container.contains("Checkpoint19BDecision"))
         assertFalse(app.contains("AndroidFutureDestructiveExecutor"))
         assertFalse(container.contains("AndroidFutureDestructiveExecutor"))
+        assertFalse(app.contains("AuthorizedFactoryResetPort"))
+        assertFalse(container.contains("AuthorizedFactoryResetPort"))
     }
 
     @Test

@@ -395,7 +395,11 @@ class FutureDestructiveExecutorContractTest {
             text.contains(": FutureDestructiveExecutorContract") ||
                 text.contains("FutureDestructiveExecutorContract {")
         }
-        assertTrue(implementors.isEmpty())
+        assertTrue(implementors.single().name == "AndroidFutureDestructiveExecutor.kt")
+        val executorSource = implementors.single().readText()
+        assertFalse(executorSource.contains("wipeDevice"))
+        assertFalse(executorSource.contains("wipeData"))
+        assertFalse(executorSource.contains("import android.app.admin"))
         val controller = File(
             "src/main/kotlin/com/example/devicemanagement/action/SensitiveActionController.kt",
         ).readText()

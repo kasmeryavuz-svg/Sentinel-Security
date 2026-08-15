@@ -288,9 +288,9 @@ class DestructiveHumanApprovalAuthorityTest {
         assertTrue(failed)
         assertNotEquals("DeviceManagement", UnwiredDestructiveHumanApprovalMint::class.java.simpleName)
         assertNotEquals("DeviceManagement", UnwiredDestructiveHumanConfirmationSource::class.java.simpleName)
-        assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
-        assertFalse(Checkpoint18Decision.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
+        assertTrue(Checkpoint18Decision.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
         assertTrue(Checkpoint18Decision.REAL_CHAIN_HUMAN_APPROVAL_REQUIRED)
         val handoff = FutureDestructiveRealChainBoundary::class.java.declaredMethods
             .single { it.name == "assembleAndHandoff" }

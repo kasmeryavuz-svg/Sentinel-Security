@@ -32,29 +32,43 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/management/AndroidDevicePolicyScreenCaptureService",
         "com/example/devicemanagement/management/AndroidDevicePolicyCameraService",
         "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService",
+        "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService",
     )
 
     private val checkpoint17BForbiddenDpmMethodNames = setOf(
         "wipeData",
-        "wipeDevice",
     )
 
     private val allowedDpmInvocations = mapOf(
-        "isDeviceOwnerApp(Ljava/lang/String;)Z" to origins(InvocationOrigin(
-            "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
-            "isDeviceOwnerApp",
-            "()Z",
-        )),
+        "isDeviceOwnerApp(Ljava/lang/String;)Z" to origins(
+            InvocationOrigin(
+                "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
+                "isDeviceOwnerApp",
+                "()Z",
+            ),
+            InvocationOrigin(
+                "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService",
+                "performAuthorizedFactoryReset",
+                "()Lcom/example/devicemanagement/destructive/AuthorizedFactoryResetResult;",
+            ),
+        ),
         "isProfileOwnerApp(Ljava/lang/String;)Z" to origins(InvocationOrigin(
             "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
             "isProfileOwnerApp",
             "()Z",
         )),
-        "isAdminActive(Landroid/content/ComponentName;)Z" to origins(InvocationOrigin(
-            "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
-            "isExpectedAdminActive",
-            "()Z",
-        )),
+        "isAdminActive(Landroid/content/ComponentName;)Z" to origins(
+            InvocationOrigin(
+                "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
+                "isExpectedAdminActive",
+                "()Z",
+            ),
+            InvocationOrigin(
+                "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService",
+                "performAuthorizedFactoryReset",
+                "()Lcom/example/devicemanagement/destructive/AuthorizedFactoryResetResult;",
+            ),
+        ),
         "isProvisioningAllowed(Ljava/lang/String;)Z" to origins(
             InvocationOrigin(
                 "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
@@ -101,6 +115,11 @@ internal object ProductionBytecodePolicyVerifier {
             "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService",
             "setStatusBarDisabled",
             "(Z)Z",
+        )),
+        "wipeDevice(I)V" to origins(InvocationOrigin(
+            "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService",
+            "performAuthorizedFactoryReset",
+            "()Lcom/example/devicemanagement/destructive/AuthorizedFactoryResetResult;",
         )),
     )
 
@@ -398,8 +417,18 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/Checkpoint18Decision",
         "com/example/devicemanagement/destructive/Checkpoint19ADecision",
+        "com/example/devicemanagement/destructive/Checkpoint19BDecision",
         "com/example/devicemanagement/destructive/UnwiredFutureDestructiveExecutor",
         "com/example/devicemanagement/destructive/IssuedRuntimeDurablePreExecutionCommitProof",
+        "com/example/devicemanagement/destructive/AuthorizedFactoryResetPort",
+        "com/example/devicemanagement/destructive/AuthorizedFactoryResetResult",
+        "com/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor",
+        "com/example/devicemanagement/destructive/ProductionDestructiveRealChain",
+        "com/example/devicemanagement/destructive/ProductionDestructiveRetainer",
+        "com/example/devicemanagement/destructive/UnavailableAuthorizedFactoryResetPort",
+        "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService",
+        "com/example/devicemanagement/management/AndroidDestructiveLiveFactsSource",
+        "com/example/devicemanagement/management/ComposedDeviceManagementServices",
     )
 
     private val recoveryForbiddenMethods = setOf(
@@ -431,6 +460,8 @@ internal object ProductionBytecodePolicyVerifier {
         "assembleBundleFromPermit",
         "commitAfterConsumedAuthorization",
         "onAuthorizedHandoff",
+        "performAuthorizedFactoryReset",
+        "retainForProduction",
         "requirePendingConsumption",
         "registerIssuedPermit",
         "registerIssuedBundle",
@@ -550,6 +581,7 @@ internal object ProductionBytecodePolicyVerifier {
     private val realChainExecutorContractOwners = setOf(
         "com/example/devicemanagement/destructive/FutureDestructiveExecutorContract",
         "$realChainBoundaryOwner\$FutureDestructiveExecutorContract",
+        "com/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor",
     )
 
     private val realChainHandoffRegistryOwner =
@@ -813,6 +845,8 @@ internal object ProductionBytecodePolicyVerifier {
                 checkTrustedHumanConfirmationMintInvocation(owner, name, descriptor, location)
                 checkTrustedHumanConfirmationConfirmInvocation(owner, name, descriptor, location)
                 checkRealChainHandoffInvocation(owner, name, descriptor, location)
+                checkAuthorizedFactoryResetPortInvocation(owner, name, location)
+                checkProductionDestructiveRetainInvocation(owner, name, location)
                 checkRecoveryIsolation(owner, name, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
                 checkContextDatabaseInvocation(owner, name, location)
@@ -920,6 +954,16 @@ internal object ProductionBytecodePolicyVerifier {
                 handle.owner,
                 handle.name,
                 handle.desc,
+                "$location method handle",
+            )
+            checkAuthorizedFactoryResetPortInvocation(
+                handle.owner,
+                handle.name,
+                "$location method handle",
+            )
+            checkProductionDestructiveRetainInvocation(
+                handle.owner,
+                handle.name,
                 "$location method handle",
             )
             checkRecoveryIsolation(handle.owner, handle.name, "$location method handle")
@@ -1182,6 +1226,66 @@ internal object ProductionBytecodePolicyVerifier {
             checkRealChainHandoffMint(owner, name, descriptor, location)
             checkRealChainHandoffConstructor(owner, name, location)
             checkRealChainCompanionCreate(owner, name, descriptor, location)
+        }
+
+        private fun checkAuthorizedFactoryResetPortInvocation(
+            owner: String,
+            name: String,
+            location: String,
+        ) {
+            if (name != "performAuthorizedFactoryReset") {
+                return
+            }
+            val factoryResetOwners = setOf(
+                "com/example/devicemanagement/destructive/AuthorizedFactoryResetPort",
+                "com/example/devicemanagement/destructive/UnavailableAuthorizedFactoryResetPort",
+                "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService",
+            )
+            if (owner !in factoryResetOwners &&
+                !owner.endsWith("AuthorizedFactoryResetPort")
+            ) {
+                return
+            }
+            val callerMethod = methodName(location)
+            val authorized = className ==
+                "com/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor" &&
+                callerMethod == "onAuthorizedHandoff"
+            if (authorized) {
+                return
+            }
+            violation(
+                "$location invokes authorized factory-reset $owner.$name outside " +
+                    "AndroidFutureDestructiveExecutor.onAuthorizedHandoff",
+            )
+        }
+
+        private fun checkProductionDestructiveRetainInvocation(
+            owner: String,
+            name: String,
+            location: String,
+        ) {
+            if (name != "retainForProduction") {
+                return
+            }
+            val retainOwners = setOf(
+                "com/example/devicemanagement/destructive/ProductionDestructiveRealChain",
+                "com/example/devicemanagement/destructive/ProductionDestructiveRealChain\$Companion",
+            )
+            if (owner !in retainOwners) {
+                return
+            }
+            val callerMethod = methodName(location)
+            val authorized = target.artifactPath == ":device-management-impl" &&
+                className ==
+                "com/example/devicemanagement/management/DeviceManagementComposition" &&
+                callerMethod in setOf("create", "retainProductionDestructiveImplementation")
+            if (authorized) {
+                return
+            }
+            violation(
+                "$location invokes production destructive retainer $owner.$name outside " +
+                    "DeviceManagementComposition",
+            )
         }
 
         private fun checkRealChainExecutorExecute(

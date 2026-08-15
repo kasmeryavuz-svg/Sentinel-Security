@@ -153,7 +153,7 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
-    fun `wipeDevice remains non-allowlisted even in an authorized DPM class`() {
+    fun `wipeDevice from an unauthorized DPM class still fails origin checks`() {
         val classes = compileJava(
             "com/example/devicemanagement/management/AndroidDevicePolicyCameraService.java" to
                 """
@@ -168,8 +168,183 @@ class ProductionBytecodePolicyVerifierTest {
         )
 
         val violations = verify(":device-management-impl", classes)
-        assertTrue(violations.any { "non-allowlisted" in it && "wipeDevice" in it })
-        assertTrue(violations.any { "Checkpoint 17B-blocked" in it && "wipeDevice" in it })
+        assertTrue(violations.any { "authorized implementation method" in it && "wipeDevice" in it })
+        assertTrue(violations.none { "Checkpoint 17B-blocked" in it && "wipeDevice" in it })
+    }
+
+    @Test
+    fun `wipeDevice is allowed only from the factory-reset service`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/AuthorizedFactoryResetResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public class AuthorizedFactoryResetResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService.java" to
+                """
+                package com.example.devicemanagement.management;
+                import android.app.admin.DevicePolicyManager;
+                import android.content.ComponentName;
+                import com.example.devicemanagement.destructive.AuthorizedFactoryResetResult;
+                public final class AndroidDevicePolicyFactoryResetService {
+                    private final DevicePolicyManager manager;
+                    private final ComponentName adminComponent;
+                    private final String packageName;
+                    public AuthorizedFactoryResetResult performAuthorizedFactoryReset() {
+                        manager.isAdminActive(adminComponent);
+                        manager.isDeviceOwnerApp(packageName);
+                        manager.wipeDevice(0);
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.isEmpty(), violations.joinToString("\n"))
+    }
+
+    @Test
+    fun `wipeData remains blocked even from the factory-reset service`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/AuthorizedFactoryResetResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public class AuthorizedFactoryResetResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService.java" to
+                """
+                package com.example.devicemanagement.management;
+                import android.app.admin.DevicePolicyManager;
+                import com.example.devicemanagement.destructive.AuthorizedFactoryResetResult;
+                public final class AndroidDevicePolicyFactoryResetService {
+                    public AuthorizedFactoryResetResult performAuthorizedFactoryReset(
+                        DevicePolicyManager manager
+                    ) {
+                        manager.wipeData(0);
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "non-allowlisted" in it && "wipeData" in it })
+        assertTrue(violations.any { "Checkpoint 17B-blocked" in it && "wipeData" in it })
+    }
+
+    @Test
+    fun `performAuthorizedFactoryReset is origin-bound to the future executor`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/AuthorizedFactoryResetResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public class AuthorizedFactoryResetResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/AuthorizedFactoryResetPort.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public interface AuthorizedFactoryResetPort {
+                    AuthorizedFactoryResetResult performAuthorizedFactoryReset();
+                }
+                """.trimIndent(),
+            "attack/RogueFactoryResetCaller.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.AuthorizedFactoryResetPort;
+                public final class RogueFactoryResetCaller {
+                    void attack(AuthorizedFactoryResetPort port) {
+                        port.performAuthorizedFactoryReset();
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "authorized factory-reset" in it })
+    }
+
+    @Test
+    fun `authorized future executor may invoke the factory-reset port`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/AuthorizedFactoryResetResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public class AuthorizedFactoryResetResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/AuthorizedFactoryResetPort.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public interface AuthorizedFactoryResetPort {
+                    AuthorizedFactoryResetResult performAuthorizedFactoryReset();
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class AndroidFutureDestructiveExecutor {
+                    private final AuthorizedFactoryResetPort factoryReset;
+                    Object onAuthorizedHandoff() {
+                        return factoryReset.performAuthorizedFactoryReset();
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.isEmpty(), violations.joinToString("\n"))
+    }
+
+    @Test
+    fun `retainForProduction is origin-bound to device-management composition`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/ProductionDestructiveRealChain.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class ProductionDestructiveRealChain {
+                    public static Object retainForProduction() { return null; }
+                }
+                """.trimIndent(),
+            "attack/RogueDestructiveRetain.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.ProductionDestructiveRealChain;
+                public final class RogueDestructiveRetain {
+                    void attack() {
+                        ProductionDestructiveRealChain.retainForProduction();
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "production destructive retainer" in it })
+    }
+
+    @Test
+    fun `authorized composition may retain the production destructive chain`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/ProductionDestructiveRealChain.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class ProductionDestructiveRealChain {
+                    public static Object retainForProduction() { return null; }
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/management/DeviceManagementComposition.java" to
+                """
+                package com.example.devicemanagement.management;
+                import com.example.devicemanagement.destructive.ProductionDestructiveRealChain;
+                public final class DeviceManagementComposition {
+                    Object retainProductionDestructiveImplementation() {
+                        return ProductionDestructiveRealChain.retainForProduction();
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.isEmpty(), violations.joinToString("\n"))
     }
 
     @Test
@@ -1927,6 +2102,29 @@ class ProductionBytecodePolicyVerifierTest {
         val violations = verify(":sensitive-actions", classes)
         assertTrue(violations.any { "recovery code" in it })
         assertTrue(violations.any { "Checkpoint19ADecision" in it })
+    }
+
+    @Test
+    fun `recovery class cannot reference Checkpoint 19B decision`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/Checkpoint19BDecision.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class Checkpoint19BDecision {}
+                """.trimIndent(),
+            "com/example/devicemanagement/recovery/RogueRecoveryCheckpoint19B.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.destructive.Checkpoint19BDecision;
+                public final class RogueRecoveryCheckpoint19B {
+                    Checkpoint19BDecision decision;
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "Checkpoint19BDecision" in it })
     }
 
     @Test
