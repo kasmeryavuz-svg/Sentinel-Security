@@ -190,6 +190,15 @@ class ProductionBytecodePolicyVerifierTest {
                     private final DevicePolicyManager manager;
                     private final ComponentName adminComponent;
                     private final String packageName;
+                    AndroidDevicePolicyFactoryResetService(
+                        DevicePolicyManager manager,
+                        ComponentName adminComponent,
+                        String packageName
+                    ) {
+                        this.manager = manager;
+                        this.adminComponent = adminComponent;
+                        this.packageName = packageName;
+                    }
                     public AuthorizedFactoryResetResult performAuthorizedFactoryReset() {
                         manager.isAdminActive(adminComponent);
                         manager.isDeviceOwnerApp(packageName);
@@ -284,6 +293,9 @@ class ProductionBytecodePolicyVerifierTest {
                 package com.example.devicemanagement.destructive;
                 public final class AndroidFutureDestructiveExecutor {
                     private final AuthorizedFactoryResetPort factoryReset;
+                    AndroidFutureDestructiveExecutor(AuthorizedFactoryResetPort factoryReset) {
+                        this.factoryReset = factoryReset;
+                    }
                     Object onAuthorizedHandoff() {
                         return factoryReset.performAuthorizedFactoryReset();
                     }
@@ -3542,10 +3554,11 @@ class ProductionBytecodePolicyVerifierTest {
             }
         }
         val compiler = requireNotNull(ToolProvider.getSystemJavaCompiler())
+        val err = java.io.ByteArrayOutputStream()
         val result = compiler.run(
             null,
             null,
-            null,
+            err,
             "-source",
             "17",
             "-target",
@@ -3554,7 +3567,9 @@ class ProductionBytecodePolicyVerifierTest {
             classes.absolutePath,
             *sourceFiles.map(File::getAbsolutePath).toTypedArray(),
         )
-        check(result == 0) { "Fixture javac failed with exit code $result" }
+        check(result == 0) {
+            "Fixture javac failed with exit code $result\n${err.toString("UTF-8")}"
+        }
         return classes
     }
 
@@ -3678,6 +3693,8 @@ class ProductionBytecodePolicyVerifierTest {
                 public boolean getCameraDisabled(ComponentName admin) { return false; }
                 public boolean getScreenCaptureDisabled(ComponentName admin) { return false; }
                 public boolean isStatusBarDisabled() { return false; }
+                public boolean isAdminActive(ComponentName admin) { return false; }
+                public boolean isDeviceOwnerApp(String packageName) { return false; }
                 public void wipeData(int flags) {}
                 public void wipeDevice(int flags) {}
             }

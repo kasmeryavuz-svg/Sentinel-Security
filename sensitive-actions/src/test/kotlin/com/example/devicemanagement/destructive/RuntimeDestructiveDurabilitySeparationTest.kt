@@ -114,7 +114,8 @@ class RuntimeDestructiveDurabilitySeparationTest {
         assertTrue(factory.contains("RuntimeDestructiveSafetyDurability"))
         assertTrue(factory.contains("issueFromTrustedAndroidStores"))
         assertTrue(factory.contains("RuntimeDestructiveSafetyDurabilityMint"))
-        assertTrue(factory.contains("Not invoked by DeviceManagement composition"))
+        assertTrue(factory.contains("DeviceManagement composition may issue the runtime capability"))
+        assertTrue(factory.contains("does not arm, authorize, or execute"))
         assertFalse(factory.contains("wipeDevice"))
         assertFalse(factory.contains("wipeData"))
     }
