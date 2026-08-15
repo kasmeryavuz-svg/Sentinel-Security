@@ -97,14 +97,22 @@ changeset.
 - `wipeDevice(I)V` is allowlisted from
   `AndroidDevicePolicyFactoryResetService.performAuthorizedFactoryReset`
   only
+- The production bytecode gate requires **exactly one**
+  `DevicePolicyManager.wipeDevice(I)V` invoke, from that exact origin,
+  with **exact integer constant 0**. Non-zero constants, locals, fields,
+  calculated flags, method handles, and extra `wipeDevice` calls fail
+  closed. Packaged DEX independently requires exactly one `wipeDevice`
+  invoke whose flags register is the previous constant `0`.
 - `wipeData` remains Checkpoint 17B-blocked and non-allowlisted
-- `performAuthorizedFactoryReset` is origin-bound to
-  `AndroidFutureDestructiveExecutor.onAuthorizedHandoff`
-- `retainForProduction` is origin-bound to
-  `DeviceManagementComposition`
+- `performAuthorizedFactoryReset` is origin-bound to the exact JVM
+  owner, method name, and descriptor
+  `AndroidFutureDestructiveExecutor.onAuthorizedHandoff()Lcom/example/devicemanagement/destructive/FutureDestructiveHandoffAcknowledgement;`
+- `retainForProduction` is origin-bound to the exact JVM owner, method
+  name, and descriptor
+  `DeviceManagementComposition.retainProductionDestructiveImplementation`
 - Packaged DEX may contain `wipeDevice`; it must not contain `wipeData`
-- Precise control remains bytecode origin, not a DEX substring denylist
-  for `wipeDevice`
+- Precise control remains bytecode origin and constant-0 analysis, not a
+  DEX substring denylist for `wipeDevice`
 
 ### D. Trusted production composition
 
@@ -130,6 +138,8 @@ DESTRUCTIVE_POLICY_WRAPPER_PRESENT = true
 DESTRUCTIVE_METADATA_PRESENT = true
 WIPE_DATA_METADATA_REVIEW_APPROVED = true
 DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED = true
+WIPE_ZERO_BYTECODE_ENFORCED = true
+FACTORY_RESET_ORIGIN_EXACT = true
 REAL_DESTRUCTIVE_CHAIN_ASSEMBLED_IN_PRODUCTION = false
 ```
 

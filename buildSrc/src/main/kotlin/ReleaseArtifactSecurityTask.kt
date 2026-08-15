@@ -109,6 +109,10 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
             artifactName = apk.name
             val strings = DexStringTable.stringsFromApk(apk)
             violations += ReleaseArtifactSecurityVerifier.verifyPackagedDex(strings, apk.name)
+            violations += DexWipeDeviceVerifier.verify(
+                DexStringTable.dexFilesFromApk(apk),
+                apk.name,
+            )
             val signing = classifyApkSigning(
                 apk = apk,
                 expectedFingerprint = expectedFingerprint,
@@ -128,6 +132,10 @@ abstract class ReleaseArtifactSecurityTask : DefaultTask() {
             artifactName = bundle.name
             val strings = DexStringTable.stringsFromAab(bundle)
             violations += ReleaseArtifactSecurityVerifier.verifyPackagedDex(strings, bundle.name)
+            violations += DexWipeDeviceVerifier.verify(
+                DexStringTable.dexFilesFromAab(bundle),
+                bundle.name,
+            )
             val signing = classifyBundleSigning(bundle, expectedFingerprint)
             classification = signing
             violations += ReleaseArtifactSecurityVerifier.verifyApksignerAvailability(

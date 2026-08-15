@@ -14,6 +14,13 @@ class Checkpoint19BDecisionTest {
         assertTrue(allowlistBlock.contains("performAuthorizedFactoryReset"))
         assertTrue(!allowlistBlock.contains("wipeData"))
         assertTrue(source.contains("AndroidFutureDestructiveExecutor.onAuthorizedHandoff"))
+        assertTrue(
+            source.contains(
+                "()Lcom/example/devicemanagement/destructive/FutureDestructiveHandoffAcknowledgement;",
+            ),
+        )
+        assertTrue(source.contains("retainProductionDestructiveImplementation"))
+        assertTrue(source.contains("exact integer constant 0"))
         assertTrue(source.contains("DeviceManagementComposition"))
         val forbidden = source
             .substringAfter("checkpoint17BForbiddenDpmMethodNames = setOf(")
