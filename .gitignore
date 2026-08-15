@@ -15,3 +15,5 @@ captures/
 *.pk8
 *.apk
 *.aab
+# Later offline ceremony records must never be committed.
+local/destructive-signing-ceremony-record.txt

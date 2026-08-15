@@ -133,6 +133,9 @@ class Checkpoint19EIndependentCiFreezeTest {
             source.contains("com/example/devicemanagement/destructive/Checkpoint19GDecision"),
         )
         assertTrue(
+            source.contains("com/example/devicemanagement/destructive/Checkpoint19HDecision"),
+        )
+        assertTrue(
             source.contains("com/example/devicemanagement/destructive/Checkpoint19DDecision"),
         )
         val allowlistBlock = source
@@ -170,6 +173,7 @@ private object Checkpoint19EDecisionSource {
         "checkReleaseBundleProductionSecurity",
         ":sensitive-actions:test",
         ":sensitive-actions:checkMainProductionBytecodePolicy",
+        ":app:checkDestructiveSigningCeremonyPreparation",
     )
 
     val forbiddenGradleTasks = listOf(

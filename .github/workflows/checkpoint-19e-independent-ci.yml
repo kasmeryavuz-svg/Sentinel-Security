@@ -119,12 +119,15 @@ jobs:
             :app:checkAppDependencyIsolation \
             :app:checkDebugEffectiveDeviceAdminMetadata \
             :app:checkReleaseEffectiveDeviceAdminMetadata \
+            :app:checkDisposableValidationEffectiveDeviceAdminMetadata \
             :app:checkDebugProductionBytecodePolicy \
             :app:checkReleaseProductionBytecodePolicy \
+            :app:checkDisposableValidationProductionBytecodePolicy \
             assembleDebug \
             assembleRelease \
             :app:checkUnsignedDestructiveValidationCandidateEvidence \
             :app:checkUnsignedDisposableValidationBuildPurposeEvidence \
+            :app:checkDestructiveSigningCeremonyPreparation \
             bundleRelease \
             checkReleaseProductionSecurity \
             checkReleaseBundleProductionSecurity \
@@ -174,3 +177,32 @@ jobs:
           grep -qx 'build_purpose_observed=DISPOSABLE_DEVICE_VALIDATION' "${purpose_report}"
           grep -qx 'build_purpose_matches=true' "${purpose_report}"
           test ! -e app/build/tmp/destructive-validation-disposable-purpose-snapshot/immutable-candidate-snapshot.apk
+
+      - name: Prove signing-ceremony preparation remains NOT_READY
+        run: |
+          set -eu
+          ceremony_report=app/build/reports/destructive-signing-ceremony-preparation.txt
+          test -f "${ceremony_report}"
+          grep -qx 'ceremony_status=NOT_READY' "${ceremony_report}"
+          grep -qx 'offline_key_generated=false' "${ceremony_report}"
+          grep -qx 'public_certificate_supplied=false' "${ceremony_report}"
+          grep -qx 'expected_certificate_recorded=false' "${ceremony_report}"
+          grep -qx 'operator_approval_available=false' "${ceremony_report}"
+          grep -qx 'witness_approval_available=false' "${ceremony_report}"
+          grep -qx 'key_custody_approved=false' "${ceremony_report}"
+          grep -qx 'recovery_backup_verified=false' "${ceremony_report}"
+          grep -qx 'branch_protection_required_check_verified=false' "${ceremony_report}"
+          grep -qx 'production_artifact_signed=false' "${ceremony_report}"
+          grep -qx 'runtime_authorization=false' "${ceremony_report}"
+          grep -qx 'trusted_expectation_minted=false' "${ceremony_report}"
+          grep -qx 'signed_validation_candidate_produced=false' "${ceremony_report}"
+          grep -qx 'expected_certificate_sha256_configured=false' "${ceremony_report}"
+          grep -qx 'checkout_revision_proves_apk_origin=false' "${ceremony_report}"
+          grep -q 'missing_ceremony_identifier' "${ceremony_report}"
+          grep -q 'production_signing_not_authorized' "${ceremony_report}"
+          if grep -qE '\b[0-9a-fA-F]{64}\b' "${ceremony_report}"; then
+            echo "Preparation report must not contain a digest value"
+            exit 1
+          fi
+          test ! -e app/build/tmp/destructive-signing-ceremony-preparation
+          test ! -e local/destructive-signing-ceremony-record.txt

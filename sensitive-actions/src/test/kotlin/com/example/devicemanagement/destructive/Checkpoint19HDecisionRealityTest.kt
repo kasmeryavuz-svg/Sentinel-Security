@@ -7,30 +7,37 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-class Checkpoint19GDecisionRealityTest {
+class Checkpoint19HDecisionRealityTest {
     @Test
-    fun `19G records observable purpose without later destructive states`() {
-        assertTrue(Checkpoint19GDecision.DISPOSABLE_VALIDATION_VARIANT_PRESENT)
-        assertTrue(Checkpoint19GDecision.BUILD_PURPOSE_OBSERVABLE)
+    fun `19H records ceremony preparation without later destructive states`() {
+        assertTrue(Checkpoint19HDecision.SIGNING_CEREMONY_CONTRACT_PRESENT)
+        assertFalse(Checkpoint19HDecision.SIGNING_CEREMONY_READY)
+        assertFalse(Checkpoint19HDecision.OFFLINE_KEY_GENERATED)
+        assertFalse(Checkpoint19HDecision.PUBLIC_CERTIFICATE_SUPPLIED)
+        assertFalse(Checkpoint19HDecision.EXPECTED_CERTIFICATE_RECORDED)
+        assertFalse(Checkpoint19HDecision.OPERATOR_APPROVAL_AVAILABLE)
+        assertFalse(Checkpoint19HDecision.WITNESS_APPROVAL_AVAILABLE)
+        assertFalse(Checkpoint19HDecision.KEY_CUSTODY_APPROVED)
+        assertFalse(Checkpoint19HDecision.RECOVERY_BACKUP_VERIFIED)
+        assertFalse(Checkpoint19HDecision.BRANCH_PROTECTION_REQUIRED_CHECK_VERIFIED)
+        assertFalse(Checkpoint19HDecision.PRODUCTION_ARTIFACT_SIGNED)
+        assertFalse(Checkpoint19HDecision.SIGNED_VALIDATION_CANDIDATE_PRODUCED)
+        assertFalse(Checkpoint19HDecision.TRUSTED_DESTRUCTIVE_ARTIFACT_DIGEST_RECORDED)
+        assertFalse(Checkpoint19HDecision.DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED)
+        assertFalse(Checkpoint19HDecision.REAL_DESTRUCTIVE_CHAIN_RUNTIME_AVAILABLE)
+        assertFalse(Checkpoint19HDecision.CHECKPOINT_19H_USED_AS_RUNTIME_AUTHORIZATION)
+        assertFalse(Checkpoint19HDecision.CEREMONY_PREPARATION_MINTS_TRUSTED_EXPECTATION)
+        assertEquals("NO", Checkpoint19HDecision.CURRENT_REPOSITORY_CAN_COMPLETE_FACTORY_RESET)
+        assertEquals("false", Checkpoint19HDecision.recordedFlags["19H_SIGNING_CEREMONY_READY"])
+        assertEquals("true", Checkpoint19HDecision.recordedFlags["19H_SIGNING_CEREMONY_CONTRACT_PRESENT"])
         assertFalse(Checkpoint19GDecision.CANDIDATE_ARTIFACT_ELIGIBLE)
-        assertFalse(Checkpoint19GDecision.REAL_DEVICE_IDENTITY_RECORDED)
-        assertFalse(Checkpoint19GDecision.HARDWARE_VALIDATION_PREPARATION_READY)
-        assertFalse(Checkpoint19GDecision.TRUSTED_DESTRUCTIVE_ARTIFACT_DIGEST_RECORDED)
-        assertFalse(Checkpoint19GDecision.DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED)
-        assertFalse(Checkpoint19GDecision.REAL_DESTRUCTIVE_CHAIN_RUNTIME_AVAILABLE)
-        assertFalse(Checkpoint19GDecision.CHECKPOINT_19G_USED_AS_RUNTIME_AUTHORIZATION)
-        assertFalse(Checkpoint19GDecision.OBSERVED_BUILD_PURPOSE_IS_RUNTIME_AUTHORIZATION)
-        assertFalse(Checkpoint19GDecision.CANDIDATE_EVIDENCE_MINTS_TRUSTED_EXPECTATION)
-        assertEquals("NO", Checkpoint19GDecision.CURRENT_REPOSITORY_CAN_COMPLETE_FACTORY_RESET)
-        assertEquals("false", Checkpoint19GDecision.recordedFlags["19G_CANDIDATE_ARTIFACT_ELIGIBLE"])
-        assertEquals("true", Checkpoint19GDecision.recordedFlags["19G_BUILD_PURPOSE_OBSERVABLE"])
         assertFalse(Checkpoint19FDecision.CANDIDATE_ARTIFACT_ELIGIBLE)
         assertFalse(Checkpoint19EDecision.REAL_DESTRUCTIVE_CHAIN_RUNTIME_AVAILABLE)
     }
 
     @Test
-    fun `19G is not runtime authorization and cannot mint trust`() {
-        val methods = Checkpoint19GDecision::class.java.declaredMethods
+    fun `19H is not runtime authorization and cannot mint trust`() {
+        val methods = Checkpoint19HDecision::class.java.declaredMethods
             .filter { it.name !in setOf("equals", "hashCode", "toString") }
             .map { it.name }
         assertFalse(methods.contains("authorize"))
@@ -53,11 +60,10 @@ class Checkpoint19GDecisionRealityTest {
             "src/main/kotlin/com/example/devicemanagement/destructive/DestructiveArtifactIdentity.kt",
         ).readText()
         listOf(
-            "Checkpoint19GDecision",
             "Checkpoint19HDecision",
-            "DESTRUCTIVE_VALIDATION_BUILD_PURPOSE",
-            "checkUnsignedDisposableValidationBuildPurposeEvidence",
-            "disposableValidation",
+            "DestructiveSigningCeremonyPreparation",
+            "checkDestructiveSigningCeremonyPreparation",
+            "SigningCeremonyPreparationRecord",
         ).forEach { token ->
             assertFalse(token, composition.contains(token))
             assertFalse(token, container.contains(token))
@@ -70,44 +76,45 @@ class Checkpoint19GDecisionRealityTest {
             .walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
             .joinToString("\n") { it.readText() }
-        assertTrue(sources.contains("Checkpoint19GDecision"))
         assertTrue(sources.contains("Checkpoint19HDecision"))
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
-        assertFalse(sources.contains("DESTRUCTIVE_VALIDATION_BUILD_PURPOSE"))
+        assertFalse(sources.contains("DestructiveSigningCeremonyPreparation"))
     }
 
     @Test
-    fun `19G document keeps the candidate ineligible`() {
-        val docs = File("../docs/WIPE_19G_VALIDATION_BUILD_PURPOSE_PROVENANCE.md").readText()
-        assertTrue(docs.contains("CHECKPOINT_19G_VALIDATION_BUILD_PURPOSE_PROVENANCE = YES"))
-        assertTrue(docs.contains("19G_CANDIDATE_ARTIFACT_ELIGIBLE = false"))
+    fun `19H document keeps the ceremony not ready`() {
+        val docs = File("../docs/WIPE_19H_SIGNING_CEREMONY_PREPARATION.md").readText()
+        assertTrue(docs.contains("CHECKPOINT_19H_SIGNING_CEREMONY_PREPARATION = YES"))
+        assertTrue(docs.contains("19H_SIGNING_CEREMONY_READY = false"))
         assertTrue(docs.contains("CURRENT_REPOSITORY_CAN_COMPLETE_FACTORY_RESET = NO"))
         assertTrue(docs.contains("DO NOT MERGE"))
-        assertFalse(docs.contains("19G_CANDIDATE_ARTIFACT_ELIGIBLE = true"))
+        assertFalse(docs.contains("19H_SIGNING_CEREMONY_READY = true"))
         assertFalse(HEX_SHA256.containsMatchIn(docs))
         assertFalse(HEX_SHA256.containsMatchIn(
-            File("src/main/kotlin/com/example/devicemanagement/destructive/Checkpoint19GDecision.kt")
+            File("src/main/kotlin/com/example/devicemanagement/destructive/Checkpoint19HDecision.kt")
                 .readText(),
         ))
     }
 
     @Test
-    fun `workflow proves the dedicated unsigned APK without hardware access`() {
+    fun `workflow proves ceremony preparation without hardware or signing`() {
         val workflow = File("../.github/workflows/checkpoint-19e-independent-ci.yml").readText()
-        assertTrue(workflow.contains(":app:checkUnsignedDisposableValidationBuildPurposeEvidence"))
-        assertTrue(workflow.contains("build_purpose_observed=DISPOSABLE_DEVICE_VALIDATION"))
+        assertTrue(workflow.contains(":app:checkDestructiveSigningCeremonyPreparation"))
+        assertTrue(workflow.contains("ceremony_status=NOT_READY"))
         assertFalse(workflow.contains("checkProductionDistributionSigning"))
         assertFalse(workflow.contains("assembleProductionRelease"))
         assertFalse(Regex("\\bemulator\\b").containsMatchIn(workflow))
         assertFalse(Regex("\\badb\\b").containsMatchIn(workflow))
+        assertFalse(workflow.contains("apksigner sign"))
+        assertFalse(workflow.contains("jarsigner"))
     }
 
     @Test
-    fun `19G tests themselves do not invoke the platform whole-device call`() {
+    fun `19H tests themselves do not invoke the platform whole-device call`() {
         val thisFile = File(
             "src/test/kotlin/com/example/devicemanagement/destructive/" +
-                "Checkpoint19GDecisionRealityTest.kt",
+                "Checkpoint19HDecisionRealityTest.kt",
         ).readText()
         assertFalse(thisFile.contains("manager." + "wipeDevice"))
         assertFalse(thisFile.contains("android.app." + "admin"))

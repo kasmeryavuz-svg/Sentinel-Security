@@ -323,6 +323,7 @@ class Checkpoint19CDecisionRealityTest {
         assertTrue(sources.contains("Checkpoint19EDecision"))
         assertTrue(sources.contains("Checkpoint19FDecision"))
         assertTrue(sources.contains("Checkpoint19GDecision"))
+        assertTrue(sources.contains("Checkpoint19HDecision"))
     }
 
     @Test
