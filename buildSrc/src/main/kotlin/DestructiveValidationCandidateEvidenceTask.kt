@@ -32,7 +32,6 @@ abstract class GenerateDestructiveValidationCandidateEvidenceTask : DefaultTask(
     abstract val reportFile: RegularFileProperty
 
     @get:Internal
-    @get:Optional
     abstract val snapshotDirectory: DirectoryProperty
 
     @TaskAction
@@ -83,7 +82,6 @@ abstract class CheckUnsignedDestructiveValidationCandidateEvidenceTask : Default
     abstract val reportFile: RegularFileProperty
 
     @get:Internal
-    @get:Optional
     abstract val snapshotDirectory: DirectoryProperty
 
     @TaskAction
