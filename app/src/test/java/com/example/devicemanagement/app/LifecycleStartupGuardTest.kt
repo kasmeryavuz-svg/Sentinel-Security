@@ -59,6 +59,8 @@ class LifecycleStartupGuardTest {
         assertFalse(container.contains("Checkpoint19DDecision"))
         assertFalse(app.contains("Checkpoint19EDecision"))
         assertFalse(container.contains("Checkpoint19EDecision"))
+        assertFalse(app.contains("Checkpoint19FDecision"))
+        assertFalse(container.contains("Checkpoint19FDecision"))
         assertFalse(app.contains("ProductionDestructiveRealChainOrchestrator"))
         assertFalse(container.contains("ProductionDestructiveRealChainOrchestrator"))
         assertFalse(app.contains("assembleAlreadyBoundDeviceFactoryReset"))

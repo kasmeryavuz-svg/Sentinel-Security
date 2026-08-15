@@ -67,6 +67,7 @@ class Checkpoint19EDecisionRealityTest {
         ).readText()
         listOf(
             "Checkpoint19EDecision",
+            "Checkpoint19FDecision",
             "independent-safety-verification",
         ).forEach { token ->
             assertFalse(token, composition.contains(token))
@@ -81,6 +82,7 @@ class Checkpoint19EDecisionRealityTest {
             .filter { it.isFile && it.extension == "kt" }
             .joinToString("\n") { it.readText() }
         assertTrue(sources.contains("Checkpoint19EDecision"))
+        assertTrue(sources.contains("Checkpoint19FDecision"))
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("import android.app." + "admin.DevicePolicyManager"))
@@ -152,6 +154,7 @@ class Checkpoint19EDecisionRealityTest {
             val text = file.readText()
             assertFalse(file.path, text.contains("assembleAlreadyBoundDeviceFactoryReset"))
             assertFalse(file.path, text.contains("Checkpoint19EDecision"))
+            assertFalse(file.path, text.contains("Checkpoint19FDecision"))
             assertFalse(file.path, text.contains("BOOT_COMPLETED"))
         }
     }

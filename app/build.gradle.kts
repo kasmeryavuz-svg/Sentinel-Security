@@ -597,6 +597,26 @@ fun verifyProvisioningManifest(
     }
 }
 
+tasks.register<GenerateDestructiveValidationCandidateEvidenceTask>(
+    "generateDestructiveValidationCandidateEvidence",
+) {
+    group = "verification"
+    description =
+        "Inspect one explicitly supplied APK as an untrusted destructive-validation " +
+            "candidate. Never auto-selects a build output and never mints a trusted expectation."
+    candidateApkPath.set(
+        providers.gradleProperty("sentinel.destructiveValidationCandidateApk").orElse(""),
+    )
+    androidSdkDirectory.set(android.sdkDirectory.absolutePath)
+    projectRootPath.set(rootProject.layout.projectDirectory.asFile.absolutePath)
+    reportFile.set(
+        layout.buildDirectory.file("reports/destructive-validation-candidate.txt"),
+    )
+    snapshotDirectory.set(
+        layout.buildDirectory.dir("tmp/destructive-validation-candidate-snapshot"),
+    )
+}
+
 androidComponents {
     onVariants(selector().all()) { variant ->
         val variantName = variant.name
@@ -914,6 +934,27 @@ androidComponents {
                 signingReport.set(
                     layout.buildDirectory.file(
                         "reports/release-bundle-security.txt",
+                    ),
+                )
+            }
+            tasks.register<CheckUnsignedDestructiveValidationCandidateEvidenceTask>(
+                "checkUnsignedDestructiveValidationCandidateEvidence",
+            ) {
+                group = "verification"
+                description =
+                    "Prove the temporary unsigned release APK is an ineligible untrusted " +
+                        "candidate. Never mints a trusted expectation or enables signing."
+                apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
+                androidSdkDirectory.set(android.sdkDirectory.absolutePath)
+                projectRootPath.set(rootProject.layout.projectDirectory.asFile.absolutePath)
+                reportFile.set(
+                    layout.buildDirectory.file(
+                        "reports/destructive-validation-candidate.txt",
+                    ),
+                )
+                snapshotDirectory.set(
+                    layout.buildDirectory.dir(
+                        "tmp/destructive-validation-candidate-snapshot",
                     ),
                 )
             }
