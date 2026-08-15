@@ -70,17 +70,30 @@ REAL_CHAIN_ASSEMBLY_PATH_PRESENT = true
 
 **This is the only state Checkpoint 19D implements.**
 
-YES means the production assembly path is structurally complete and the
-required gates are enforced. It does **not** mean a wipe can currently
-execute.
+YES means the production assembly path is structurally complete: the
+orchestrator obtains the authorized attempt lease, issues the challenge
+from that lease, requests confirmation against those exact identities,
+and a test-only structural proof reaches a non-Android fake executor.
+It does **not** mean a wipe can currently execute.
 
 Production call graph:
 
 ```text
 ProductionDestructiveRealChain.retainForProduction
+  constructs production null trusted sources and the orchestrator
   -> ProductionDestructiveRealChainOrchestrator.assembleAlreadyBoundDeviceFactoryReset
-       -> TrustedDestructiveArtifactValidationSource.trustedExpectation
+       -> require trusted artifact expectation
+       -> require runtime durability
+       -> assembleProductionRealChainMaterials
+       -> authorize and obtain the actual attemptLease
+       -> admit artifact identity
+       -> issueChallenge using that attemptLease
        -> ProductionDestructiveHumanConfirmationSource.confirm
+            using that exact challenge and lease
+            -> consumeMatching the one-attempt trusted record
+            -> TrustedPerAttemptDestructiveConfirmationRecord.current (null)
+       -> redeem
+       -> verifyDefaultDeny(scope, emptySet())
        -> FutureDestructiveRealChainBoundary.assembleAndHandoff
             -> consume capability
             -> durable PRE_EXECUTION_COMMITTED append
@@ -97,6 +110,18 @@ ProductionDestructiveRealChain.retainForProduction
 There is still **no production trigger** for
 `assembleAlreadyBoundDeviceFactoryReset`. Bytecode policy authorizes no
 caller of that progression method.
+
+Confirmation is requested only after authorize and `issueChallenge`.
+The orchestrator supplies the authority-issued challenge and the exact
+authorized attempt lease. An upstream trigger or public caller cannot
+supply substitutes. `DestructiveHumanApprovalAuthority.redeem` requires
+object identity for both the challenge and the lease; a confirmation
+bound to a different trusted placeholder can never complete.
+
+`retainForProduction` constructs the production null sources internally.
+Test implementations of those seams exist only in test sources and must
+not appear in release DEX. The progression method still accepts only
+`ProductionBoundDeviceFactoryResetAttempt`.
 
 ### 3. Runtime destructive availability
 
@@ -130,16 +155,32 @@ PER_ATTEMPT_REAL_CONFIRMATION_AVAILABLE = false
 RECORDED_PER_ATTEMPT_CONFIRMATION = null
 ```
 
-**Unavailable.** `ProductionDestructiveHumanConfirmationSource` is
-structurally wired and returns null until a separately approved real
-trusted confirmation record exists. There is no Boolean/string
-"confirmed" shortcut.
+**Unavailable.** `TrustedPerAttemptDestructiveConfirmationRecord.current()`
+stays null. There is no Boolean/string "confirmed" shortcut and no
+mutable production test hook.
 
-A later real record must bind operator identity, UTC timestamp, exact
-disposable-device serial, exact package, exact DeviceAdmin component,
-exact cert SHA-256, exact APK SHA-256, `DEVICE_FACTORY_RESET`, flags
-literal `0`, exact build/revision, one attempt only, a short validity
-window, and a non-replayable attempt id.
+`ProductionDestructiveHumanConfirmationSource` consumes a one-attempt
+record against the orchestrator-supplied challenge and lease, then
+enforces:
+
+- `utcTimestamp` / `validUntilUtc` parsed as UTC instants against a
+  trusted UTC clock, with a maximum 30-second window
+- `deviceSerial` bound to authoritative live facts
+- `certificateSha256` / `artifactSha256` bound to the trusted
+  expectation and the observed artifact identity
+- `buildRevision` bound to the approved-build source (null in production)
+- `attemptId` bound to the current correlation / attempt
+- one-attempt records consumed exactly once
+- stale UTC records are not refreshed by minting with the current
+  monotonic time
+- failed attempts abandon unused challenges and do not leave reusable
+  confirmation state
+
+A later real record must still bind operator identity, UTC timestamp,
+exact disposable-device serial, exact package, exact DeviceAdmin
+component, exact cert SHA-256, exact APK SHA-256,
+`DEVICE_FACTORY_RESET`, flags literal `0`, exact build/revision, one
+attempt only, a short validity window, and a non-replayable attempt id.
 
 ### 6. Hardware-test approval
 
@@ -179,6 +220,8 @@ references, reflection, and lambda/synthetic bypasses are rejected.
 | `DevicePolicyManager.wipeDevice(I)V` | `AndroidDevicePolicyFactoryResetService.performAuthorizedFactoryReset` with literal `0` |
 | `DestructiveHumanConfirmationAuthority.confirm` | `ProductionDestructiveHumanConfirmationSource.confirm` |
 | `ProductionDestructiveHumanConfirmationSource.confirm` | `ProductionDestructiveRealChainOrchestrator.assembleAlreadyBoundDeviceFactoryReset` |
+| orchestrator / confirmation source / production null-source constructors | `ProductionDestructiveRealChain.retainForProduction` |
+| `TrustedPerAttemptConfirmationFacts` constructor | **none** — no production mint |
 | `assembleAlreadyBoundDeviceFactoryReset` | **none** — no production trigger origin |
 
 ## Checkpoint 17B ENFORCED flags

@@ -43,6 +43,10 @@
 -keep class com.example.devicemanagement.destructive.ProductionDestructiveRealChainOrchestrator { *; }
 -keep class com.example.devicemanagement.destructive.ProductionBoundDeviceFactoryResetAttempt { *; }
 -keep class com.example.devicemanagement.destructive.ProductionDestructiveHumanConfirmationSource { *; }
+-keep class com.example.devicemanagement.destructive.ProductionDestructiveTrustedArtifactExpectationSource { *; }
+-keep class com.example.devicemanagement.destructive.ProductionDestructiveTrustedPerAttemptConfirmationRecordSource { *; }
+-keep class com.example.devicemanagement.destructive.ProductionDestructiveUtcClock { *; }
+-keep class com.example.devicemanagement.destructive.ProductionDestructiveApprovedBuildRevisionSource { *; }
 -keep class com.example.devicemanagement.destructive.TrustedPerAttemptDestructiveConfirmationRecord { *; }
 -keep class com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary { *; }
 -keep class com.example.devicemanagement.destructive.AuthorizedFactoryResetPort { *; }

@@ -72,7 +72,9 @@ internal object ProductionBytecodePolicyVerifier {
             "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
             "Lcom/example/devicemanagement/destructive/DestructiveScope;" +
             "Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentity;" +
-            "J)Lcom/example/devicemanagement/destructive/DestructiveHumanConfirmation;"
+            "Lcom/example/devicemanagement/destructive/DestructiveOperatorChallenge;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;" +
+            "J)Lcom/example/devicemanagement/destructive/DestructiveHumanConfirmationResult;"
     private const val HUMAN_CONFIRMATION_AUTHORITY_CONFIRM_DESCRIPTOR =
         "(Lcom/example/devicemanagement/destructive/DestructiveOperatorChallenge;" +
             "Lcom/example/devicemanagement/destructive/DestructiveCorrelationId;" +
@@ -81,6 +83,30 @@ internal object ProductionBytecodePolicyVerifier {
             "Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentity;" +
             "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;" +
             "J)Lcom/example/devicemanagement/destructive/DestructiveHumanConfirmationResult;"
+    private const val ORCHESTRATOR_INIT_DESCRIPTOR =
+        "(Lcom/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveLiveFactsSource;" +
+            "Lcom/example/devicemanagement/integration/MonotonicTimeSource;" +
+            "Lcom/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTrustedArtifactExpectationSource;" +
+            "Lcom/example/devicemanagement/destructive/ProductionDestructiveHumanConfirmationSource;)V"
+    private const val PRODUCTION_CONFIRMATION_SOURCE_INIT_DESCRIPTOR =
+        "(Lcom/example/devicemanagement/destructive/DestructiveTrustedPerAttemptConfirmationRecordSource;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveUtcClock;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTrustedApprovedBuildRevisionSource;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveLiveFactsSource;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTrustedArtifactExpectationSource;)V"
+    private const val PRODUCTION_ARTIFACT_EXPECTATION_SOURCE_OWNER =
+        "com/example/devicemanagement/destructive/ProductionDestructiveTrustedArtifactExpectationSource"
+    private const val PRODUCTION_RECORD_SOURCE_OWNER =
+        "com/example/devicemanagement/destructive/" +
+            "ProductionDestructiveTrustedPerAttemptConfirmationRecordSource"
+    private const val PRODUCTION_UTC_CLOCK_OWNER =
+        "com/example/devicemanagement/destructive/ProductionDestructiveUtcClock"
+    private const val PRODUCTION_APPROVED_BUILD_SOURCE_OWNER =
+        "com/example/devicemanagement/destructive/ProductionDestructiveApprovedBuildRevisionSource"
+    private const val TRUSTED_CONFIRMATION_FACTS_OWNER =
+        "com/example/devicemanagement/destructive/TrustedPerAttemptConfirmationFacts"
 
     private data class InvocationOrigin(
         val className: String,
@@ -133,6 +159,21 @@ internal object ProductionBytecodePolicyVerifier {
         ORCHESTRATOR_OWNER,
         ASSEMBLE_ALREADY_BOUND,
         ASSEMBLE_ALREADY_BOUND_DESCRIPTOR,
+    )
+
+    private val authorizedProductionInternalInitCaller = InvocationOrigin(
+        RETAIN_FOR_PRODUCTION_OWNER,
+        RETAIN_FOR_PRODUCTION,
+        RETAIN_FOR_PRODUCTION_DESCRIPTOR,
+    )
+
+    private val productionInternalInitDescriptors = mapOf(
+        ORCHESTRATOR_OWNER to ORCHESTRATOR_INIT_DESCRIPTOR,
+        PRODUCTION_CONFIRMATION_SOURCE_OWNER to PRODUCTION_CONFIRMATION_SOURCE_INIT_DESCRIPTOR,
+        PRODUCTION_ARTIFACT_EXPECTATION_SOURCE_OWNER to "()V",
+        PRODUCTION_RECORD_SOURCE_OWNER to "()V",
+        PRODUCTION_UTC_CLOCK_OWNER to "()V",
+        PRODUCTION_APPROVED_BUILD_SOURCE_OWNER to "()V",
     )
 
     private fun origins(vararg origins: InvocationOrigin): Set<InvocationOrigin> =
@@ -548,6 +589,18 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/ProductionBoundDeviceFactoryResetAttempt",
         "com/example/devicemanagement/destructive/ProductionRealChainAssemblyMaterials",
         "com/example/devicemanagement/destructive/ProductionDestructiveHumanConfirmationSource",
+        "com/example/devicemanagement/destructive/ProductionDestructiveTrustedArtifactExpectationSource",
+        "com/example/devicemanagement/destructive/ProductionDestructiveTrustedPerAttemptConfirmationRecordSource",
+        "com/example/devicemanagement/destructive/ProductionDestructiveUtcClock",
+        "com/example/devicemanagement/destructive/ProductionDestructiveApprovedBuildRevisionSource",
+        "com/example/devicemanagement/destructive/DestructiveTrustedArtifactExpectationSource",
+        "com/example/devicemanagement/destructive/DestructiveTrustedPerAttemptConfirmationRecordSource",
+        "com/example/devicemanagement/destructive/DestructiveTrustedConfirmationRecordConsumeResult",
+        "com/example/devicemanagement/destructive/DestructiveTrustedConfirmationRecordConsumeResult\$Available",
+        "com/example/devicemanagement/destructive/DestructiveTrustedConfirmationRecordConsumeResult\$Missing",
+        "com/example/devicemanagement/destructive/DestructiveTrustedConfirmationRecordConsumeResult\$AlreadyConsumed",
+        "com/example/devicemanagement/destructive/DestructiveUtcClock",
+        "com/example/devicemanagement/destructive/DestructiveTrustedApprovedBuildRevisionSource",
         "com/example/devicemanagement/destructive/TrustedPerAttemptDestructiveConfirmationRecord",
         "com/example/devicemanagement/destructive/TrustedPerAttemptConfirmationFacts",
         "com/example/devicemanagement/destructive/UnavailableAuthorizedFactoryResetPort",
@@ -582,6 +635,8 @@ internal object ProductionBytecodePolicyVerifier {
         "assembleAndHandoff",
         "assembleAlreadyBoundDeviceFactoryReset",
         "bindAlreadyAuthorizedDeviceFactoryReset",
+        "consumeMatching",
+        "abandon",
         "verifyDefaultDeny",
         "mintFinalLiveValidationPermit",
         "assembleBundleFromPermit",
@@ -1151,6 +1206,19 @@ internal object ProductionBytecodePolicyVerifier {
                     callerOrigin,
                     viaMethodHandle = false,
                 )
+                checkProductionInternalInitInvocation(
+                    owner,
+                    name,
+                    descriptor,
+                    location,
+                    callerOrigin,
+                    viaMethodHandle = false,
+                )
+                checkTrustedConfirmationFactsInitInvocation(
+                    owner,
+                    name,
+                    location,
+                )
                 checkRecoveryIsolation(owner, name, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
                 checkContextDatabaseInvocation(owner, name, location)
@@ -1308,6 +1376,19 @@ internal object ProductionBytecodePolicyVerifier {
                 "$location method handle",
                 caller,
                 viaMethodHandle = true,
+            )
+            checkProductionInternalInitInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+                caller,
+                viaMethodHandle = true,
+            )
+            checkTrustedConfirmationFactsInitInvocation(
+                handle.owner,
+                handle.name,
+                "$location method handle",
             )
             checkRecoveryIsolation(handle.owner, handle.name, "$location method handle")
             checkSqliteInvocation(
@@ -1691,16 +1772,24 @@ internal object ProductionBytecodePolicyVerifier {
             caller: InvocationOrigin,
             viaMethodHandle: Boolean,
         ) {
-            if (owner != PRODUCTION_CONFIRMATION_SOURCE_OWNER ||
-                name != PRODUCTION_CONFIRMATION_SOURCE_CONFIRM
-            ) {
+            if (name != PRODUCTION_CONFIRMATION_SOURCE_CONFIRM) {
+                return
+            }
+            if (owner == trustedHumanConfirmationAuthorityOwner) {
                 return
             }
             val authorized = !viaMethodHandle &&
                 target.artifactPath == ":sensitive-actions" &&
+                owner == PRODUCTION_CONFIRMATION_SOURCE_OWNER &&
                 descriptor == PRODUCTION_CONFIRMATION_SOURCE_DESCRIPTOR &&
                 caller == authorizedProductionConfirmationSourceCaller
             if (authorized) {
+                return
+            }
+            if (
+                owner != PRODUCTION_CONFIRMATION_SOURCE_OWNER &&
+                descriptor != PRODUCTION_CONFIRMATION_SOURCE_DESCRIPTOR
+            ) {
                 return
             }
             violation(
@@ -1708,6 +1797,53 @@ internal object ProductionBytecodePolicyVerifier {
                     "${authorizedProductionConfirmationSourceCaller.className}." +
                     "${authorizedProductionConfirmationSourceCaller.methodName}" +
                     authorizedProductionConfirmationSourceCaller.methodDescriptor,
+            )
+        }
+
+        private fun checkProductionInternalInitInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+            caller: InvocationOrigin,
+            viaMethodHandle: Boolean,
+        ) {
+            val expectedDescriptor = productionInternalInitDescriptors[owner] ?: return
+            if (name != "<init>") {
+                return
+            }
+            if (className == owner && methodName(location) == "<init>") {
+                return
+            }
+            val authorized = !viaMethodHandle &&
+                target.artifactPath == ":sensitive-actions" &&
+                descriptor == expectedDescriptor &&
+                caller == authorizedProductionInternalInitCaller
+            if (authorized) {
+                return
+            }
+            violation(
+                "$location constructs production real-chain type $owner$descriptor outside " +
+                    "${authorizedProductionInternalInitCaller.className}." +
+                    "${authorizedProductionInternalInitCaller.methodName}" +
+                    authorizedProductionInternalInitCaller.methodDescriptor,
+            )
+        }
+
+        private fun checkTrustedConfirmationFactsInitInvocation(
+            owner: String,
+            name: String,
+            location: String,
+        ) {
+            if (name != "<init>" || owner != TRUSTED_CONFIRMATION_FACTS_OWNER) {
+                return
+            }
+            if (className == owner && methodName(location) == "<init>") {
+                return
+            }
+            violation(
+                "$location constructs TrustedPerAttemptConfirmationFacts; this type has no " +
+                    "production mint",
             )
         }
 

@@ -310,6 +310,20 @@ class DestructiveHumanApprovalAuthorityTest {
         assertTrue(fixture.consume(approved.approval) is DestructiveHumanApprovalCheck.Accepted)
     }
 
+    @Test
+    fun `abandoned unused challenge cannot be redeemed`() {
+        val fixture = liveAuthority()
+        val issued = fixture.issueChallenge() as DestructiveChallengeIssueResult.Issued
+        val confirmation = fixture.confirm(issued)
+        fixture.authority.abandon(issued.challenge)
+        assertEquals(
+            "human_approval_challenge_not_issued_or_already_used",
+            (
+                fixture.redeem(issued, confirmation) as DestructiveHumanApprovalResult.Failed
+                ).reason,
+        )
+    }
+
     private fun liveAuthority(
         clock: MutableMonotonicClock = MutableMonotonicClock(1_000L),
     ): ApprovalFixture {

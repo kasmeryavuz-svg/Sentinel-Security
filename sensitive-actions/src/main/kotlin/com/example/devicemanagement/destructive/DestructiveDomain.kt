@@ -244,6 +244,7 @@ data class DestructiveLiveFacts(
     val activeAdminComponentSet: Set<String>,
     val managementValidationState: DestructiveManagementValidation,
     val policyServiceAvailable: Boolean,
+    val deviceSerial: String = "",
 )
 
 fun interface DestructiveLiveFactsSource {

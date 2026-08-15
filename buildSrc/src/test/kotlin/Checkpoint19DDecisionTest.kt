@@ -18,6 +18,7 @@ class Checkpoint19DDecisionTest {
                 "no production trigger origin is authorized",
             ),
         )
+        assertTrue(source.contains("constructs production real-chain type"))
         assertTrue(
             source.contains(
                 "com/example/devicemanagement/destructive/ProductionDestructiveHumanConfirmationSource",

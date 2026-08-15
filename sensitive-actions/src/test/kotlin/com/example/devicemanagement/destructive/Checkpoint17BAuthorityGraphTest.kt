@@ -120,6 +120,8 @@ class Checkpoint17BAuthorityGraphTest {
             "Checkpoint19DDecision",
             "ProductionDestructiveRealChainOrchestrator",
             "assembleAlreadyBoundDeviceFactoryReset",
+            "ProductionDestructiveHumanConfirmationSource",
+            "ProductionDestructiveUtcClock",
             "AuthorizedFactoryResetPort",
             "ProductionDestructiveRealChain",
             "AndroidFutureDestructiveExecutor",

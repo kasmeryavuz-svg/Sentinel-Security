@@ -48,9 +48,16 @@ internal object Checkpoint19DDecision {
     val productionAssemblyCallGraph = listOf(
         "ProductionDestructiveRealChain.retainForProduction",
         "ProductionDestructiveRealChainOrchestrator.assembleAlreadyBoundDeviceFactoryReset",
-        "TrustedDestructiveArtifactValidationSource.trustedExpectation",
+        "DestructiveTrustedArtifactExpectationSource.trustedExpectation",
+        "assembleProductionRealChainMaterials",
+        "authorize and obtain the actual attemptLease",
+        "admit artifact identity",
+        "DestructiveHumanApprovalAuthority.issueChallenge",
         "ProductionDestructiveHumanConfirmationSource.confirm",
+        "DestructiveTrustedPerAttemptConfirmationRecordSource.consumeMatching",
         "TrustedPerAttemptDestructiveConfirmationRecord.current",
+        "DestructiveHumanApprovalAuthority.redeem",
+        "DestructiveWipeOptionPolicyAuthority.verifyDefaultDeny",
         "FutureDestructiveRealChainBoundary.assembleAndHandoff",
         "FutureDestructiveExecutorContract.execute",
         "AndroidFutureDestructiveExecutor.onAuthorizedHandoff",
@@ -83,7 +90,14 @@ internal object Checkpoint19DDecision {
         "AndroidDevicePolicyFactoryResetService is the only platform whole-device origin",
         "ProductionDestructiveHumanConfirmationSource.confirm is the only caller of " +
             "DestructiveHumanConfirmationAuthority.confirm",
+        "assembleAlreadyBoundDeviceFactoryReset is the only caller of " +
+            "ProductionDestructiveHumanConfirmationSource.confirm and supplies the " +
+            "authority-issued challenge and exact authorized attemptLease",
+        "ProductionDestructiveRealChain.retainForProduction is the only production " +
+            "constructor origin for the orchestrator, confirmation source, and " +
+            "production null trusted sources",
         "assembleAlreadyBoundDeviceFactoryReset has no authorized production trigger origin",
+        "TrustedPerAttemptConfirmationFacts has no production mint",
     )
 
     val runtimeFailClosedRequirements = listOf(
@@ -91,6 +105,15 @@ internal object Checkpoint19DDecision {
         "missing_per_attempt_human_confirmation",
         "stale_confirmation",
         "replayed_confirmation",
+        "confirmation_challenge_mismatch",
+        "confirmation_attempt_lease_mismatch",
+        "confirmation_device_serial_mismatch",
+        "confirmation_certificate_digest_mismatch",
+        "confirmation_artifact_digest_mismatch",
+        "confirmation_build_revision_mismatch",
+        "confirmation_attempt_id_mismatch",
+        "confirmation_validity_window_invalid",
+        "missing_trusted_approved_build_revision",
         "process_restart",
         "stale_attempt_admission_lease",
         "dead_arming_token",
@@ -122,6 +145,7 @@ internal object Checkpoint19DDecision {
         "sensitive-actions/src/main/kotlin/com/example/devicemanagement/destructive/Checkpoint19DDecision.kt",
         "sensitive-actions/src/main/kotlin/com/example/devicemanagement/destructive/ProductionDestructiveRealChain.kt",
         "sensitive-actions/src/main/kotlin/com/example/devicemanagement/destructive/ProductionDestructiveRealChainOrchestrator.kt",
+        "sensitive-actions/src/main/kotlin/com/example/devicemanagement/destructive/DestructiveTrustedProductionSeams.kt",
         "sensitive-actions/src/main/kotlin/com/example/devicemanagement/destructive/FutureDestructiveExecutorContract.kt",
         "sensitive-actions/src/main/kotlin/com/example/devicemanagement/destructive/DestructiveArtifactIdentity.kt",
         "sensitive-actions/src/main/kotlin/com/example/devicemanagement/destructive/DestructiveHumanApprovalAuthority.kt",

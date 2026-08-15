@@ -172,8 +172,8 @@ class Checkpoint17BHardBlockRealityTest {
                 "FutureDestructiveExecutorContract.kt",
         ).readText()
         assertTrue(orchestrator.contains("assembleAndHandoff("))
-        assertTrue(orchestrator.contains("TrustedDestructiveArtifactValidationSource.trustedExpectation()"))
-        assertTrue(orchestrator.contains("ProductionDestructiveHumanConfirmationSource.confirm("))
+        assertTrue(orchestrator.contains("artifactExpectationSource.trustedExpectation()"))
+        assertTrue(orchestrator.contains("confirmationSource.confirm("))
         assertTrue(orchestrator.contains("verifyDefaultDeny("))
         assertTrue(boundary.contains("runtimePreExecutionAuthority.commitAfterConsumedAuthorization"))
         assertTrue(boundary.contains("cooldown.assertCurrentAttemptMarkerPresent()"))

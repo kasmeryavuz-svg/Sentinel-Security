@@ -142,6 +142,8 @@ class DestructiveDomainIsolationTest {
         assertTrue(sources.contains("ProductionDestructiveRealChainOrchestrator"))
         assertTrue(sources.contains("assembleAlreadyBoundDeviceFactoryReset"))
         assertTrue(sources.contains("ProductionDestructiveHumanConfirmationSource"))
+        assertTrue(sources.contains("ProductionDestructiveTrustedArtifactExpectationSource"))
+        assertTrue(sources.contains("DestructiveTrustedPerAttemptConfirmationRecordSource"))
         assertFalse(sources.contains("fromTrustedSnapshot"))
         assertFalse(sources.contains("java.nio.file.Files"))
     }

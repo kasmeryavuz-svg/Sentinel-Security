@@ -36,6 +36,10 @@ object ReleaseArtifactSecurityVerifier {
         "com.example.devicemanagement.destructive.ProductionDestructiveRealChainOrchestrator",
         "com.example.devicemanagement.destructive.ProductionBoundDeviceFactoryResetAttempt",
         "com.example.devicemanagement.destructive.ProductionDestructiveHumanConfirmationSource",
+        "com.example.devicemanagement.destructive.ProductionDestructiveTrustedArtifactExpectationSource",
+        "com.example.devicemanagement.destructive.ProductionDestructiveTrustedPerAttemptConfirmationRecordSource",
+        "com.example.devicemanagement.destructive.ProductionDestructiveUtcClock",
+        "com.example.devicemanagement.destructive.ProductionDestructiveApprovedBuildRevisionSource",
         "com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary",
     )
 

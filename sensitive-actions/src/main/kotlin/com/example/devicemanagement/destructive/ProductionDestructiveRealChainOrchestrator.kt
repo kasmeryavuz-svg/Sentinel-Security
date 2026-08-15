@@ -41,14 +41,17 @@ internal class ProductionBoundDeviceFactoryResetAttempt private constructor(
  * progression method itself.
  *
  * Callers cannot supply wipe flags, an executor, a trusted artifact
- * expectation, or a destructive approval. Missing trusted artifact
- * expectation and missing per-attempt confirmation fail closed.
+ * expectation, a challenge, an attempt lease, or a destructive approval.
+ * The method obtains the authorized lease and authority-issued challenge
+ * internally, then requests confirmation against those exact identities.
  */
 internal class ProductionDestructiveRealChainOrchestrator internal constructor(
     private val executor: AndroidFutureDestructiveExecutor,
     private val liveFacts: DestructiveLiveFactsSource,
     private val clock: MonotonicTimeSource,
     private val durability: RuntimeDestructiveSafetyDurability?,
+    private val artifactExpectationSource: DestructiveTrustedArtifactExpectationSource,
+    private val confirmationSource: ProductionDestructiveHumanConfirmationSource,
 ) {
     fun assembleAlreadyBoundDeviceFactoryReset(
         boundAttempt: ProductionBoundDeviceFactoryResetAttempt,
@@ -56,24 +59,10 @@ internal class ProductionDestructiveRealChainOrchestrator internal constructor(
         if (boundAttempt.binding.scope != DestructiveScope.DEVICE_FACTORY_RESET) {
             return FutureDestructiveHandoffResult.Failed("real_chain_scope_denied")
         }
-        val expected = TrustedDestructiveArtifactValidationSource.trustedExpectation()
-        val confirmation = ProductionDestructiveHumanConfirmationSource.confirm(
-            correlationId = boundAttempt.binding.correlationId,
-            binding = boundAttempt.binding,
-            scope = boundAttempt.binding.scope,
-            artifactIdentity = boundAttempt.observedIdentity,
-            nowMonotonicMillis = clock.nowMillis(),
-        )
-        if (expected == null) {
-            return FutureDestructiveHandoffResult.Failed("missing_trusted_artifact_expectation")
-        }
-        if (confirmation == null) {
-            return FutureDestructiveHandoffResult.Failed("missing_per_attempt_human_confirmation")
-        }
+        val expected = artifactExpectationSource.trustedExpectation()
+            ?: return FutureDestructiveHandoffResult.Failed("missing_trusted_artifact_expectation")
         val runtimeDurability = durability
-        if (runtimeDurability == null) {
-            return FutureDestructiveHandoffResult.Failed("runtime_durability_unavailable")
-        }
+            ?: return FutureDestructiveHandoffResult.Failed("runtime_durability_unavailable")
         val assembled = assembleProductionRealChainMaterials(
             expected = expected,
             durability = runtimeDurability,
@@ -92,52 +81,86 @@ internal class ProductionDestructiveRealChainOrchestrator internal constructor(
                 return FutureDestructiveHandoffResult.Failed(artifactAdmitted.reason)
             }
         }
-        val challenge = assembled.humanApprovalAuthority.issueChallenge(
+        val issued = assembled.humanApprovalAuthority.issueChallenge(
             correlationId = boundAttempt.binding.correlationId,
             binding = boundAttempt.binding,
             scope = boundAttempt.binding.scope,
             artifactIdentity = boundAttempt.observedIdentity,
             attemptLease = authorized.attemptLease,
         )
-        if (challenge !is DestructiveChallengeIssueResult.Issued) {
-            val failed = challenge as DestructiveChallengeIssueResult.Failed
+        if (issued !is DestructiveChallengeIssueResult.Issued) {
+            val failed = issued as DestructiveChallengeIssueResult.Failed
             return FutureDestructiveHandoffResult.Failed(failed.reason)
         }
-        val redeemed = assembled.humanApprovalAuthority.redeem(
-            challenge = challenge.challenge,
-            confirmation = confirmation,
-            correlationId = boundAttempt.binding.correlationId,
-            binding = boundAttempt.binding,
-            scope = boundAttempt.binding.scope,
-            artifactIdentity = boundAttempt.observedIdentity,
-            attemptLease = authorized.attemptLease,
-        )
-        val humanApproval = when (redeemed) {
-            is DestructiveHumanApprovalResult.Approved -> redeemed.approval
-            is DestructiveHumanApprovalResult.Failed -> {
-                return FutureDestructiveHandoffResult.Failed(redeemed.reason)
+        var mintedConfirmation: DestructiveHumanConfirmation? = null
+        var mintedApproval: DestructiveHumanApproval? = null
+        try {
+            val confirmationResult = confirmationSource.confirm(
+                correlationId = boundAttempt.binding.correlationId,
+                binding = boundAttempt.binding,
+                scope = boundAttempt.binding.scope,
+                artifactIdentity = boundAttempt.observedIdentity,
+                challenge = issued.challenge,
+                attemptLease = authorized.attemptLease,
+                nowMonotonicMillis = clock.nowMillis(),
+            )
+            val confirmation = when (confirmationResult) {
+                is DestructiveHumanConfirmationResult.Confirmed -> confirmationResult.confirmation
+                is DestructiveHumanConfirmationResult.Failed -> {
+                    return FutureDestructiveHandoffResult.Failed(confirmationResult.reason)
+                }
             }
-        }
-        val wipeVerified = assembled.wipePolicyAuthority.verifyDefaultDeny(
-            boundAttempt.binding.scope,
-            emptySet(),
-        )
-        val wipeProof = when (wipeVerified) {
-            is WipeOptionPolicyVerifyResult.Verified -> wipeVerified.proof
-            is WipeOptionPolicyVerifyResult.Failed -> {
-                return FutureDestructiveHandoffResult.Failed(wipeVerified.reason)
+            mintedConfirmation = confirmation
+            val redeemed = assembled.humanApprovalAuthority.redeem(
+                challenge = issued.challenge,
+                confirmation = confirmation,
+                correlationId = boundAttempt.binding.correlationId,
+                binding = boundAttempt.binding,
+                scope = boundAttempt.binding.scope,
+                artifactIdentity = boundAttempt.observedIdentity,
+                attemptLease = authorized.attemptLease,
+            )
+            val humanApproval = when (redeemed) {
+                is DestructiveHumanApprovalResult.Approved -> redeemed.approval
+                is DestructiveHumanApprovalResult.Failed -> {
+                    return FutureDestructiveHandoffResult.Failed(redeemed.reason)
+                }
             }
+            mintedConfirmation = null
+            mintedApproval = humanApproval
+            val wipeVerified = assembled.wipePolicyAuthority.verifyDefaultDeny(
+                boundAttempt.binding.scope,
+                emptySet(),
+            )
+            val wipeProof = when (wipeVerified) {
+                is WipeOptionPolicyVerifyResult.Verified -> wipeVerified.proof
+                is WipeOptionPolicyVerifyResult.Failed -> {
+                    return FutureDestructiveHandoffResult.Failed(wipeVerified.reason)
+                }
+            }
+            val handoff = assembled.boundary.assembleAndHandoff(
+                executor = executor,
+                binding = boundAttempt.binding,
+                attemptLease = authorized.attemptLease,
+                capability = authorized.capability,
+                armToken = authorized.armToken,
+                artifactMatchProof = artifactProof,
+                observedIdentity = boundAttempt.observedIdentity,
+                humanApproval = humanApproval,
+                wipeOptionPolicyProof = wipeProof,
+            )
+            if (handoff is FutureDestructiveHandoffResult.Acknowledged) {
+                mintedApproval = null
+            }
+            return handoff
+        } finally {
+            mintedConfirmation?.let { leftover ->
+                DestructiveHumanConfirmationMint.consume(leftover)
+            }
+            mintedApproval?.let { leftover ->
+                assembled.humanApprovalAuthority.invalidate(leftover)
+            }
+            assembled.humanApprovalAuthority.abandon(issued.challenge)
         }
-        return assembled.boundary.assembleAndHandoff(
-            executor = executor,
-            binding = boundAttempt.binding,
-            attemptLease = authorized.attemptLease,
-            capability = authorized.capability,
-            armToken = authorized.armToken,
-            artifactMatchProof = artifactProof,
-            observedIdentity = boundAttempt.observedIdentity,
-            humanApproval = humanApproval,
-            wipeOptionPolicyProof = wipeProof,
-        )
     }
 }

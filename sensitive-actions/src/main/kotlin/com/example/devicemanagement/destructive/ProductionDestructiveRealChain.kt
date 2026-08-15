@@ -139,11 +139,21 @@ object ProductionDestructiveRealChain {
             liveFacts = liveFacts,
             clock = clock,
         )
+        val artifactExpectationSource = ProductionDestructiveTrustedArtifactExpectationSource()
+        val confirmationSource = ProductionDestructiveHumanConfirmationSource(
+            recordSource = ProductionDestructiveTrustedPerAttemptConfirmationRecordSource(),
+            utcClock = ProductionDestructiveUtcClock(),
+            approvedBuildRevision = ProductionDestructiveApprovedBuildRevisionSource(),
+            liveFacts = liveFacts,
+            artifactExpectationSource = artifactExpectationSource,
+        )
         val orchestrator = ProductionDestructiveRealChainOrchestrator(
             executor = executor,
             liveFacts = liveFacts,
             clock = clock,
             durability = durability,
+            artifactExpectationSource = artifactExpectationSource,
+            confirmationSource = confirmationSource,
         )
         return ProductionDestructiveRetainer(
             factoryResetPort = port,

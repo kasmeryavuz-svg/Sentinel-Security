@@ -39,14 +39,19 @@ class Checkpoint19DDecisionRealityTest {
         )
         assertNull(TrustedDestructiveArtifactValidationSource.trustedExpectation())
         assertNull(TrustedPerAttemptDestructiveConfirmationRecord.current())
-        assertNull(
-            ProductionDestructiveHumanConfirmationSource.confirm(
-                correlationId = DestructiveCorrelationId.generate { "19d-confirmation-probe" },
-                binding = verifiedBinding(),
-                scope = DestructiveScope.DEVICE_FACTORY_RESET,
-                artifactIdentity = requireNotNull(disposableObservedIdentity()),
-                nowMonotonicMillis = 1_000L,
-            ),
+        val confirmation = productionNullConfirmationSource().confirm(
+            correlationId = DestructiveCorrelationId.generate { "19d-confirmation-probe" },
+            binding = verifiedBinding(),
+            scope = DestructiveScope.DEVICE_FACTORY_RESET,
+            artifactIdentity = requireNotNull(disposableObservedIdentity()),
+            challenge = DestructiveOperatorChallenge.create(ByteArray(32) { 1 }),
+            attemptLease = DestructiveAttemptLease.create(),
+            nowMonotonicMillis = 1_000L,
+        )
+        assertTrue(confirmation is DestructiveHumanConfirmationResult.Failed)
+        assertEquals(
+            "missing_per_attempt_human_confirmation",
+            (confirmation as DestructiveHumanConfirmationResult.Failed).reason,
         )
     }
 
@@ -84,6 +89,9 @@ class Checkpoint19DRealChainAssemblyTest {
         assertFalse(Int::class.javaPrimitiveType in method.parameterTypes)
         assertFalse(java.lang.Boolean.TYPE in method.parameterTypes)
         assertFalse(String::class.java in method.parameterTypes)
+        assertFalse(DestructiveOperatorChallenge::class.java in method.parameterTypes)
+        assertFalse(DestructiveAttemptLease::class.java in method.parameterTypes)
+        assertFalse(DestructiveHumanConfirmation::class.java in method.parameterTypes)
         val handoff = FutureDestructiveRealChainBoundary::class.java.declaredMethods
             .single { it.name == "assembleAndHandoff" }
         assertEquals(
@@ -303,8 +311,18 @@ class Checkpoint19DRealChainAssemblyTest {
         ).readText()
         assertTrue(orchestrator.contains("emptySet()"))
         assertTrue(orchestrator.contains("verifyDefaultDeny("))
-        assertTrue(orchestrator.contains("TrustedDestructiveArtifactValidationSource.trustedExpectation()"))
-        assertTrue(orchestrator.contains("ProductionDestructiveHumanConfirmationSource.confirm("))
+        assertTrue(orchestrator.contains("artifactExpectationSource.trustedExpectation()"))
+        assertTrue(orchestrator.contains("confirmationSource.confirm("))
+        val authorizeIndex = orchestrator.indexOf("assembled.authorize(")
+        val admitIndex = orchestrator.indexOf("artifactAuthority.admit(")
+        val challengeIndex = orchestrator.indexOf("issueChallenge(")
+        val confirmIndex = orchestrator.indexOf("confirmationSource.confirm(")
+        val redeemIndex = orchestrator.indexOf(".redeem(")
+        assertTrue(authorizeIndex > 0)
+        assertTrue(admitIndex > authorizeIndex)
+        assertTrue(challengeIndex > admitIndex)
+        assertTrue(confirmIndex > challengeIndex)
+        assertTrue(redeemIndex > confirmIndex)
         assertTrue(boundary.contains("artifactAuthority.consume("))
         assertTrue(boundary.contains("humanApprovalAuthority.consume("))
         assertTrue(boundary.contains("wipePolicyAuthority.consume("))
@@ -330,11 +348,13 @@ class Checkpoint19DRealChainAssemblyTest {
             },
         )
         assertTrue(
-            ProductionDestructiveHumanConfirmationSource::class.java.declaredMethods.none { method ->
-                method.parameterTypes.contains(java.lang.Boolean.TYPE) ||
-                    method.parameterTypes.contains(String::class.java) ||
-                    method.parameterTypes.contains(DestructiveHumanApproval::class.java)
-            },
+            ProductionDestructiveHumanConfirmationSource::class.java.declaredMethods
+                .filter { it.name == "confirm" }
+                .none { method ->
+                    method.parameterTypes.contains(java.lang.Boolean.TYPE) ||
+                        method.parameterTypes.contains(String::class.java) ||
+                        method.parameterTypes.contains(DestructiveHumanApproval::class.java)
+                },
         )
         val confirmationSource = File(
             "src/main/kotlin/com/example/devicemanagement/destructive/" +
@@ -342,17 +362,37 @@ class Checkpoint19DRealChainAssemblyTest {
         ).readText()
         assertTrue(confirmationSource.contains("fun current(): TrustedPerAttemptConfirmationFacts? = null"))
         assertTrue(confirmationSource.contains("): DestructiveHumanConfirmation? = null"))
+        assertTrue(confirmationSource.contains("challenge = challenge,"))
+        assertTrue(confirmationSource.contains("attemptLease = attemptLease,"))
+        assertFalse(confirmationSource.contains("challenge = trusted.challenge"))
+        assertFalse(confirmationSource.contains("attemptLease = trusted.attemptLease"))
+        assertFalse(confirmationSource.contains("Instant.ofEpochMilli(nowMonotonicMillis)"))
+        assertFalse(
+            ProductionDestructiveHumanConfirmationSource::class.java.declaredFields.any { field ->
+                field.name == "INSTANCE"
+            },
+        )
+        val confirm = ProductionDestructiveHumanConfirmationSource::class.java.declaredMethods
+            .single { it.name == "confirm" }
+        assertTrue(DestructiveOperatorChallenge::class.java in confirm.parameterTypes)
+        assertTrue(DestructiveAttemptLease::class.java in confirm.parameterTypes)
         assertFalse(confirmationSource.contains("confirmed: Boolean"))
-        assertFalse(confirmationSource.contains("\"confirmed\""))
+        assertFalse(confirmationSource.contains("fun confirm(confirmed"))
+        assertFalse(confirmationSource.contains("= \"confirmed\""))
         val identity = requireNotNull(disposableObservedIdentity())
-        assertNull(
-            ProductionDestructiveHumanConfirmationSource.confirm(
-                correlationId = DestructiveCorrelationId.generate { "19d-no-shortcut" },
-                binding = verifiedBinding(),
-                scope = DestructiveScope.DEVICE_FACTORY_RESET,
-                artifactIdentity = identity,
-                nowMonotonicMillis = 1_000L,
-            ),
+        val confirmation = productionNullConfirmationSource().confirm(
+            correlationId = DestructiveCorrelationId.generate { "19d-no-shortcut" },
+            binding = verifiedBinding(),
+            scope = DestructiveScope.DEVICE_FACTORY_RESET,
+            artifactIdentity = identity,
+            challenge = DestructiveOperatorChallenge.create(ByteArray(32) { 1 }),
+            attemptLease = DestructiveAttemptLease.create(),
+            nowMonotonicMillis = 1_000L,
+        )
+        assertTrue(confirmation is DestructiveHumanConfirmationResult.Failed)
+        assertEquals(
+            "missing_per_attempt_human_confirmation",
+            (confirmation as DestructiveHumanConfirmationResult.Failed).reason,
         )
     }
 
@@ -423,7 +463,18 @@ class Checkpoint19DRealChainAssemblyTest {
     }
 }
 
-private fun disposableObservedIdentity(): DestructiveArtifactIdentity? {
+private fun productionNullConfirmationSource(): ProductionDestructiveHumanConfirmationSource {
+    val artifact = ProductionDestructiveTrustedArtifactExpectationSource()
+    return ProductionDestructiveHumanConfirmationSource(
+        recordSource = ProductionDestructiveTrustedPerAttemptConfirmationRecordSource(),
+        utcClock = ProductionDestructiveUtcClock(),
+        approvedBuildRevision = ProductionDestructiveApprovedBuildRevisionSource(),
+        liveFacts = DestructiveLiveFactsSource { verifiedFacts() },
+        artifactExpectationSource = artifact,
+    )
+}
+
+internal fun disposableObservedIdentity(): DestructiveArtifactIdentity? {
     return DestructiveArtifactIdentity.snapshot(
         certificateSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         artifactSha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
