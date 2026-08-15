@@ -53,6 +53,7 @@ class Checkpoint19CDecisionTest {
         assertTrue(!allowlistBlock.contains("wipeData"))
         assertTrue(source.contains("exact integer constant 0"))
         assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19CDecision"))
+        assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19DDecision"))
         val forbidden = source
             .substringAfter("checkpoint17BForbiddenDpmMethodNames = setOf(")
             .substringBefore(")")

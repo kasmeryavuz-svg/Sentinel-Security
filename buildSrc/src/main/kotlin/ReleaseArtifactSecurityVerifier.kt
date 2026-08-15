@@ -33,6 +33,10 @@ object ReleaseArtifactSecurityVerifier {
         "com.example.devicemanagement.management.AndroidDevicePolicyFactoryResetService",
         "com.example.devicemanagement.destructive.AndroidFutureDestructiveExecutor",
         "com.example.devicemanagement.destructive.ProductionDestructiveRealChain",
+        "com.example.devicemanagement.destructive.ProductionDestructiveRealChainOrchestrator",
+        "com.example.devicemanagement.destructive.ProductionBoundDeviceFactoryResetAttempt",
+        "com.example.devicemanagement.destructive.ProductionDestructiveHumanConfirmationSource",
+        "com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary",
     )
 
     private val forbiddenDexTokens = listOf(

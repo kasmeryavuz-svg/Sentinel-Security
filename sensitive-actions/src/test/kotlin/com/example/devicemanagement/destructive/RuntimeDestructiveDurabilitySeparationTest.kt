@@ -178,8 +178,8 @@ class RuntimeDestructiveDurabilitySeparationTest {
         )
         assertEquals(1, composition.sink.invocationCount())
         assertFalse(Checkpoint17BHardBlock.PRODUCTION_REACHABLE_SIMULATION)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
         assertNotNull(composition.markerStore)
         assertFalse(
             RuntimeDenyOnlyCooldownStore::class.java.isAssignableFrom(

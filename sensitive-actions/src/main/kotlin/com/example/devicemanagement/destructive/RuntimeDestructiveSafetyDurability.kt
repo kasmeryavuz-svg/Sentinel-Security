@@ -74,10 +74,10 @@ class RuntimeDestructivePreExecutionStore private constructor(
  * implementations. Test, simulation, reconstructable, unavailable, and any
  * other caller-supplied persistence cannot satisfy it.
  *
- * Issuing this object does not arm, authorize, or execute. Checkpoint 19B
- * retains a real executor, but the real chain is not assembled while the
- * disposable-device artifact digest remains unrecorded, so the
- * Checkpoint 17B ENFORCED flags remain false.
+ * Issuing this object does not arm, authorize, or execute. Checkpoint 19D
+ * assembles the real-chain path so every production handoff requires this
+ * paired durability. Runtime execution remains fail-closed while the
+ * disposable-device artifact digest is unrecorded.
  *
  * The capability is process-local. It is not written to storage and cannot
  * be sent across processes.

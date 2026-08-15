@@ -1,5 +1,6 @@
 package com.example.devicemanagement.destructive
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -7,7 +8,7 @@ import java.io.File
 
 class Checkpoint17BHardBlockRealityTest {
     @Test
-    fun `destructive implementation flags stay false and match repository reality`() {
+    fun `destructive implementation flags match repository reality`() {
         assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
         assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_POLICY_WRAPPER_PRESENT)
         assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_METADATA_PRESENT)
@@ -19,11 +20,11 @@ class Checkpoint17BHardBlockRealityTest {
         assertTrue(Checkpoint17BHardBlock.WIPE_DATA_METADATA_REVIEW_APPROVED)
         assertTrue(Checkpoint17BHardBlock.DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED)
         assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
         assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_ARTIFACT_IDENTITY_PRECONDITION_PRESENT)
         assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_AUTHORITY_PRESENT)
         assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_WIPE_OPTION_POLICY_PRESENT)
@@ -73,23 +74,23 @@ class Checkpoint17BHardBlockRealityTest {
     @Test
     fun `remaining blockers are machine-visible`() {
         assertTrue(
-            "REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED" in
+            "REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED" !in
                 Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
         )
         assertTrue(
-            "REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED" in
+            "REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED" !in
                 Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
         )
         assertTrue(
-            "REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED" in
+            "REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED" !in
                 Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
         )
         assertTrue(
-            "REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED" in
+            "REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED" !in
                 Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
         )
         assertTrue(
-            "REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED" in
+            "REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED" !in
                 Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
         )
         Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers.forEach { name ->
@@ -126,9 +127,9 @@ class Checkpoint17BHardBlockRealityTest {
     }
 
     @Test
-    fun `enforced flags stay false because no real chain requires runtime durability`() {
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
+    fun `enforced flags are true because the production real-chain path cannot skip those gates`() {
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
         assertTrue(
             SimulatedDestructiveExecutor::class.java.declaredConstructors.none { constructor ->
                 constructor.parameterTypes.any {
@@ -150,9 +151,9 @@ class Checkpoint17BHardBlockRealityTest {
                 }
             },
         )
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
         assertTrue(
             SimulatedDestructiveExecutor::class.java.declaredConstructors.none { constructor ->
                 constructor.parameterTypes.any {
@@ -162,6 +163,38 @@ class Checkpoint17BHardBlockRealityTest {
                 }
             },
         )
+        val orchestrator = File(
+            "src/main/kotlin/com/example/devicemanagement/destructive/" +
+                "ProductionDestructiveRealChainOrchestrator.kt",
+        ).readText()
+        val boundary = File(
+            "src/main/kotlin/com/example/devicemanagement/destructive/" +
+                "FutureDestructiveExecutorContract.kt",
+        ).readText()
+        assertTrue(orchestrator.contains("assembleAndHandoff("))
+        assertTrue(orchestrator.contains("TrustedDestructiveArtifactValidationSource.trustedExpectation()"))
+        assertTrue(orchestrator.contains("ProductionDestructiveHumanConfirmationSource.confirm("))
+        assertTrue(orchestrator.contains("verifyDefaultDeny("))
+        assertTrue(boundary.contains("runtimePreExecutionAuthority.commitAfterConsumedAuthorization"))
+        assertTrue(boundary.contains("cooldown.assertCurrentAttemptMarkerPresent()"))
+        assertTrue(boundary.contains("artifactAuthority.consume("))
+        assertTrue(boundary.contains("humanApprovalAuthority.consume("))
+        assertTrue(boundary.contains("wipePolicyAuthority.consume("))
+        val handoff = FutureDestructiveRealChainBoundary::class.java.declaredMethods
+            .single { it.name == "assembleAndHandoff" }
+        val progression = ProductionDestructiveRealChainOrchestrator::class.java.declaredMethods
+            .single { it.name == "assembleAlreadyBoundDeviceFactoryReset" }
+        assertTrue(DestructiveArtifactIdentityMatchProof::class.java in handoff.parameterTypes)
+        assertTrue(DestructiveHumanApproval::class.java in handoff.parameterTypes)
+        assertTrue(DestructiveWipeOptionPolicyProof::class.java in handoff.parameterTypes)
+        assertEquals(
+            ProductionBoundDeviceFactoryResetAttempt::class.java,
+            progression.parameterTypes.single(),
+        )
+        assertFalse(DestructiveArtifactIdentityExpectation::class.java in progression.parameterTypes)
+        assertFalse(DestructiveHumanApproval::class.java in progression.parameterTypes)
+        assertFalse(FutureDestructiveExecutorContract::class.java in progression.parameterTypes)
+        assertFalse(Int::class.javaPrimitiveType in progression.parameterTypes)
     }
 
     @Test

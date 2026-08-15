@@ -40,5 +40,10 @@
 -keep class com.example.devicemanagement.destructive.AndroidFutureDestructiveExecutor { *; }
 -keep class com.example.devicemanagement.destructive.ProductionDestructiveRealChain { *; }
 -keep class com.example.devicemanagement.destructive.ProductionDestructiveRetainer { *; }
+-keep class com.example.devicemanagement.destructive.ProductionDestructiveRealChainOrchestrator { *; }
+-keep class com.example.devicemanagement.destructive.ProductionBoundDeviceFactoryResetAttempt { *; }
+-keep class com.example.devicemanagement.destructive.ProductionDestructiveHumanConfirmationSource { *; }
+-keep class com.example.devicemanagement.destructive.TrustedPerAttemptDestructiveConfirmationRecord { *; }
+-keep class com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary { *; }
 -keep class com.example.devicemanagement.destructive.AuthorizedFactoryResetPort { *; }
 -keep class com.example.devicemanagement.destructive.AuthorizedFactoryResetResult { *; }

@@ -2544,6 +2544,37 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `recovery class cannot reference Checkpoint 19D decision or orchestrator`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/Checkpoint19DDecision.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class Checkpoint19DDecision {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/ProductionDestructiveRealChainOrchestrator.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class ProductionDestructiveRealChainOrchestrator {}
+                """.trimIndent(),
+            "com/example/devicemanagement/recovery/RogueRecoveryCheckpoint19D.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.destructive.Checkpoint19DDecision;
+                import com.example.devicemanagement.destructive.ProductionDestructiveRealChainOrchestrator;
+                public final class RogueRecoveryCheckpoint19D {
+                    Checkpoint19DDecision decision;
+                    ProductionDestructiveRealChainOrchestrator orchestrator;
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "Checkpoint19DDecision" in it })
+        assertTrue(violations.any { "ProductionDestructiveRealChainOrchestrator" in it })
+    }
+
+    @Test
     fun `rogue caller cannot mint trusted artifact expectation`() {
         val classes = compileJava(
             *trustedArtifactExpectationStubs(),
@@ -2696,7 +2727,7 @@ class ProductionBytecodePolicyVerifierTest {
 
         val violations = verify(":sensitive-actions", classes)
         assertTrue(violations.any { "human confirmation" in it })
-        assertTrue(violations.any { "outside an unwired" in it })
+        assertTrue(violations.any { "ProductionDestructiveHumanConfirmationSource" in it })
     }
 
     @Test
@@ -2848,6 +2879,217 @@ class ProductionBytecodePolicyVerifierTest {
             violations.none { "future executor" in it },
             violations.joinToString("\n"),
         )
+    }
+
+    @Test
+    fun `rogue caller cannot invoke assembleAndHandoff`() {
+        val classes = compileJava(
+            *assembleAndHandoffStubs(),
+            "attack/RogueAssembleAndHandoff.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary;
+                public final class RogueAssembleAndHandoff {
+                    void forge(FutureDestructiveRealChainBoundary boundary) {
+                        boundary.assembleAndHandoff(
+                            null, null, null, null, null, null, null, null, null
+                        );
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "assembleAndHandoff" in it })
+        assertTrue(violations.any { "ProductionDestructiveRealChainOrchestrator" in it })
+    }
+
+    @Test
+    fun `authorized orchestrator may invoke assembleAndHandoff`() {
+        val classes = compileJava(
+            *assembleAndHandoffStubs(),
+            authorizedOrchestratorJava(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "assembleAndHandoff" in it && "outside" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `assembleAndHandoff rejects overload alternate owner and method handles`() {
+        val wrongCaller = compileJava(
+            *assembleAndHandoffStubs(),
+            "com/example/devicemanagement/destructive/ProductionDestructiveRealChainOrchestrator.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class ProductionDestructiveRealChainOrchestrator {
+                    public Object assembleAlreadyBoundDeviceFactoryReset(
+                        String extra
+                    ) {
+                        FutureDestructiveRealChainBoundary boundary = null;
+                        return boundary.assembleAndHandoff(
+                            null, null, null, null, null, null, null, null, null
+                        );
+                    }
+                }
+                """.trimIndent(),
+        )
+        val wrongCallerViolations = verify(":sensitive-actions", wrongCaller)
+        assertTrue(wrongCallerViolations.any { "assembleAndHandoff" in it })
+        assertTrue(wrongCallerViolations.any { ".assembleAlreadyBoundDeviceFactoryReset(" in it })
+
+        val alternateOwner = compileJava(
+            *assembleAndHandoffStubs(),
+            "attack/AlternateRealChainBoundary.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.DestructiveArmingToken;
+                import com.example.devicemanagement.destructive.DestructiveArtifactIdentity;
+                import com.example.devicemanagement.destructive.DestructiveArtifactIdentityMatchProof;
+                import com.example.devicemanagement.destructive.DestructiveAttemptLease;
+                import com.example.devicemanagement.destructive.DestructiveCapability;
+                import com.example.devicemanagement.destructive.DestructiveHumanApproval;
+                import com.example.devicemanagement.destructive.DestructiveTargetBinding;
+                import com.example.devicemanagement.destructive.DestructiveWipeOptionPolicyProof;
+                import com.example.devicemanagement.destructive.FutureDestructiveHandoffResult;
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary;
+                public final class AlternateRealChainBoundary {
+                    public FutureDestructiveHandoffResult assembleAndHandoff(
+                        FutureDestructiveRealChainBoundary.FutureDestructiveExecutorContract executor,
+                        DestructiveTargetBinding binding,
+                        DestructiveAttemptLease lease,
+                        DestructiveCapability capability,
+                        DestructiveArmingToken armToken,
+                        DestructiveArtifactIdentityMatchProof artifactProof,
+                        DestructiveArtifactIdentity observed,
+                        DestructiveHumanApproval approval,
+                        DestructiveWipeOptionPolicyProof wipeProof
+                    ) {
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/ProductionDestructiveRealChainOrchestrator.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                import attack.AlternateRealChainBoundary;
+                public final class ProductionDestructiveRealChainOrchestrator {
+                    public FutureDestructiveHandoffResult assembleAlreadyBoundDeviceFactoryReset(
+                        ProductionBoundDeviceFactoryResetAttempt attempt
+                    ) {
+                        return new AlternateRealChainBoundary().assembleAndHandoff(
+                            null, null, null, null, null, null, null, null, null
+                        );
+                    }
+                }
+                """.trimIndent(),
+        )
+        val alternateViolations = verify(":sensitive-actions", alternateOwner)
+        assertTrue(alternateViolations.any { "assembleAndHandoff" in it })
+
+        val handle = compileJava(
+            *assembleAndHandoffStubs(),
+            "com/example/devicemanagement/destructive/ProductionDestructiveRealChainOrchestrator.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                import java.lang.invoke.MethodHandles;
+                import java.lang.invoke.MethodType;
+                public final class ProductionDestructiveRealChainOrchestrator {
+                    public FutureDestructiveHandoffResult assembleAlreadyBoundDeviceFactoryReset(
+                        ProductionBoundDeviceFactoryResetAttempt attempt
+                    ) {
+                        try {
+                            MethodHandles.lookup().findVirtual(
+                                FutureDestructiveRealChainBoundary.class,
+                                "assembleAndHandoff",
+                                MethodType.methodType(
+                                    FutureDestructiveHandoffResult.class,
+                                    FutureDestructiveRealChainBoundary.FutureDestructiveExecutorContract.class,
+                                    DestructiveTargetBinding.class,
+                                    DestructiveAttemptLease.class,
+                                    DestructiveCapability.class,
+                                    DestructiveArmingToken.class,
+                                    DestructiveArtifactIdentityMatchProof.class,
+                                    DestructiveArtifactIdentity.class,
+                                    DestructiveHumanApproval.class,
+                                    DestructiveWipeOptionPolicyProof.class
+                                )
+                            );
+                        } catch (Exception ignored) {}
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+        val handleViolations = verify(":sensitive-actions", handle)
+        assertTrue(
+            handleViolations.any { "assembleAndHandoff" in it || "method handle" in it || "invoke" in it },
+        )
+    }
+
+    @Test
+    fun `rogue caller cannot invoke the production orchestrator progression method`() {
+        val classes = compileJava(
+            *assembleAndHandoffStubs(),
+            "attack/RogueOrchestratorTrigger.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.ProductionBoundDeviceFactoryResetAttempt;
+                import com.example.devicemanagement.destructive.ProductionDestructiveRealChainOrchestrator;
+                public final class RogueOrchestratorTrigger {
+                    void forge(
+                        ProductionDestructiveRealChainOrchestrator orchestrator,
+                        ProductionBoundDeviceFactoryResetAttempt attempt
+                    ) {
+                        orchestrator.assembleAlreadyBoundDeviceFactoryReset(attempt);
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "no production trigger origin is authorized" in it })
+        assertTrue(violations.any { "assembleAlreadyBoundDeviceFactoryReset" in it })
+    }
+
+    @Test
+    fun `authorized orchestrator may invoke the production confirmation source`() {
+        val stubs = (assembleAndHandoffStubs() + productionConfirmationStubs())
+            .associateBy { it.first }
+            .values
+            .toTypedArray()
+        val classes = compileJava(
+            *stubs,
+            authorizedOrchestratorJava(withConfirmation = true),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "production confirmation source" in it },
+            violations.joinToString("\n"),
+        )
+        assertTrue(
+            violations.none { "human confirmation" in it && "outside" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `rogue caller cannot invoke the production confirmation source`() {
+        val classes = compileJava(
+            *productionConfirmationStubs(),
+            "attack/RogueProductionConfirmation.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.ProductionDestructiveHumanConfirmationSource;
+                public final class RogueProductionConfirmation {
+                    void forge(ProductionDestructiveHumanConfirmationSource source) {
+                        source.confirm(null, null, null, null, 0L);
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "production confirmation source" in it })
     }
 
     @Test
@@ -4047,6 +4289,192 @@ class ProductionBytecodePolicyVerifierTest {
                 ) {
                     return ProductionDestructiveRealChain.INSTANCE.retainForProduction(
                         null, null, null, null
+                    );
+                }
+            }
+            """.trimIndent()
+    }
+
+    private fun assembleAndHandoffStubs(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/destructive/DestructiveTargetBinding.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveTargetBinding {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveAttemptLease.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveAttemptLease {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveCapability.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveCapability {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveArmingToken.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveArmingToken {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveArtifactIdentityMatchProof.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveArtifactIdentityMatchProof {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveArtifactIdentity.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveArtifactIdentity {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveHumanApproval.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveHumanApproval {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveWipeOptionPolicyProof.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveWipeOptionPolicyProof {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/FutureDestructiveHandoffResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public abstract class FutureDestructiveHandoffResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/ProductionBoundDeviceFactoryResetAttempt.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class ProductionBoundDeviceFactoryResetAttempt {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class FutureDestructiveRealChainBoundary {
+                    public static abstract class FutureDestructiveExecutorContract {}
+                    public FutureDestructiveHandoffResult assembleAndHandoff(
+                        FutureDestructiveExecutorContract executor,
+                        DestructiveTargetBinding binding,
+                        DestructiveAttemptLease lease,
+                        DestructiveCapability capability,
+                        DestructiveArmingToken armToken,
+                        DestructiveArtifactIdentityMatchProof artifactProof,
+                        DestructiveArtifactIdentity observed,
+                        DestructiveHumanApproval approval,
+                        DestructiveWipeOptionPolicyProof wipeProof
+                    ) {
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+    }
+
+    private fun productionConfirmationStubs(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/destructive/DestructiveCorrelationId.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveCorrelationId {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveScope.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public enum DestructiveScope { DEVICE_FACTORY_RESET }
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveHumanConfirmation.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveHumanConfirmation {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveOperatorChallenge.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveOperatorChallenge {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveHumanConfirmationResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public abstract class DestructiveHumanConfirmationResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveHumanConfirmationAuthority.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveHumanConfirmationAuthority {
+                    public DestructiveHumanConfirmationResult confirm(
+                        DestructiveOperatorChallenge challenge,
+                        DestructiveCorrelationId correlationId,
+                        DestructiveTargetBinding binding,
+                        DestructiveScope scope,
+                        DestructiveArtifactIdentity artifactIdentity,
+                        DestructiveAttemptLease attemptLease,
+                        long nowMonotonicMillis
+                    ) {
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/ProductionDestructiveHumanConfirmationSource.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class ProductionDestructiveHumanConfirmationSource {
+                    public static final ProductionDestructiveHumanConfirmationSource INSTANCE =
+                        new ProductionDestructiveHumanConfirmationSource();
+                    public DestructiveHumanConfirmation confirm(
+                        DestructiveCorrelationId correlationId,
+                        DestructiveTargetBinding binding,
+                        DestructiveScope scope,
+                        DestructiveArtifactIdentity artifactIdentity,
+                        long nowMonotonicMillis
+                    ) {
+                        new DestructiveHumanConfirmationAuthority().confirm(
+                            null, correlationId, binding, scope, artifactIdentity, null, nowMonotonicMillis
+                        );
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveTargetBinding.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveTargetBinding {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveArtifactIdentity.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveArtifactIdentity {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveAttemptLease.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveAttemptLease {}
+                """.trimIndent(),
+        )
+    }
+
+    private fun authorizedOrchestratorJava(
+        withConfirmation: Boolean = false,
+    ): Pair<String, String> {
+        val confirmationCall = if (withConfirmation) {
+            """
+                        ProductionDestructiveHumanConfirmationSource.INSTANCE.confirm(
+                            null, null, null, null, 0L
+                        );
+            """.trimIndent()
+        } else {
+            ""
+        }
+        return "com/example/devicemanagement/destructive/ProductionDestructiveRealChainOrchestrator.java" to
+            """
+            package com.example.devicemanagement.destructive;
+            public final class ProductionDestructiveRealChainOrchestrator {
+                public FutureDestructiveHandoffResult assembleAlreadyBoundDeviceFactoryReset(
+                    ProductionBoundDeviceFactoryResetAttempt attempt
+                ) {
+                    $confirmationCall
+                    FutureDestructiveRealChainBoundary boundary = null;
+                    return boundary.assembleAndHandoff(
+                        null, null, null, null, null, null, null, null, null
                     );
                 }
             }

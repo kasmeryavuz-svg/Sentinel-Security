@@ -428,6 +428,96 @@ internal class DestructiveHumanApprovalAuthority(
 }
 
 /**
+ * Required fields for a later, separately approved per-attempt trusted
+ * confirmation record. No such record exists. This type has no production
+ * mint.
+ */
+internal class TrustedPerAttemptConfirmationFacts private constructor(
+    val operatorIdentity: String,
+    val utcTimestamp: String,
+    val deviceSerial: String,
+    val packageName: String,
+    val adminComponent: String,
+    val certificateSha256: String,
+    val artifactSha256: String,
+    val scope: DestructiveScope,
+    val flagsLiteralZero: Int,
+    val buildRevision: String,
+    val oneAttemptOnly: Boolean,
+    val attemptId: String,
+    val validUntilUtc: String,
+    val challenge: DestructiveOperatorChallenge,
+    val correlationId: DestructiveCorrelationId,
+    val binding: DestructiveTargetBinding,
+    val artifactIdentity: DestructiveArtifactIdentity,
+    val attemptLease: DestructiveAttemptLease,
+    val nowMonotonicMillis: Long,
+)
+
+/**
+ * Production trusted per-attempt confirmation record. Fail-closed until a
+ * separately approved real record exists. Observed identity, Boolean
+ * shortcuts, and caller-constructed values cannot populate this source.
+ */
+internal object TrustedPerAttemptDestructiveConfirmationRecord {
+    fun current(): TrustedPerAttemptConfirmationFacts? = null
+}
+
+/**
+ * Production confirmation boundary. Structurally wired to
+ * [DestructiveHumanConfirmationAuthority.confirm], but returns null until
+ * [TrustedPerAttemptDestructiveConfirmationRecord.current] yields a real
+ * trusted record. DeviceManagement and UI do not invoke this type.
+ */
+internal object ProductionDestructiveHumanConfirmationSource {
+    fun confirm(
+        correlationId: DestructiveCorrelationId,
+        binding: DestructiveTargetBinding,
+        scope: DestructiveScope,
+        artifactIdentity: DestructiveArtifactIdentity,
+        nowMonotonicMillis: Long,
+    ): DestructiveHumanConfirmation? {
+        val trusted = TrustedPerAttemptDestructiveConfirmationRecord.current()
+        if (trusted == null) {
+            return null
+        }
+        if (trusted.operatorIdentity.isBlank() ||
+            trusted.utcTimestamp.isBlank() ||
+            trusted.deviceSerial.isBlank() ||
+            trusted.packageName != binding.runningPackage ||
+            trusted.adminComponent != binding.expectedAdminComponent ||
+            trusted.certificateSha256.isBlank() ||
+            trusted.artifactSha256.isBlank() ||
+            trusted.scope != scope ||
+            trusted.scope != DestructiveScope.DEVICE_FACTORY_RESET ||
+            trusted.flagsLiteralZero != 0 ||
+            trusted.buildRevision.isBlank() ||
+            !trusted.oneAttemptOnly ||
+            trusted.attemptId.isBlank() ||
+            trusted.validUntilUtc.isBlank() ||
+            trusted.correlationId != correlationId ||
+            trusted.binding != binding ||
+            trusted.artifactIdentity != artifactIdentity
+        ) {
+            return null
+        }
+        val minted = DestructiveHumanConfirmationAuthority().confirm(
+            challenge = trusted.challenge,
+            correlationId = trusted.correlationId,
+            binding = trusted.binding,
+            scope = trusted.scope,
+            artifactIdentity = trusted.artifactIdentity,
+            attemptLease = trusted.attemptLease,
+            nowMonotonicMillis = nowMonotonicMillis,
+        )
+        return when (minted) {
+            is DestructiveHumanConfirmationResult.Confirmed -> minted.confirmation
+            is DestructiveHumanConfirmationResult.Failed -> null
+        }
+    }
+}
+
+/**
  * Production confirmation source. Not invoked by DeviceManagement or UI.
  * Constructing this object does not confirm or approve anything. No
  * disposable-device human confirmation is recorded.
