@@ -121,7 +121,7 @@ class CurrentProductionWipeBoundaryInvariantTest {
         ).canonicalFile.readText()
         assertFalse(thisFile.contains("manager." + "wipeDevice"))
         assertFalse(thisFile.contains("import android.app.admin." + "DevicePolicyManager"))
-        assertFalse(thisFile.contains("Checkpoint19PWipeBoundaryFreezeTest"))
+        assertFalse(thisFile.contains("Checkpoint19P" + "WipeBoundaryFreezeTest"))
     }
 
     private fun org.w3c.dom.NodeList.asElements(): List<Element> {

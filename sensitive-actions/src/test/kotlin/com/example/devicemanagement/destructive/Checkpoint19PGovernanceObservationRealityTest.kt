@@ -137,7 +137,7 @@ class Checkpoint19PGovernanceObservationRealityTest {
         ).readText()
         assertFalse(thisFile.contains("manager." + "wipeDevice"))
         assertFalse(thisFile.contains("android.app." + "admin"))
-        assertFalse(thisFile.contains("Checkpoint19PWipeBoundaryFreezeTest"))
+        assertFalse(thisFile.contains("Checkpoint19P" + "WipeBoundaryFreezeTest"))
     }
 
     private companion object {
