@@ -55,7 +55,7 @@ class DestructiveProofTaskReexecutionTest {
         try {
             val run = executeCeremonyProof(workspace, createFilledRecord = false)
             val firstModified = run.report.lastModified()
-            assertTrue(run.report.isFile)
+            assertTrue(run.report.isFile, run.report.absolutePath)
             assertTrue(run.report.readText().contains("ceremony_status=NOT_READY"))
             assertFalse(run.temp.exists())
             run.report.writeText("stale-report-must-not-skip-proof\n")
@@ -65,7 +65,7 @@ class DestructiveProofTaskReexecutionTest {
             }
             assertTrue(run.temp.exists())
             Thread.sleep(20)
-            run.task.actions.forEach { action -> action.execute(run.task) }
+            run.task.proveNotReady()
             assertTrue(run.report.readText().contains("ceremony_status=NOT_READY"))
             assertFalse(run.report.readText().contains("stale-report-must-not-skip-proof"))
             assertTrue(run.report.lastModified() >= firstModified)
@@ -120,10 +120,10 @@ class DestructiveProofTaskReexecutionTest {
             leftover.parentFile.mkdirs()
             leftover.writeText("leftover-snapshot")
             task.candidateApkPath.set("")
-            task.reportFile.set(File(workspace, "report.txt"))
+            task.reportFile.set(File(workspace, "report.txt").absoluteFile)
             task.snapshotDirectory.set(snapshot)
             val failure = assertFails {
-                task.actions.forEach { action -> action.execute(task) }
+                task.generate()
             }
             assertTrue(
                 failure.message?.contains("must be supplied explicitly") == true ||
@@ -148,14 +148,16 @@ class DestructiveProofTaskReexecutionTest {
         workspace: File,
         createFilledRecord: Boolean,
     ): CeremonyRun {
-        val project = ProjectBuilder.builder().withProjectDir(workspace).build()
+        val root = workspace.absoluteFile
+        root.mkdirs()
+        val project = ProjectBuilder.builder().withProjectDir(root).build()
         val task = project.tasks.create(
             "ceremony-${System.nanoTime()}",
             CheckDestructiveSigningCeremonyPreparationTask::class.java,
         )
-        val report = File(workspace, "ceremony-report.txt")
-        val temp = File(workspace, "ceremony-temp")
-        val filled = File(workspace, "local/destructive-signing-ceremony-record.txt")
+        val report = File(root, "ceremony-report.txt")
+        val temp = File(root, "ceremony-temp")
+        val filled = File(root, "local/destructive-signing-ceremony-record.txt")
         task.disposableValidationRemainsUnsigned.set(true)
         task.productionSigningConfigurationActive.set(false)
         task.productionDistributionRequested.set(false)
@@ -165,7 +167,8 @@ class DestructiveProofTaskReexecutionTest {
         }
         task.reportFile.set(report)
         task.temporaryDirectory.set(temp)
-        task.actions.forEach { action -> action.execute(task) }
+        task.proveNotReady()
+        assertTrue(report.isFile, report.absolutePath)
         assertFalse(task.state.upToDate)
         return CeremonyRun(task, report, temp)
     }
