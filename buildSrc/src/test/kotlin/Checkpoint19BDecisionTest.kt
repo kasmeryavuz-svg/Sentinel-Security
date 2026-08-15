@@ -22,6 +22,9 @@ class Checkpoint19BDecisionTest {
         assertTrue(source.contains("retainProductionDestructiveImplementation"))
         assertTrue(source.contains("exact integer constant 0"))
         assertTrue(source.contains("DeviceManagementComposition"))
+        val dex = File("src/main/kotlin/DexWipeDeviceVerifier.kt").readText()
+        assertTrue(dex.contains("control-flow proof of exact integer constant 0"))
+        assertTrue(dex.contains("handlerEntries"))
         val forbidden = source
             .substringAfter("checkpoint17BForbiddenDpmMethodNames = setOf(")
             .substringBefore(")")

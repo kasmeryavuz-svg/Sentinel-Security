@@ -33,6 +33,7 @@ internal object Checkpoint19BDecision {
     const val REAL_DESTRUCTIVE_CHAIN_ASSEMBLED_IN_PRODUCTION = false
     const val WIPE_ZERO_BYTECODE_ENFORCED = true
     const val FACTORY_RESET_ORIGIN_EXACT = true
+    const val DEX_CONTROL_FLOW_ZERO_PROOF = true
 
     const val FUTURE_SCOPE_DEVICE_FACTORY_RESET_ONLY = true
     const val FUTURE_SCOPE_USER_SCOPED_WIPE_DENIED = true

@@ -102,7 +102,11 @@ changeset.
   with **exact integer constant 0**. Non-zero constants, locals, fields,
   calculated flags, method handles, and extra `wipeDevice` calls fail
   closed. Packaged DEX independently requires exactly one `wipeDevice`
-  invoke whose flags register is the previous constant `0`.
+  invoke whose flags register is the previous constant `0`, and every
+  control-flow predecessor of that invoke must be fall-through from that
+  constant-zero assignment. Goto, if-*, packed-switch, sparse-switch, and
+  exception-handler entries that reach the invoke without executing that
+  assignment fail closed. Malformed branch or handler targets fail closed.
 - `wipeData` remains Checkpoint 17B-blocked and non-allowlisted
 - `performAuthorizedFactoryReset` is origin-bound to the exact JVM
   owner, method name, and descriptor
@@ -140,6 +144,7 @@ WIPE_DATA_METADATA_REVIEW_APPROVED = true
 DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED = true
 WIPE_ZERO_BYTECODE_ENFORCED = true
 FACTORY_RESET_ORIGIN_EXACT = true
+DEX_CONTROL_FLOW_ZERO_PROOF = true
 REAL_DESTRUCTIVE_CHAIN_ASSEMBLED_IN_PRODUCTION = false
 ```
 
