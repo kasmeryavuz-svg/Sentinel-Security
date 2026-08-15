@@ -132,6 +132,114 @@ val configuredProductionCertSha256 = if (requestProductionDistribution) {
     null
 }
 
+fun validationOnlySigningTaskRequested(): Boolean {
+    return gradle.startParameter.taskNames.any { requested ->
+        val leaf = requested.substringAfterLast(':')
+        leaf.equals("assembleSignedDisposableValidation", ignoreCase = true)
+    }
+}
+
+val requestValidationOnlySigning = validationOnlySigningTaskRequested()
+check(!requestProductionDistribution || !requestValidationOnlySigning) {
+    "validation-only signing and production distribution cannot be requested together"
+}
+
+class ValidationOnlySigningSecrets(
+    val storeFile: File,
+    val storePassword: String,
+    val keyAlias: String,
+    val keyPassword: String,
+)
+
+fun readValidationOnlySigningSecrets(): ValidationOnlySigningSecrets? {
+    val names = listOf(
+        "SENTINEL_VALIDATION_STORE_FILE",
+        "SENTINEL_VALIDATION_STORE_PASSWORD",
+        "SENTINEL_VALIDATION_KEY_ALIAS",
+        "SENTINEL_VALIDATION_KEY_PASSWORD",
+    )
+    val values = names.map { sentinelSecret(it) }
+    val present = values.count { !it.isNullOrBlank() }
+    if (present == 0) {
+        return null
+    }
+    check(present == names.size) {
+        "Incomplete validation-only signing secrets. Set all of ${names.joinToString()} " +
+            "via environment variables or gitignored local.properties. " +
+            "Refusing to fall back to the Android debug keystore or SENTINEL_RELEASE_*."
+    }
+    val storeFile = file(requireNotNull(values[0]))
+    val keyAlias = requireNotNull(values[2])
+    check(storeFile.isFile) {
+        "Validation-only keystore file is missing. A disposableValidation APK cannot be signed."
+    }
+    check(
+        !ValidationOnlySigningGate.looksLikeDebugOrTestMaterial(storeFile.name, keyAlias),
+    ) {
+        "Validation-only signing must not use Android debug or test key material"
+    }
+    return ValidationOnlySigningSecrets(
+        storeFile = storeFile,
+        storePassword = requireNotNull(values[1]),
+        keyAlias = keyAlias,
+        keyPassword = requireNotNull(values[3]),
+    )
+}
+
+fun readExpectedValidationCertSha256(): String? {
+    return sentinelSecret("SENTINEL_VALIDATION_CERT_SHA256")
+}
+
+val validationOnlySigningSecrets = if (requestValidationOnlySigning) {
+    val secrets = readValidationOnlySigningSecrets()
+    val fingerprint = readExpectedValidationCertSha256()
+    val decision = ValidationOnlySigningGate.decide(
+        validationSigningRequested = true,
+        productionReleaseTarget = false,
+        inputs = ValidationOnlySigningGate.ObservedSigningInputs(
+            storeFilePresent = secrets != null,
+            storePasswordPresent = secrets != null,
+            keyAliasPresent = secrets != null,
+            keyPasswordPresent = secrets != null,
+            certificateFingerprintPresent = !fingerprint.isNullOrBlank(),
+            storeFileExists = secrets?.storeFile?.isFile == true,
+            storeFileLooksLikeDebugOrTest = secrets != null &&
+                ValidationOnlySigningGate.looksLikeDebugOrTestMaterial(
+                    secrets.storeFile.name,
+                    secrets.keyAlias,
+                ),
+            certificateFingerprintValid = fingerprint != null &&
+                ReleaseArtifactSecurityVerifier.normalizeSha256Fingerprint(fingerprint) != null,
+        ),
+    )
+    check(ValidationOnlySigningGate.mustAttach(decision)) {
+        "Validation-only signing refused: $decision"
+    }
+    check(ValidationOnlySigningGate.validationKeySeparateFromProduction()) {
+        "validation-only inputs must stay separate from SENTINEL_RELEASE_*"
+    }
+    check(!ValidationOnlySigningGate.mayAttachToProductionRelease()) {
+        "production release must never use the validation-only key"
+    }
+    secrets
+} else {
+    check(
+        ValidationOnlySigningGate.decide(
+            validationSigningRequested = false,
+            productionReleaseTarget = false,
+            inputs = null,
+        ) == ValidationOnlySigningGate.Decision.DO_NOT_ATTACH,
+    ) {
+        "ordinary disposableValidation must not attach validation-only signing"
+    }
+    null
+}
+val configuredValidationCertSha256 = if (requestValidationOnlySigning) {
+    readExpectedValidationCertSha256()
+} else {
+    null
+}
+
 android {
     namespace = "com.example.devicemanagement"
     compileSdk = 36
@@ -154,6 +262,18 @@ android {
                 storePassword = secrets.storePassword
                 keyAlias = secrets.keyAlias
                 keyPassword = secrets.keyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+        val validationSecrets = validationOnlySigningSecrets
+        if (requestValidationOnlySigning && validationSecrets != null) {
+            create("validationOnly") {
+                storeFile = validationSecrets.storeFile
+                storePassword = validationSecrets.storePassword
+                keyAlias = validationSecrets.keyAlias
+                keyPassword = validationSecrets.keyPassword
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true
@@ -193,12 +313,31 @@ android {
         }
     }
 
+    if (requestValidationOnlySigning) {
+        buildTypes
+            .getByName(DestructiveValidationExpectedIdentity.DISPOSABLE_VALIDATION_BUILD_TYPE)
+            .signingConfig = signingConfigs.getByName("validationOnly")
+    }
+
     val disposableValidationSigning = buildTypes
         .getByName(DestructiveValidationExpectedIdentity.DISPOSABLE_VALIDATION_BUILD_TYPE)
         .signingConfig
-    check(disposableValidationSigning == null) {
-        "disposableValidation must remain unsigned even if production-signing " +
-            "environment variables are present"
+    if (!requestValidationOnlySigning) {
+        check(disposableValidationSigning == null) {
+            "disposableValidation must remain unsigned even if production-signing " +
+                "environment variables are present"
+        }
+        check(signingConfigs.findByName("validationOnly") == null) {
+            "ordinary assembleDisposableValidation must remain unsigned unless " +
+                "validation-only signing is explicitly requested"
+        }
+    } else {
+        check(disposableValidationSigning === signingConfigs.getByName("validationOnly")) {
+            "explicit validation-only signing must attach only the validationOnly configuration"
+        }
+        check(disposableValidationSigning !== signingConfigs.findByName("production")) {
+            "disposableValidation must never use production signing inputs"
+        }
     }
     check(signingConfigs.findByName("debug") !== disposableValidationSigning) {
         "disposableValidation must not use the Android debug signing key"
@@ -214,6 +353,12 @@ android {
     }
     check(buildTypes.getByName("release").signingConfig !== signingConfigs.findByName("debug")) {
         "release must never use the Android debug signing key"
+    }
+    check(
+        buildTypes.getByName("release").signingConfig !==
+            signingConfigs.findByName("validationOnly"),
+    ) {
+        "release must never use the validation-only signing key"
     }
 
     compileOptions {
@@ -1094,6 +1239,26 @@ androidComponents {
                     ),
                 )
             }
+            tasks.register<CheckSignedDisposableValidationTask>(
+                "checkSignedDisposableValidation",
+            ) {
+                group = "verification"
+                description =
+                    "Fail-closed inspection of an explicitly requested signed " +
+                        "disposableValidation APK. Never mints trust and is not a witness."
+                validationSigningRequested.set(requestValidationOnlySigning)
+                apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
+                androidSdkDirectory.set(android.sdkDirectory.absolutePath)
+                expectedCertificateSha256.set(configuredValidationCertSha256.orEmpty())
+                reportFile.set(
+                    layout.buildDirectory.file(
+                        "reports/signed-disposable-validation.txt",
+                    ),
+                )
+                temporaryDirectory.set(
+                    layout.buildDirectory.dir("tmp/signed-disposable-validation"),
+                )
+            }
         }
     }
 }
@@ -1224,6 +1389,43 @@ tasks.register("bundleProductionRelease") {
         "bundleRelease",
         "checkReleaseBundleProductionSecurity",
     )
+}
+
+tasks.register("assembleSignedDisposableValidation") {
+    group = "build"
+    description =
+        "Disposable-validation assemble that attaches a separate validation-only " +
+            "key after an explicit request and fail-closed inspection. Not " +
+            "production, not trusted, and not an independent witness."
+    dependsOn(
+        "assembleDisposableValidation",
+        "checkSignedDisposableValidation",
+    )
+    doFirst {
+        check(requestValidationOnlySigning) {
+            "validation-only signing attaches only when " +
+                "assembleSignedDisposableValidation is requested"
+        }
+        check(android.signingConfigs.findByName("validationOnly") != null) {
+            "validation-only signing configuration was not applied"
+        }
+        check(
+            android.buildTypes
+                .getByName(DestructiveValidationExpectedIdentity.DISPOSABLE_VALIDATION_BUILD_TYPE)
+                .signingConfig === android.signingConfigs.findByName("validationOnly"),
+        ) {
+            "disposableValidation must use only the validation-only signing configuration"
+        }
+        check(
+            android.buildTypes.getByName("release").signingConfig !==
+                android.signingConfigs.findByName("validationOnly"),
+        ) {
+            "release must never use the validation-only signing key"
+        }
+        check(android.signingConfigs.findByName("production") == null) {
+            "validation-only signing must not create a production signing configuration"
+        }
+    }
 }
 
 tasks.matching { it.name == "preBuild" }.configureEach {

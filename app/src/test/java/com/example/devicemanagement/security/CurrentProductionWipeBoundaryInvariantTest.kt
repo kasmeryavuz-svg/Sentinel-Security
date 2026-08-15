@@ -49,6 +49,7 @@ class CurrentProductionWipeBoundaryInvariantTest {
             "DestructiveValidationCandidateEvidence",
             "DestructiveSigningCeremonyPreparation",
             "ProductionDistributionSigningGate",
+            "ValidationOnlySigningGate",
             "inspectWriteAndAssertCleanup",
             "DESTRUCTIVE_VALIDATION_BUILD_PURPOSE",
             "checkUnsignedDisposableValidationBuildPurposeEvidence",
@@ -93,9 +94,16 @@ class CurrentProductionWipeBoundaryInvariantTest {
         assertFalse(workflow.contains("SENTINEL_RELEASE_KEY_ALIAS:"))
         assertFalse(workflow.contains("SENTINEL_RELEASE_KEY_PASSWORD:"))
         assertFalse(workflow.contains("SENTINEL_RELEASE_CERT_SHA256:"))
+        assertFalse(workflow.contains("SENTINEL_VALIDATION_STORE_FILE:"))
+        assertFalse(workflow.contains("SENTINEL_VALIDATION_STORE_PASSWORD:"))
+        assertFalse(workflow.contains("SENTINEL_VALIDATION_KEY_ALIAS:"))
+        assertFalse(workflow.contains("SENTINEL_VALIDATION_KEY_PASSWORD:"))
+        assertFalse(workflow.contains("SENTINEL_VALIDATION_CERT_SHA256:"))
         assertFalse(workflow.contains("checkProductionDistributionSigning"))
         assertFalse(workflow.contains("assembleProductionRelease"))
         assertFalse(workflow.contains("bundleProductionRelease"))
+        assertFalse(workflow.contains("assembleSignedDisposableValidation"))
+        assertFalse(workflow.contains("checkSignedDisposableValidation"))
         assertFalse(Regex("\\bemulator\\b").containsMatchIn(workflow))
         assertFalse(Regex("\\badb\\b").containsMatchIn(workflow))
         assertFalse(workflow.contains("set-device-owner"))
