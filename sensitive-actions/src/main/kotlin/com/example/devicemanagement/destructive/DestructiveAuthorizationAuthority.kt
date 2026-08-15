@@ -6,7 +6,7 @@ import java.util.IdentityHashMap
 /**
  * Separate destructive authorization domain. Opaque, identity-bound,
  * single-use, process-local. Cannot accept a reversible Approval and cannot
- * be consumed by the reversible ActionExecutor.
+ * be consumed by the reversible policy executor.
  */
 internal class DestructiveCapability private constructor() {
     companion object {

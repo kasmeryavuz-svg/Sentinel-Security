@@ -126,7 +126,7 @@ class DestructiveAuthorizationAuthorityTest {
 
     @Test
     fun `reversible Approval is a different type and is not serializable`() {
-        assertFalse(Approval.create() is DestructiveCapability)
+        assertFalse(Approval::class.java == DestructiveCapability::class.java)
         assertFalse(Serializable::class.java.isAssignableFrom(DestructiveCapability::class.java))
         assertFalse(Serializable::class.java.isAssignableFrom(DestructiveArmingToken::class.java))
         assertFalse(

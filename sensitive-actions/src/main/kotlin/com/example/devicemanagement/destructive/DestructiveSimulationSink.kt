@@ -3,7 +3,7 @@ package com.example.devicemanagement.destructive
 /**
  * Checkpoint 17A non-destructive simulation boundary. Records that a
  * destructive action would execute. It has no Android policy-service
- * dependency and is not SafeMockWipeAction.
+ * dependency and is not the fail-safe mock action.
  */
 internal class Checkpoint17ASimulationSink(
     private val permitAuthority: FinalExecutionPermitAuthority,
