@@ -1696,6 +1696,89 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `rogue caller cannot append runtime pre-execution evidence`() {
+        val classes = compileJava(
+            *runtimePreExecutionAppendStubs(),
+            "attack/RogueRuntimePreExecutionAppend.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.DurableDestructivePreExecutionRepository;
+                public final class RogueRuntimePreExecutionAppend {
+                    void forge(DurableDestructivePreExecutionRepository repository) {
+                        repository.append(null);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "destructive-safety persistence mutation" in it })
+        assertTrue(violations.any { "DurableDestructivePreExecutionRepository.append" in it })
+    }
+
+    @Test
+    fun `runtime authority may append only from exact consumed-authorization method`() {
+        val classes = compileJava(
+            *runtimePreExecutionAppendStubs(),
+            "com/example/devicemanagement/destructive/ConsumedDestructiveAuthorizationProof.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class ConsumedDestructiveAuthorizationProof {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveTargetBinding.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveTargetBinding {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveAttemptLease.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveAttemptLease {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveArmingToken.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveArmingToken {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveAuthorizationAuthority.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveAuthorizationAuthority {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class RuntimeDurablePreExecutionCommitResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class RuntimeDurablePreExecutionCommitAuthority {
+                    public RuntimeDurablePreExecutionCommitResult commitAfterConsumedAuthorization(
+                        ConsumedDestructiveAuthorizationProof proof,
+                        DestructiveTargetBinding binding,
+                        DestructiveAttemptLease lease,
+                        DestructiveArmingToken arm,
+                        DestructiveAuthorizationAuthority authority
+                    ) {
+                        new DurableDestructivePreExecutionRepository().append(null);
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none {
+                "DurableDestructivePreExecutionRepository.append" in it &&
+                    "destructive-safety persistence mutation" in it
+            },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
     fun `recovery class cannot reference durable destructive evidence store`() {
         val classes = compileJava(
             destructivePreExecutionStoreStub(),
@@ -2078,6 +2161,301 @@ class ProductionBytecodePolicyVerifierTest {
         val violations = verify(":sensitive-actions", classes)
         assertTrue(violations.any { "runtime durability issuance" in it })
         assertTrue(violations.any { "issueFromTrustedAndroidStores" in it })
+    }
+
+    @Test
+    fun `rogue caller cannot invoke future executor execute`() {
+        val classes = compileJava(
+            *realChainHandoffStubs(),
+            "attack/RogueFutureExecutorExecute.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary;
+                public final class RogueFutureExecutorExecute {
+                    void forge(
+                        FutureDestructiveRealChainBoundary.FutureDestructiveExecutorContract executor,
+                        FutureDestructiveRealChainBoundary.FutureDestructiveExecutionBundle bundle
+                    ) {
+                        executor.execute(bundle);
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "future executor" in it })
+        assertTrue(violations.any { "assembleAndHandoff" in it })
+    }
+
+    @Test
+    fun `authorized assembleAndHandoff may invoke future executor execute`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class FutureDestructiveRealChainBoundary {
+                    public static class FutureDestructiveExecutionBundle {}
+                    public static abstract class FutureDestructiveExecutorContract {
+                        public Object execute(FutureDestructiveExecutionBundle bundle) { return null; }
+                    }
+                    public Object assembleAndHandoff(
+                        FutureDestructiveExecutorContract executor,
+                        FutureDestructiveExecutionBundle bundle
+                    ) {
+                        return executor.execute(bundle);
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "future executor" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `rogue caller cannot mint final live validation permit`() {
+        val classes = compileJava(
+            *realChainHandoffStubs(),
+            "attack/RogueFinalPermitMint.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary;
+                public final class RogueFinalPermitMint {
+                    Object forge(FutureDestructiveRealChainBoundary boundary) {
+                        return boundary.mintFinalLiveValidationPermit();
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "real-chain handoff mint" in it })
+        assertTrue(violations.any { "mintFinalLiveValidationPermit" in it })
+    }
+
+    @Test
+    fun `rogue caller cannot construct a future execution bundle`() {
+        val classes = compileJava(
+            *realChainHandoffStubs(),
+            "attack/RogueFutureBundleInit.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary;
+                public final class RogueFutureBundleInit {
+                    Object forge() {
+                        return new FutureDestructiveRealChainBoundary.FutureDestructiveExecutionBundle();
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "constructs real-chain handoff material" in it })
+    }
+
+    @Test
+    fun `rogue companion create cannot mint a real-chain bundle`() {
+        val classes = compileJava(
+            *realChainHandoffStubs(),
+            "attack/RogueBundleCompanionCreate.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary;
+                public final class RogueBundleCompanionCreate {
+                    Object forge() {
+                        return FutureDestructiveRealChainBoundary.FutureDestructiveExecutionBundle.Companion.create();
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.any { "forbidden real-chain companion mint" in it || "constructs real-chain handoff material" in it },
+        )
+    }
+
+    @Test
+    fun `method handle lookup of future executor execute is rejected`() {
+        val classes = compileJava(
+            *realChainHandoffStubs(),
+            "attack/RogueFutureExecutorHandle.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary;
+                import java.lang.invoke.MethodHandles;
+                import java.lang.invoke.MethodType;
+                public final class RogueFutureExecutorHandle {
+                    Object forge() throws Exception {
+                        return MethodHandles.lookup().findVirtual(
+                            FutureDestructiveRealChainBoundary.FutureDestructiveExecutorContract.class,
+                            "execute",
+                            MethodType.methodType(
+                                Object.class,
+                                FutureDestructiveRealChainBoundary.FutureDestructiveExecutionBundle.class
+                            )
+                        );
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.any { "method handles" in it || "future executor" in it },
+        )
+    }
+
+    @Test
+    fun `rogue caller cannot invoke onAuthorizedHandoff`() {
+        val classes = compileJava(
+            *realChainHandoffStubs(),
+            "attack/RogueOnAuthorizedHandoff.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary;
+                public final class RogueOnAuthorizedHandoff {
+                    Object forge(
+                        FutureDestructiveRealChainBoundary.FutureDestructiveExecutorContract executor
+                    ) {
+                        return executor.onAuthorizedHandoff();
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "onAuthorizedHandoff" in it })
+        assertTrue(violations.any { "FutureDestructiveExecutorContract.execute" in it })
+    }
+
+    @Test
+    fun `rogue caller cannot register a forged handoff bundle`() {
+        val classes = compileJava(
+            *realChainHandoffStubs(),
+            "attack/RogueRegisterIssuedBundle.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary;
+                public final class RogueRegisterIssuedBundle {
+                    void forge(
+                        FutureDestructiveRealChainBoundary boundary,
+                        FutureDestructiveRealChainBoundary.FutureDestructiveExecutionBundle bundle
+                    ) {
+                        boundary.registerIssuedBundle(bundle);
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "real-chain handoff mint" in it })
+        assertTrue(violations.any { "registerIssuedBundle" in it })
+    }
+
+    @Test
+    fun `rogue caller cannot construct an issued future execution bundle`() {
+        val classes = compileJava(
+            *realChainHandoffStubs(),
+            "attack/RogueIssuedBundleInit.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.IssuedFutureDestructiveExecutionBundle;
+                public final class RogueIssuedBundleInit {
+                    Object forge() {
+                        return new IssuedFutureDestructiveExecutionBundle();
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "constructs real-chain handoff material" in it })
+    }
+
+    @Test
+    fun `rogue caller cannot construct a top-level future execution bundle`() {
+        val classes = compileJava(
+            *realChainHandoffStubs(),
+            "attack/RogueTopLevelBundleInit.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.FutureDestructiveExecutionBundle;
+                public final class RogueTopLevelBundleInit {
+                    Object forge() {
+                        return new FutureDestructiveExecutionBundle();
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "constructs real-chain handoff material" in it })
+    }
+
+    @Test
+    fun `rogue Kotlin live-validation mint object cannot mint a permit`() {
+        val classes = compileKotlin(
+            *realChainHandoffKotlinStubs(),
+            "attack/RogueKotlinLiveValidationMint.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary
+                class RogueKotlinLiveValidationMint {
+                    fun forge() =
+                        FutureDestructiveRealChainBoundary.RealChainFinalLiveValidationPermit
+                            .LiveValidationMint.mintFinalLiveValidationPermit()
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "real-chain handoff mint" in it || "mintFinalLiveValidationPermit" in it })
+    }
+
+    @Test
+    fun `rogue Kotlin method reference cannot mint a final live validation permit`() {
+        val classes = compileKotlin(
+            *realChainHandoffKotlinStubs(),
+            "attack/RogueKotlinPermitMintHandle.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary
+                class RogueKotlinPermitMintHandle {
+                    fun forge(
+                        boundary: FutureDestructiveRealChainBoundary,
+                    ): () -> Any? {
+                        return boundary::mintFinalLiveValidationPermit
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.any {
+                "real-chain handoff mint" in it ||
+                    "mintFinalLiveValidationPermit" in it ||
+                    "invokedynamic" in it ||
+                    "method handle" in it
+            },
+        )
+    }
+
+    @Test
+    fun `rogue Kotlin method reference cannot invoke future executor execute`() {
+        val classes = compileKotlin(
+            *realChainHandoffKotlinStubs(),
+            "attack/RogueKotlinFutureExecutorHandle.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary
+                class RogueKotlinFutureExecutorHandle {
+                    fun forge(
+                        executor: FutureDestructiveRealChainBoundary.FutureDestructiveExecutorContract,
+                    ): (
+                        FutureDestructiveRealChainBoundary.FutureDestructiveExecutionBundle
+                    ) -> Any? {
+                        return executor::execute
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.any { "future executor" in it || "invokedynamic" in it || "method handle" in it },
+        )
     }
 
     @Test
@@ -2502,6 +2880,32 @@ class ProductionBytecodePolicyVerifierTest {
             """.trimIndent()
     }
 
+    private fun runtimePreExecutionAppendStubs(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/destructive/DestructivePreExecutionDurableRecord.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructivePreExecutionDurableRecord {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveEvidenceAppendResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveEvidenceAppendResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DurableDestructivePreExecutionRepository.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DurableDestructivePreExecutionRepository {
+                    public DestructiveEvidenceAppendResult append(
+                        DestructivePreExecutionDurableRecord record
+                    ) {
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+    }
+
     private fun markerWriteResultStub(): Pair<String, String> {
         return "com/example/devicemanagement/destructive/MarkerWriteResult.java" to
             """
@@ -2758,6 +3162,76 @@ class ProductionBytecodePolicyVerifierTest {
                             buildPurpose: DestructiveArtifactBuildPurpose,
                         ): DestructiveArtifactIdentityExpectation? = null
                     }
+                }
+                """.trimIndent(),
+        )
+    }
+
+    private fun realChainHandoffStubs(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class FutureDestructiveRealChainBoundary {
+                    public static class FutureDestructiveExecutionBundle {
+                        public static final class Companion {
+                            public static FutureDestructiveExecutionBundle create() {
+                                return new FutureDestructiveExecutionBundle();
+                            }
+                        }
+                    }
+                    public static class RealChainFinalLiveValidationPermit {}
+                    public static abstract class FutureDestructiveExecutorContract {
+                        public Object execute(FutureDestructiveExecutionBundle bundle) { return null; }
+                        public Object onAuthorizedHandoff() { return null; }
+                    }
+                    public Object mintFinalLiveValidationPermit() { return null; }
+                    public Object assembleBundleFromPermit(Object permit) { return null; }
+                    public void registerIssuedBundle(FutureDestructiveExecutionBundle bundle) {}
+                    public Object assembleAndHandoff() { return null; }
+                }
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/FutureDestructiveExecutionBundle.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class FutureDestructiveExecutionBundle {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/RealChainFinalLiveValidationPermit.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class RealChainFinalLiveValidationPermit {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/IssuedFutureDestructiveExecutionBundle.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class IssuedFutureDestructiveExecutionBundle {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/IssuedRealChainFinalLiveValidationPermit.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class IssuedRealChainFinalLiveValidationPermit {}
+                """.trimIndent(),
+        )
+    }
+
+    private fun realChainHandoffKotlinStubs(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary.kt" to
+                """
+                package com.example.devicemanagement.destructive
+                class FutureDestructiveRealChainBoundary {
+                    class FutureDestructiveExecutionBundle
+                    class RealChainFinalLiveValidationPermit {
+                        object LiveValidationMint {
+                            fun mintFinalLiveValidationPermit(): RealChainFinalLiveValidationPermit =
+                                RealChainFinalLiveValidationPermit()
+                        }
+                    }
+                    abstract class FutureDestructiveExecutorContract {
+                        fun execute(bundle: FutureDestructiveExecutionBundle): Any? = null
+                    }
+                    fun mintFinalLiveValidationPermit(): Any? = null
+                    fun assembleBundleFromPermit(permit: Any?): FutureDestructiveExecutionBundle? = null
                 }
                 """.trimIndent(),
         )

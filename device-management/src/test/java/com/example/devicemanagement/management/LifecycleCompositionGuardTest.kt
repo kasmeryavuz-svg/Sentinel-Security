@@ -52,6 +52,10 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("issueFromTrustedValidationSource"))
         assertFalse(composition.contains("RuntimeDestructiveSafetyDurabilityMint"))
         assertFalse(composition.contains("TrustedDestructiveArtifactExpectationMint"))
+        assertFalse(composition.contains("FutureDestructiveRealChainBoundary"))
+        assertFalse(composition.contains("assembleAndHandoff"))
+        assertFalse(composition.contains("FutureDestructiveExecutorContract"))
+        assertFalse(composition.contains("Checkpoint18Decision"))
     }
 
     @Test

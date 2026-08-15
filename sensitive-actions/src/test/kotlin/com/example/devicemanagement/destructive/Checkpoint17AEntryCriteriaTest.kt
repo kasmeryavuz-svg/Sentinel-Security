@@ -48,6 +48,10 @@ class Checkpoint17AEntryCriteriaTest {
         val entryReview = File(docs, "WIPE_17B_ENTRY_REVIEW.md").readText()
         assertTrue(entryReview.contains("17B_DESTRUCTIVE_BOUNDARY_READY"))
         assertTrue(entryReview.contains("NO REAL WIPE IMPLEMENTED"))
+        val decision = File(docs, "WIPE_18_DESTRUCTIVE_BOUNDARY_DECISION.md").readText()
+        assertTrue(decision.contains("18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL"))
+        assertTrue(decision.contains("NO REAL WIPE IMPLEMENTED"))
+        assertTrue(decision.contains("DO NOT MERGE"))
     }
 
     @Test

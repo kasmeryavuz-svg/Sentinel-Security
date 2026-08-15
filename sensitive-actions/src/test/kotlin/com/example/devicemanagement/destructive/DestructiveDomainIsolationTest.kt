@@ -41,6 +41,11 @@ class DestructiveDomainIsolationTest {
             DestructiveChallengeIdentity::class.java,
             DestructiveHumanApprovalAuthority::class.java,
             DestructiveHumanConfirmationAuthority::class.java,
+            FutureDestructiveExecutionBundle::class.java,
+            FutureDestructiveRealChainBoundary::class.java,
+            RuntimeDurablePreExecutionCommitProof::class.java,
+            RealChainFinalLiveValidationPermit::class.java,
+            DestructiveWipeOptionPolicyProof::class.java,
         )
         types.forEach { type ->
             assertFalse(Serializable::class.java.isAssignableFrom(type))
@@ -113,6 +118,22 @@ class DestructiveDomainIsolationTest {
         assertTrue(sources.contains("DestructiveHumanConfirmationAuthority"))
         assertTrue(sources.contains("issueFromTrustedConfirmationSource"))
         assertTrue(sources.contains("DestructiveWipeOptionPolicy"))
+        assertTrue(sources.contains("FutureDestructiveExecutorContract"))
+        assertTrue(sources.contains("FutureDestructiveRealChainBoundary"))
+        assertTrue(sources.contains("assembleAndHandoff"))
+        assertTrue(sources.contains("mintFinalLiveValidationPermit"))
+        assertTrue(sources.contains("assembleBundleFromPermit"))
+        assertTrue(sources.contains("commitAfterConsumedAuthorization"))
+        assertTrue(sources.contains("onAuthorizedHandoff"))
+        assertTrue(sources.contains("HandoffRegistry"))
+        assertTrue(sources.contains("IssuedRealChainFinalLiveValidationPermit"))
+        assertTrue(sources.contains("IssuedFutureDestructiveExecutionBundle"))
+        assertTrue(sources.contains("registerIssuedPermit"))
+        assertFalse(sources.contains("object LiveValidationMint"))
+        assertFalse(sources.contains("object ExecutionBundleMint"))
+        assertTrue(sources.contains("RuntimeDurablePreExecutionCommitProof"))
+        assertTrue(sources.contains("RealChainFinalLiveValidationPermit"))
+        assertTrue(sources.contains("DestructiveWipeOptionPolicyProof"))
         assertFalse(sources.contains("fromTrustedSnapshot"))
         assertFalse(sources.contains("java.nio.file.Files"))
     }
@@ -146,5 +167,8 @@ class DestructiveDomainIsolationTest {
         assertFalse(controller.contains("DestructiveFinalExecutionGate"))
         assertFalse(controller.contains("SimulatedDestructiveExecutor"))
         assertFalse(controller.contains("Checkpoint17ASimulationSink"))
+        assertFalse(controller.contains("FutureDestructiveRealChainBoundary"))
+        assertFalse(controller.contains("assembleAndHandoff"))
+        assertFalse(controller.contains("FutureDestructiveExecutorContract"))
     }
 }

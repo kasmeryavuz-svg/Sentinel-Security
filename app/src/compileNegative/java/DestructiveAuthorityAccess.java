@@ -37,6 +37,16 @@ import com.example.devicemanagement.destructive.DestructiveHumanConfirmation;
 import com.example.devicemanagement.destructive.DestructiveHumanConfirmationAuthority;
 import com.example.devicemanagement.destructive.DestructiveOperatorChallenge;
 import com.example.devicemanagement.destructive.DestructiveWipeOptionPolicy;
+import com.example.devicemanagement.destructive.DestructiveWipeOptionPolicyProof;
+import com.example.devicemanagement.destructive.DestructiveWipeOptionPolicyAuthority;
+import com.example.devicemanagement.destructive.FutureDestructiveExecutorContract;
+import com.example.devicemanagement.destructive.FutureDestructiveExecutionBundle;
+import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary;
+import com.example.devicemanagement.destructive.RuntimeDurablePreExecutionCommitProof;
+import com.example.devicemanagement.destructive.RuntimeDurablePreExecutionCommitAuthority;
+import com.example.devicemanagement.destructive.RealChainFinalLiveValidationPermit;
+import com.example.devicemanagement.destructive.Checkpoint18Decision;
+import com.example.devicemanagement.destructive.UnwiredFutureDestructiveExecutor;
 
 final class DestructiveAuthorityAccess {
     DestructiveArmingAuthority arming;
@@ -76,4 +86,14 @@ final class DestructiveAuthorityAccess {
     DestructiveHumanConfirmationAuthority humanConfirmationAuthority;
     DestructiveOperatorChallenge operatorChallenge;
     DestructiveWipeOptionPolicy wipeOptionPolicy;
+    DestructiveWipeOptionPolicyProof wipeOptionPolicyProof;
+    DestructiveWipeOptionPolicyAuthority wipeOptionPolicyAuthority;
+    FutureDestructiveExecutorContract futureExecutorContract;
+    FutureDestructiveExecutionBundle futureExecutionBundle;
+    FutureDestructiveRealChainBoundary realChainBoundary;
+    RuntimeDurablePreExecutionCommitProof runtimePreExecutionProof;
+    RuntimeDurablePreExecutionCommitAuthority runtimePreExecutionAuthority;
+    RealChainFinalLiveValidationPermit realChainPermit;
+    Checkpoint18Decision checkpoint18Decision;
+    UnwiredFutureDestructiveExecutor unwiredFutureExecutor;
 }

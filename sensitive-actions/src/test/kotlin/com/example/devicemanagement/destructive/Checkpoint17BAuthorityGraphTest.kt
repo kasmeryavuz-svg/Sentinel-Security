@@ -109,6 +109,12 @@ class Checkpoint17BAuthorityGraphTest {
             "SimulatedDestructiveExecutor",
             "FinalExecutionPermit",
             "PreExecutionEvidenceCommitProof",
+            "FutureDestructiveExecutorContract",
+            "FutureDestructiveRealChainBoundary",
+            "assembleAndHandoff",
+            "RuntimeDurablePreExecutionCommitProof",
+            "RealChainFinalLiveValidationPermit",
+            "DestructiveWipeOptionPolicyProof",
         ).forEach { token ->
             assertFalse(recovery.contains(token))
             assertFalse(controller.contains(token))
@@ -153,6 +159,10 @@ class Checkpoint17BAuthorityGraphTest {
             DestructiveHumanConfirmation::class.java,
             DestructiveOperatorChallenge::class.java,
             DestructiveChallengeIdentity::class.java,
+            FutureDestructiveExecutionBundle::class.java,
+            RuntimeDurablePreExecutionCommitProof::class.java,
+            RealChainFinalLiveValidationPermit::class.java,
+            DestructiveWipeOptionPolicyProof::class.java,
         )
         types.forEach { type ->
             assertFalse(Serializable::class.java.isAssignableFrom(type))
