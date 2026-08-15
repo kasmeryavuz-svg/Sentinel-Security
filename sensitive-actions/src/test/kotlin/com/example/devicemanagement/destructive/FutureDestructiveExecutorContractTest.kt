@@ -245,6 +245,9 @@ class FutureDestructiveExecutorContractTest {
             .filter { it.isFile && it.extension == "kt" }
             .toList()
         val implementors = production.filter { file ->
+            if (file.name == "FutureDestructiveExecutorContract.kt") {
+                return@filter false
+            }
             val text = file.readText()
             text.contains(": FutureDestructiveExecutorContract") ||
                 text.contains("FutureDestructiveExecutorContract {")

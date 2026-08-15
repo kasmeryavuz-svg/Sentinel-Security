@@ -85,7 +85,7 @@ Existing DeviceAdmin policy remains exactly:
 | `compileSdk` | 36 |
 | `minSdk` | 26 |
 | Future whole-device candidate | `wipeDevice` (API 34+) |
-| `wipeData` as Sentinel whole-device route | **No.** Apps targeting API 34+ throw `IllegalStateException` when calling `wipeData` from the primary / last full user |
+| wipeData as Sentinel whole-device route | **No.** Apps targeting API 34+ throw `IllegalStateException` when calling `wipeData` from the primary / last full user |
 | `<wipe-data>` | still absent |
 | GrapheneOS `wipeDevice` / `wipeData` behavior | `UNRESOLVED_REQUIRES_DEVICE_TEST` |
 | Hardware validation | unperformed |
