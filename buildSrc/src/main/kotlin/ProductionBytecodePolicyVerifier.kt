@@ -5,6 +5,17 @@ import org.objectweb.asm.Handle
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.Type
+import org.objectweb.asm.tree.AbstractInsnNode
+import org.objectweb.asm.tree.ClassNode
+import org.objectweb.asm.tree.InsnNode
+import org.objectweb.asm.tree.IntInsnNode
+import org.objectweb.asm.tree.LdcInsnNode
+import org.objectweb.asm.tree.MethodInsnNode
+import org.objectweb.asm.tree.MethodNode
+import org.objectweb.asm.tree.analysis.Analyzer
+import org.objectweb.asm.tree.analysis.AnalyzerException
+import org.objectweb.asm.tree.analysis.SourceInterpreter
+import org.objectweb.asm.tree.analysis.SourceValue
 import java.io.File
 import java.util.jar.JarFile
 
@@ -16,11 +27,56 @@ internal data class PolicyVerificationTarget(
 
 internal object ProductionBytecodePolicyVerifier {
     private const val DPM = "android/app/admin/DevicePolicyManager"
+    private const val WIPE_DEVICE = "wipeDevice"
+    private const val WIPE_DEVICE_DESCRIPTOR = "(I)V"
+    private const val FACTORY_RESET_SERVICE =
+        "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService"
+    private const val PERFORM_AUTHORIZED_FACTORY_RESET = "performAuthorizedFactoryReset"
+    private const val PERFORM_AUTHORIZED_FACTORY_RESET_DESCRIPTOR =
+        "()Lcom/example/devicemanagement/destructive/AuthorizedFactoryResetResult;"
+    private const val RETAIN_FOR_PRODUCTION = "retainForProduction"
+    private const val RETAIN_FOR_PRODUCTION_OWNER =
+        "com/example/devicemanagement/destructive/ProductionDestructiveRealChain"
+    private const val RETAIN_FOR_PRODUCTION_DESCRIPTOR =
+        "(Lcom/example/devicemanagement/destructive/AuthorizedFactoryResetPort;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveLiveFactsSource;" +
+            "Lcom/example/devicemanagement/integration/MonotonicTimeSource;" +
+            "Lcom/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability;)" +
+            "Lcom/example/devicemanagement/destructive/ProductionDestructiveRetainer;"
 
     private data class InvocationOrigin(
         val className: String,
         val methodName: String,
         val methodDescriptor: String,
+    )
+
+    private data class WipeDeviceCallRecord(
+        val location: String,
+        val originApproved: Boolean,
+        val exactConstantZero: Boolean,
+        val viaMethodHandle: Boolean,
+    )
+
+    // Exact JVM origin AndroidFutureDestructiveExecutor.onAuthorizedHandoff()Lcom/example/devicemanagement/destructive/FutureDestructiveHandoffAcknowledgement;
+    private val authorizedFactoryResetCaller = InvocationOrigin(
+        "com/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor",
+        "onAuthorizedHandoff",
+        "()Lcom/example/devicemanagement/destructive/FutureDestructiveHandoffAcknowledgement;",
+    )
+
+    private val authorizedFactoryResetCalleeOwners = setOf(
+        "com/example/devicemanagement/destructive/AuthorizedFactoryResetPort",
+        "com/example/devicemanagement/destructive/UnavailableAuthorizedFactoryResetPort",
+        FACTORY_RESET_SERVICE,
+    )
+
+    private val authorizedRetainCaller = InvocationOrigin(
+        "com/example/devicemanagement/management/DeviceManagementComposition",
+        "retainProductionDestructiveImplementation",
+        "(Landroid/content/Context;Lcom/example/devicemanagement/logging/StructuredLogger;" +
+            "Lcom/example/devicemanagement/management/DeviceManagementLogger;" +
+            "Lcom/example/devicemanagement/management/AndroidDevicePolicyPlatform;)" +
+            "Lcom/example/devicemanagement/destructive/ProductionDestructiveRetainer;",
     )
 
     private fun origins(vararg origins: InvocationOrigin): Set<InvocationOrigin> =
@@ -32,29 +88,43 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/management/AndroidDevicePolicyScreenCaptureService",
         "com/example/devicemanagement/management/AndroidDevicePolicyCameraService",
         "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService",
+        "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService",
     )
 
     private val checkpoint17BForbiddenDpmMethodNames = setOf(
         "wipeData",
-        "wipeDevice",
     )
 
     private val allowedDpmInvocations = mapOf(
-        "isDeviceOwnerApp(Ljava/lang/String;)Z" to origins(InvocationOrigin(
-            "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
-            "isDeviceOwnerApp",
-            "()Z",
-        )),
+        "isDeviceOwnerApp(Ljava/lang/String;)Z" to origins(
+            InvocationOrigin(
+                "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
+                "isDeviceOwnerApp",
+                "()Z",
+            ),
+            InvocationOrigin(
+                FACTORY_RESET_SERVICE,
+                PERFORM_AUTHORIZED_FACTORY_RESET,
+                PERFORM_AUTHORIZED_FACTORY_RESET_DESCRIPTOR,
+            ),
+        ),
         "isProfileOwnerApp(Ljava/lang/String;)Z" to origins(InvocationOrigin(
             "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
             "isProfileOwnerApp",
             "()Z",
         )),
-        "isAdminActive(Landroid/content/ComponentName;)Z" to origins(InvocationOrigin(
-            "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
-            "isExpectedAdminActive",
-            "()Z",
-        )),
+        "isAdminActive(Landroid/content/ComponentName;)Z" to origins(
+            InvocationOrigin(
+                "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
+                "isExpectedAdminActive",
+                "()Z",
+            ),
+            InvocationOrigin(
+                FACTORY_RESET_SERVICE,
+                PERFORM_AUTHORIZED_FACTORY_RESET,
+                PERFORM_AUTHORIZED_FACTORY_RESET_DESCRIPTOR,
+            ),
+        ),
         "isProvisioningAllowed(Ljava/lang/String;)Z" to origins(
             InvocationOrigin(
                 "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
@@ -102,7 +172,17 @@ internal object ProductionBytecodePolicyVerifier {
             "setStatusBarDisabled",
             "(Z)Z",
         )),
+        "wipeDevice(I)V" to origins(
+            InvocationOrigin(
+                "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService",
+                "performAuthorizedFactoryReset",
+                "()Lcom/example/devicemanagement/destructive/AuthorizedFactoryResetResult;",
+            ),
+        ),
     )
+
+    private val authorizedWipeDeviceOrigin =
+        allowedDpmInvocations.getValue("wipeDevice(I)V").single()
 
     private val forbiddenLoaderOwners = setOf(
         "java/lang/ClassLoader",
@@ -398,8 +478,18 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/Checkpoint18Decision",
         "com/example/devicemanagement/destructive/Checkpoint19ADecision",
+        "com/example/devicemanagement/destructive/Checkpoint19BDecision",
         "com/example/devicemanagement/destructive/UnwiredFutureDestructiveExecutor",
         "com/example/devicemanagement/destructive/IssuedRuntimeDurablePreExecutionCommitProof",
+        "com/example/devicemanagement/destructive/AuthorizedFactoryResetPort",
+        "com/example/devicemanagement/destructive/AuthorizedFactoryResetResult",
+        "com/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor",
+        "com/example/devicemanagement/destructive/ProductionDestructiveRealChain",
+        "com/example/devicemanagement/destructive/ProductionDestructiveRetainer",
+        "com/example/devicemanagement/destructive/UnavailableAuthorizedFactoryResetPort",
+        "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService",
+        "com/example/devicemanagement/management/AndroidDestructiveLiveFactsSource",
+        "com/example/devicemanagement/management/ComposedDeviceManagementServices",
     )
 
     private val recoveryForbiddenMethods = setOf(
@@ -431,6 +521,8 @@ internal object ProductionBytecodePolicyVerifier {
         "assembleBundleFromPermit",
         "commitAfterConsumedAuthorization",
         "onAuthorizedHandoff",
+        "performAuthorizedFactoryReset",
+        "retainForProduction",
         "requirePendingConsumption",
         "registerIssuedPermit",
         "registerIssuedBundle",
@@ -550,6 +642,7 @@ internal object ProductionBytecodePolicyVerifier {
     private val realChainExecutorContractOwners = setOf(
         "com/example/devicemanagement/destructive/FutureDestructiveExecutorContract",
         "$realChainBoundaryOwner\$FutureDestructiveExecutorContract",
+        "com/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor",
     )
 
     private val realChainHandoffRegistryOwner =
@@ -660,7 +753,34 @@ internal object ProductionBytecodePolicyVerifier {
     )
 
     fun verify(targets: Iterable<PolicyVerificationTarget>): List<String> {
-        return targets.flatMap(::verifyClass)
+        val wipeDeviceCalls = mutableListOf<WipeDeviceCallRecord>()
+        var factoryResetClassSeen = false
+        val violations = mutableListOf<String>()
+        for (target in targets) {
+            val className = ClassReader(target.bytes).className
+            if (className == FACTORY_RESET_SERVICE) {
+                factoryResetClassSeen = true
+            }
+            violations += verifyClass(target, wipeDeviceCalls)
+        }
+        if (wipeDeviceCalls.size > 1) {
+            violations +=
+                "multiple DevicePolicyManager.wipeDevice(I)V invocations are forbidden " +
+                    "(${wipeDeviceCalls.size}): " +
+                    wipeDeviceCalls.joinToString { it.location }
+        }
+        if (factoryResetClassSeen) {
+            val approved = wipeDeviceCalls.singleOrNull { call ->
+                call.originApproved && call.exactConstantZero && !call.viaMethodHandle
+            }
+            if (approved == null || wipeDeviceCalls.size != 1) {
+                violations +=
+                    "$FACTORY_RESET_SERVICE.$PERFORM_AUTHORIZED_FACTORY_RESET" +
+                        "$PERFORM_AUTHORIZED_FACTORY_RESET_DESCRIPTOR must contain exactly one " +
+                        "DevicePolicyManager.wipeDevice(I)V with exact integer constant 0"
+            }
+        }
+        return violations
     }
 
     fun classTargets(
@@ -703,18 +823,126 @@ internal object ProductionBytecodePolicyVerifier {
         }
     }
 
-    private fun verifyClass(target: PolicyVerificationTarget): List<String> {
+    private fun verifyClass(
+        target: PolicyVerificationTarget,
+        wipeDeviceCalls: MutableList<WipeDeviceCallRecord>,
+    ): List<String> {
         val violations = mutableListOf<String>()
         ClassReader(target.bytes).accept(
-            PolicyClassVisitor(target, violations),
+            PolicyClassVisitor(target, violations, wipeDeviceCalls),
             ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES,
         )
+        violations += analyzeWipeDeviceArguments(target, wipeDeviceCalls)
         return violations
+    }
+
+    private fun analyzeWipeDeviceArguments(
+        target: PolicyVerificationTarget,
+        wipeDeviceCalls: MutableList<WipeDeviceCallRecord>,
+    ): List<String> {
+        val violations = mutableListOf<String>()
+        val classNode = ClassNode()
+        ClassReader(target.bytes).accept(classNode, 0)
+        classNode.methods.orEmpty().forEach { method ->
+            violations += analyzeWipeDeviceArgumentsInMethod(
+                target = target,
+                className = classNode.name,
+                method = method,
+                wipeDeviceCalls = wipeDeviceCalls,
+            )
+        }
+        return violations
+    }
+
+    private fun analyzeWipeDeviceArgumentsInMethod(
+        target: PolicyVerificationTarget,
+        className: String,
+        method: MethodNode,
+        wipeDeviceCalls: MutableList<WipeDeviceCallRecord>,
+    ): List<String> {
+        val location = "$className.${method.name}${method.desc}"
+        val origin = InvocationOrigin(className, method.name, method.desc)
+        val originApproved = origin == authorizedWipeDeviceOrigin
+        val invokeIndexes = method.instructions?.toArray().orEmpty().mapIndexedNotNull { index, insn ->
+            if (insn is MethodInsnNode && insn.owner == DPM && insn.name == WIPE_DEVICE) {
+                index
+            } else {
+                null
+            }
+        }
+        if (invokeIndexes.isEmpty()) {
+            return emptyList()
+        }
+        val frames = try {
+            Analyzer(SourceInterpreter()).analyze(className, method)
+        } catch (_: AnalyzerException) {
+            return invokeIndexes.map { index ->
+                val insn = method.instructions[index] as MethodInsnNode
+                wipeDeviceCalls += WipeDeviceCallRecord(
+                    location = "$location invoke ${insn.name}${insn.desc}",
+                    originApproved = originApproved,
+                    exactConstantZero = false,
+                    viaMethodHandle = false,
+                )
+                "${target.artifactPath}:${target.displayPath}: $location invokes " +
+                    "$DPM.${insn.name}${insn.desc} with unanalyzable flags; exact integer " +
+                    "constant 0 is required"
+            }
+        }
+        return invokeIndexes.map { index ->
+            val insn = method.instructions[index] as MethodInsnNode
+            val exactConstantZero = insn.desc == WIPE_DEVICE_DESCRIPTOR &&
+                isExactIntConstantZero(frames[index], insn)
+            wipeDeviceCalls += WipeDeviceCallRecord(
+                location = "$location invoke ${insn.name}${insn.desc}",
+                originApproved = originApproved && insn.desc == WIPE_DEVICE_DESCRIPTOR,
+                exactConstantZero = exactConstantZero,
+                viaMethodHandle = false,
+            )
+            if (exactConstantZero) {
+                null
+            } else {
+                "${target.artifactPath}:${target.displayPath}: $location invokes " +
+                    "$DPM.${insn.name}${insn.desc} without exact integer constant 0"
+            }
+        }.filterNotNull()
+    }
+
+    private fun isExactIntConstantZero(
+        frame: org.objectweb.asm.tree.analysis.Frame<SourceValue>?,
+        insn: MethodInsnNode,
+    ): Boolean {
+        if (frame == null) {
+            return false
+        }
+        val argumentSlots = Type.getArgumentTypes(insn.desc).sumOf { type ->
+            type.size
+        }
+        if (frame.stackSize < argumentSlots) {
+            return false
+        }
+        val flags = frame.getStack(frame.stackSize - 1)
+        if (flags.insns.isNullOrEmpty()) {
+            return false
+        }
+        return flags.insns.all(::isExactIntConstantZeroInsn)
+    }
+
+    private fun isExactIntConstantZeroInsn(insn: AbstractInsnNode): Boolean {
+        return when (insn) {
+            is InsnNode -> insn.opcode == Opcodes.ICONST_0
+            is IntInsnNode ->
+                (insn.opcode == Opcodes.BIPUSH || insn.opcode == Opcodes.SIPUSH) &&
+                    insn.operand == 0
+            is LdcInsnNode -> insn.cst == 0
+            else -> false
+        }
     }
 
     private class PolicyClassVisitor(
         private val target: PolicyVerificationTarget,
         private val violations: MutableList<String>,
+        private val wipeDeviceCalls: MutableList<WipeDeviceCallRecord>,
     ) : ClassVisitor(Opcodes.ASM9) {
         private lateinit var className: String
 
@@ -746,7 +974,7 @@ internal object ProductionBytecodePolicyVerifier {
         ): org.objectweb.asm.FieldVisitor? {
             checkDescriptor(descriptor, "field $name")
             signature?.let { checkDescriptor(it, "field $name signature") }
-            checkConstant(value, "field $name")
+            checkConstant(value, "field $name", InvocationOrigin(className, "<field>", name))
             return null
         }
 
@@ -772,6 +1000,9 @@ internal object ProductionBytecodePolicyVerifier {
         ) : MethodVisitor(Opcodes.ASM9) {
             private val location: String
                 get() = "$className.$methodName$methodDescriptor"
+
+            private val callerOrigin: InvocationOrigin
+                get() = InvocationOrigin(className, methodName, methodDescriptor)
 
             override fun visitTypeInsn(opcode: Int, type: String) {
                 checkType(type, "$location type instruction")
@@ -803,7 +1034,14 @@ internal object ProductionBytecodePolicyVerifier {
                 descriptor: String,
                 isInterface: Boolean,
             ) {
-                checkDpmInvocation(owner, name, descriptor, location)
+                checkDpmInvocation(
+                    owner,
+                    name,
+                    descriptor,
+                    location,
+                    callerOrigin,
+                    viaMethodHandle = false,
+                )
                 checkVerifiedMutationInvocation(owner, name, descriptor, location)
                 checkTrustedAuditAppendInvocation(owner, name, descriptor, location)
                 checkTrustedAuditStoreMutationInvocation(owner, name, descriptor, location)
@@ -813,6 +1051,22 @@ internal object ProductionBytecodePolicyVerifier {
                 checkTrustedHumanConfirmationMintInvocation(owner, name, descriptor, location)
                 checkTrustedHumanConfirmationConfirmInvocation(owner, name, descriptor, location)
                 checkRealChainHandoffInvocation(owner, name, descriptor, location)
+                checkAuthorizedFactoryResetPortInvocation(
+                    owner,
+                    name,
+                    descriptor,
+                    location,
+                    callerOrigin,
+                    viaMethodHandle = false,
+                )
+                checkProductionDestructiveRetainInvocation(
+                    owner,
+                    name,
+                    descriptor,
+                    location,
+                    callerOrigin,
+                    viaMethodHandle = false,
+                )
                 checkRecoveryIsolation(owner, name, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
                 checkContextDatabaseInvocation(owner, name, location)
@@ -838,19 +1092,19 @@ internal object ProductionBytecodePolicyVerifier {
                 if (isCompilerStringConcatenation) {
                     checkDescriptor(descriptor, "$location string concatenation")
                     bootstrapMethodArguments.forEach {
-                        checkConstant(it, "$location string concatenation argument")
+                        checkConstant(it, "$location string concatenation argument", callerOrigin)
                     }
                     return
                 }
                 violation("$location uses invokedynamic ($name$descriptor)")
-                checkHandle(bootstrapMethodHandle, location)
+                checkHandle(bootstrapMethodHandle, location, callerOrigin)
                 bootstrapMethodArguments.forEach {
-                    checkConstant(it, "$location invokedynamic argument")
+                    checkConstant(it, "$location invokedynamic argument", callerOrigin)
                 }
             }
 
             override fun visitLdcInsn(value: Any?) {
-                checkConstant(value, "$location constant")
+                checkConstant(value, "$location constant", callerOrigin)
             }
 
             override fun visitMultiANewArrayInsn(descriptor: String, numDimensions: Int) {
@@ -858,16 +1112,23 @@ internal object ProductionBytecodePolicyVerifier {
             }
         }
 
-        private fun checkConstant(value: Any?, location: String) {
+        private fun checkConstant(value: Any?, location: String, caller: InvocationOrigin) {
             when (value) {
                 is Type -> checkDescriptor(value.descriptor, location)
-                is Handle -> checkHandle(value, location)
+                is Handle -> checkHandle(value, location, caller)
                 is String -> checkAuditDatabaseFilename(value, location)
             }
         }
 
-        private fun checkHandle(handle: Handle, location: String) {
-            checkDpmInvocation(handle.owner, handle.name, handle.desc, "$location method handle")
+        private fun checkHandle(handle: Handle, location: String, caller: InvocationOrigin) {
+            checkDpmInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+                caller,
+                viaMethodHandle = true,
+            )
             checkVerifiedMutationInvocation(
                 handle.owner,
                 handle.name,
@@ -922,6 +1183,22 @@ internal object ProductionBytecodePolicyVerifier {
                 handle.desc,
                 "$location method handle",
             )
+            checkAuthorizedFactoryResetPortInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+                caller,
+                viaMethodHandle = true,
+            )
+            checkProductionDestructiveRetainInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+                caller,
+                viaMethodHandle = true,
+            )
             checkRecoveryIsolation(handle.owner, handle.name, "$location method handle")
             checkSqliteInvocation(
                 handle.owner,
@@ -951,12 +1228,13 @@ internal object ProductionBytecodePolicyVerifier {
             name: String,
             descriptor: String,
             location: String,
+            caller: InvocationOrigin,
+            viaMethodHandle: Boolean,
         ) {
             if (owner != DPM) return
             val invocation = "$name$descriptor"
-            val actualOrigin = InvocationOrigin(className, methodName(location), methodDescriptor(location))
             val approvedOrigins = allowedDpmInvocations[invocation].orEmpty()
-            if (target.artifactPath != ":device-management-impl" || actualOrigin !in approvedOrigins) {
+            if (target.artifactPath != ":device-management-impl" || caller !in approvedOrigins) {
                 violation(
                     "$location invokes $DPM.$invocation outside the explicitly " +
                         "authorized implementation method",
@@ -968,6 +1246,18 @@ internal object ProductionBytecodePolicyVerifier {
             if (name in checkpoint17BForbiddenDpmMethodNames) {
                 violation(
                     "$location invokes Checkpoint 17B-blocked $DPM.$invocation",
+                )
+            }
+            if (name == WIPE_DEVICE && viaMethodHandle) {
+                wipeDeviceCalls += WipeDeviceCallRecord(
+                    location = location,
+                    originApproved = false,
+                    exactConstantZero = false,
+                    viaMethodHandle = true,
+                )
+                violation(
+                    "$location invokes $DPM.$invocation via method handle; exact integer " +
+                        "constant 0 cannot be proved",
                 )
             }
         }
@@ -1182,6 +1472,59 @@ internal object ProductionBytecodePolicyVerifier {
             checkRealChainHandoffMint(owner, name, descriptor, location)
             checkRealChainHandoffConstructor(owner, name, location)
             checkRealChainCompanionCreate(owner, name, descriptor, location)
+        }
+
+        private fun checkAuthorizedFactoryResetPortInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+            caller: InvocationOrigin,
+            viaMethodHandle: Boolean,
+        ) {
+            if (name != PERFORM_AUTHORIZED_FACTORY_RESET) {
+                return
+            }
+            val authorized = !viaMethodHandle &&
+                owner in authorizedFactoryResetCalleeOwners &&
+                descriptor == PERFORM_AUTHORIZED_FACTORY_RESET_DESCRIPTOR &&
+                caller == authorizedFactoryResetCaller
+            if (authorized) {
+                return
+            }
+            violation(
+                "$location invokes authorized factory-reset $owner.$name$descriptor outside " +
+                    "${authorizedFactoryResetCaller.className}." +
+                    "${authorizedFactoryResetCaller.methodName}" +
+                    authorizedFactoryResetCaller.methodDescriptor,
+            )
+        }
+
+        private fun checkProductionDestructiveRetainInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+            caller: InvocationOrigin,
+            viaMethodHandle: Boolean,
+        ) {
+            if (name != RETAIN_FOR_PRODUCTION) {
+                return
+            }
+            val authorized = !viaMethodHandle &&
+                target.artifactPath == ":device-management-impl" &&
+                owner == RETAIN_FOR_PRODUCTION_OWNER &&
+                descriptor == RETAIN_FOR_PRODUCTION_DESCRIPTOR &&
+                caller == authorizedRetainCaller
+            if (authorized) {
+                return
+            }
+            violation(
+                "$location invokes production destructive retainer $owner.$name$descriptor outside " +
+                    "${authorizedRetainCaller.className}." +
+                    "${authorizedRetainCaller.methodName}" +
+                    authorizedRetainCaller.methodDescriptor,
+            )
         }
 
         private fun checkRealChainExecutorExecute(

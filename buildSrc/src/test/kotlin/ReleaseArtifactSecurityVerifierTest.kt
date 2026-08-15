@@ -41,12 +41,30 @@ class ReleaseArtifactSecurityVerifierTest {
     }
 
     @Test
-    fun `wipeDevice token fails closed in packaged DEX`() {
-        val violations = ReleaseArtifactSecurityVerifier.verifyPackagedDex(
-            strings = setOf("wipeDevice"),
+    fun `wipeDevice token is allowed in packaged DEX while wipeData fails closed`() {
+        val wipeDeviceViolations = ReleaseArtifactSecurityVerifier.verifyPackagedDex(
+            strings = setOf(
+                "Lcom/example/devicemanagement/management/SentinelDeviceAdminReceiver;",
+                "Lcom/example/devicemanagement/provisioning/GetProvisioningModeActivity;",
+                "Lcom/example/devicemanagement/provisioning/AdminPolicyComplianceActivity;",
+                "Lcom/example/devicemanagement/ui/MainActivity;",
+                "Lcom/example/devicemanagement/app/DeviceManagementApp;",
+                "Lcom/example/devicemanagement/management/DeviceManagement;",
+                "Lcom/example/devicemanagement/internal/DeviceManagementImplementation;",
+                "Lcom/example/devicemanagement/recovery/RecoveryInspection;",
+                "Lcom/example/devicemanagement/app/AppContainer;",
+                "Lcom/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService;",
+                "wipeDevice",
+            ),
             sourceName = "app-release.apk",
         )
-        assertTrue(violations.any { "wipeDevice" in it })
+        assertTrue(wipeDeviceViolations.none { "wipeDevice" in it })
+        val wipeDataViolations = ReleaseArtifactSecurityVerifier.verifyPackagedDex(
+            strings = setOf("wipeData", "lockNow"),
+            sourceName = "app-release.apk",
+        )
+        assertTrue(wipeDataViolations.any { "wipeData" in it })
+        assertTrue(wipeDataViolations.any { "lockNow" in it })
     }
 
     @Test

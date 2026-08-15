@@ -9,10 +9,10 @@ import java.io.File
 
 class Checkpoint19ADecisionRealityTest {
     @Test
-    fun `approval-request readiness is YES without granting implementation approval`() {
+    fun `approval-request readiness remains YES after the human approval is recorded`() {
         assertEquals("YES", Checkpoint19ADecision.ARCHITECTURE_READY_RECONFIRMED)
         assertEquals("YES", Checkpoint19ADecision.DESTRUCTIVE_IMPLEMENTATION_APPROVAL_REQUEST_READY)
-        assertEquals("NO", Checkpoint19ADecision.DESTRUCTIVE_IMPLEMENTATION_APPROVED)
+        assertEquals("YES", Checkpoint19ADecision.DESTRUCTIVE_IMPLEMENTATION_APPROVED)
         assertEquals("YES", Checkpoint18Decision.ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL)
         assertFalse(Checkpoint19ADecision.DESTRUCTIVE_IMPLEMENTATION_PRESENT)
         assertFalse(Checkpoint19ADecision.DESTRUCTIVE_HARDWARE_VALIDATION_PRESENT)
@@ -28,23 +28,23 @@ class Checkpoint19ADecisionRealityTest {
     }
 
     @Test
-    fun `implementation and recorded-approval flags stay false`() {
+    fun `implementation presence is 19B while 19A still records the approval`() {
         assertFalse(Checkpoint19ADecision.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
         assertFalse(Checkpoint19ADecision.DESTRUCTIVE_POLICY_WRAPPER_PRESENT)
         assertFalse(Checkpoint19ADecision.DESTRUCTIVE_METADATA_PRESENT)
         assertFalse(Checkpoint19ADecision.PRODUCTION_REACHABLE_SIMULATION)
         assertFalse(Checkpoint19ADecision.DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED)
         assertFalse(Checkpoint19ADecision.DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED)
-        assertFalse(Checkpoint19ADecision.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
+        assertTrue(Checkpoint19ADecision.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
         assertFalse(Checkpoint19ADecision.GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED)
         assertFalse(Checkpoint19ADecision.WIPE_DATA_METADATA_REVIEW_APPROVED)
         assertFalse(Checkpoint19ADecision.DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED)
         assertFalse(Checkpoint19ADecision.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
-        assertFalse(Checkpoint18Decision.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
-        assertFalse(Checkpoint18Decision.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
+        assertTrue(Checkpoint18Decision.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
+        assertTrue(Checkpoint18Decision.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
         assertFalse(Checkpoint18Decision.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
-        assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
         assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
@@ -57,14 +57,20 @@ class Checkpoint19ADecisionRealityTest {
     fun `no fake approval or artifact hash is recorded`() {
         assertNull(Checkpoint19ADecision.RECORDED_DISPOSABLE_DEVICE_CERTIFICATE_SHA256)
         assertNull(Checkpoint19ADecision.RECORDED_DISPOSABLE_DEVICE_ARTIFACT_SHA256)
-        assertNull(Checkpoint19ADecision.RECORDED_APPROVAL_OPERATOR)
-        assertNull(Checkpoint19ADecision.RECORDED_APPROVAL_TIMESTAMP)
-        assertNull(Checkpoint19ADecision.RECORDED_APPROVAL_SENTENCE)
+        assertEquals(
+            "Yavuz Kasmer <kasmeryavuz@gmail.com>",
+            Checkpoint19ADecision.RECORDED_APPROVAL_OPERATOR,
+        )
+        assertEquals("2026-08-15T14:28:00Z", Checkpoint19ADecision.RECORDED_APPROVAL_TIMESTAMP)
+        assertEquals(
+            Checkpoint19ADecision.REQUIRED_APPROVAL_SENTENCE,
+            Checkpoint19ADecision.RECORDED_APPROVAL_SENTENCE,
+        )
         val source = File(
             "src/main/kotlin/com/example/devicemanagement/destructive/Checkpoint19ADecision.kt",
         ).readText()
         assertFalse(HEX_SHA256.containsMatchIn(source))
-        assertTrue(source.contains("val RECORDED_APPROVAL_SENTENCE: String? = null"))
+        assertTrue(source.contains("RECORDED_APPROVAL_SENTENCE"))
         assertEquals("com.example.devicemanagement", Checkpoint19ADecision.EXPECTED_PACKAGE_NAME)
         assertEquals(
             "com.example.devicemanagement/com.example.devicemanagement.management.SentinelDeviceAdminReceiver",
@@ -149,8 +155,10 @@ class Checkpoint19ADecisionRealityTest {
         assertFalse(sources.contains("fun wipe"))
         assertTrue(sources.contains("Checkpoint19ADecision"))
         assertTrue(sources.contains("REQUIRED_APPROVAL_SENTENCE"))
+        assertTrue(sources.contains("Checkpoint19BDecision"))
+        assertFalse(sources.contains("wipeDevice"))
+        assertFalse(sources.contains("wipeData"))
         listOf(
-            File("../device-management/src/main"),
             File("../app/src/main"),
             File("../device-management-api/src/main"),
             File("../device-management-facade/src/main"),
@@ -166,8 +174,23 @@ class Checkpoint19ADecisionRealityTest {
             assertFalse(root.path, extra.contains("AndroidFutureDestructiveExecutor"))
             assertFalse(root.path, extra.contains("AndroidDevicePolicyFactoryResetService"))
         }
+        val deviceManagement = File("../device-management/src/main")
+        deviceManagement.walkTopDown()
+            .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
+            .forEach { file ->
+                val extra = file.readText()
+                if (file.name == "AndroidDevicePolicyFactoryResetService.kt") {
+                    assertTrue(file.path, extra.contains("wipeDevice(0)"))
+                    assertFalse(file.path, extra.contains("wipeData"))
+                } else {
+                    assertFalse(file.path, extra.contains("wipeDevice"))
+                    assertFalse(file.path, extra.contains("wipeData"))
+                    assertFalse(file.path, extra.contains("assembleAndHandoff"))
+                    assertFalse(file.path, extra.contains("Checkpoint19ADecision"))
+                }
+            }
         val metadata = File("../device-management/src/main/res/xml/device_admin_receiver.xml").readText()
-        assertFalse(metadata.contains("wipe-data"))
+        assertTrue(metadata.contains("wipe-data"))
         assertTrue(metadata.contains("disable-camera"))
     }
 

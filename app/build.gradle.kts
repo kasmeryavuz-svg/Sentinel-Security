@@ -640,8 +640,16 @@ androidComponents {
             doLast {
                 val androidNamespace =
                     "http://schemas.android.com/apk/res/android"
-                val approvedPolicies = setOf("disable-camera")
-                val checkpoint17BForbiddenPolicies = setOf("wipe-data")
+                val approvedPolicies = setOf("disable-camera", "wipe-data")
+                val checkpoint17BForbiddenPolicies = setOf(
+                    "reset-password",
+                    "force-lock",
+                    "limit-password",
+                    "watch-login",
+                    "expire-password",
+                    "encrypted-storage",
+                    "disable-keyguard-features",
+                )
                 val expectedReceiver =
                     "com.example.devicemanagement.management." +
                         "SentinelDeviceAdminReceiver"
@@ -800,8 +808,8 @@ androidComponents {
                     .takeWhile { it.first > usesPoliciesIndent }
                     .map { it.second }
                 check(policyElements.intersect(checkpoint17BForbiddenPolicies).isEmpty()) {
-                    "Checkpoint 17B hard block: wipe-data remains forbidden " +
-                        "until explicit 17B review; found $policyElements"
+                    "Checkpoint 19B DeviceAdmin still forbids unreviewed policies; " +
+                        "found $policyElements"
                 }
                 check(
                     policyElements.toSet() == approvedPolicies &&
@@ -814,6 +822,7 @@ androidComponents {
                     "device-admin",
                     "uses-policies",
                     "disable-camera",
+                    "wipe-data",
                 )
                 val unapprovedElements =
                     elementLines.map { it.second }.toSet() - approvedElements

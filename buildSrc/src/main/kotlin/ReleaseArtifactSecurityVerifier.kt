@@ -17,6 +17,7 @@ object ReleaseArtifactSecurityVerifier {
         "Lcom/example/devicemanagement/internal/DeviceManagementImplementation;",
         "Lcom/example/devicemanagement/recovery/RecoveryInspection;",
         "Lcom/example/devicemanagement/app/AppContainer;",
+        "Lcom/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService;",
     )
 
     private val requiredMappingNames = listOf(
@@ -29,11 +30,13 @@ object ReleaseArtifactSecurityVerifier {
         "com.example.devicemanagement.internal.DeviceManagementImplementation",
         "com.example.devicemanagement.recovery.RecoveryInspection",
         "com.example.devicemanagement.action.SensitiveActionController",
+        "com.example.devicemanagement.management.AndroidDevicePolicyFactoryResetService",
+        "com.example.devicemanagement.destructive.AndroidFutureDestructiveExecutor",
+        "com.example.devicemanagement.destructive.ProductionDestructiveRealChain",
     )
 
     private val forbiddenDexTokens = listOf(
         "wipeData",
-        "wipeDevice",
         "lockNow",
         "resetPassword",
         "removeUser",

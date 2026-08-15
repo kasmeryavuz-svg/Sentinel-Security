@@ -8,16 +8,16 @@ import java.io.File
 class Checkpoint17BHardBlockRealityTest {
     @Test
     fun `destructive implementation flags stay false and match repository reality`() {
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
-        assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_POLICY_WRAPPER_PRESENT)
-        assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_METADATA_PRESENT)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_POLICY_WRAPPER_PRESENT)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_METADATA_PRESENT)
         assertFalse(Checkpoint17BHardBlock.PRODUCTION_REACHABLE_SIMULATION)
         assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED)
         assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED)
-        assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
         assertFalse(Checkpoint17BHardBlock.GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED)
-        assertFalse(Checkpoint17BHardBlock.WIPE_DATA_METADATA_REVIEW_APPROVED)
-        assertFalse(Checkpoint17BHardBlock.DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED)
+        assertTrue(Checkpoint17BHardBlock.WIPE_DATA_METADATA_REVIEW_APPROVED)
+        assertTrue(Checkpoint17BHardBlock.DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED)
         assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
@@ -180,7 +180,7 @@ class Checkpoint17BHardBlockRealityTest {
         assertTrue(
             File("src/main/kotlin/com/example/devicemanagement/destructive/DestructiveWipeOptionPolicy.kt").isFile,
         )
-        assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
         assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
         assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED)
     }

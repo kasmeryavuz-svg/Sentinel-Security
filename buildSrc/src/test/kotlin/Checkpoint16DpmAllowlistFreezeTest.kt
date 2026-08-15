@@ -27,6 +27,7 @@ class Checkpoint16DpmAllowlistFreezeTest {
             "setScreenCaptureDisabled(Landroid/content/ComponentName;Z)V",
             "setCameraDisabled(Landroid/content/ComponentName;Z)V",
             "setStatusBarDisabled(Landroid/content/ComponentName;Z)Z",
+            "wipeDevice(I)V",
         )
 
         assertEquals(expectedKeys, allowedKeys)
@@ -50,7 +51,7 @@ class Checkpoint16DpmAllowlistFreezeTest {
             .substringBefore("private val debugCertMarkers")
 
         assertTrue(denylist.contains("\"wipeData\""))
-        assertTrue(denylist.contains("\"wipeDevice\""))
+        assertTrue(!denylist.contains("\"wipeDevice\""))
         assertTrue(denylist.contains("\"lockNow\""))
         assertTrue(denylist.contains("\"resetPassword\""))
         assertTrue(denylist.contains("\"clearDeviceOwnerApp\""))

@@ -5,13 +5,19 @@ import android.os.SystemClock
 import com.example.devicemanagement.action.SensitiveActionController
 import com.example.devicemanagement.action.DeviceManagementSensitiveActionControllerFactory
 import com.example.devicemanagement.audit.AndroidAuditPersistence
+import com.example.devicemanagement.audit.AuditHistoryProvider
+import com.example.devicemanagement.audit.AuditStorageStatusProvider
 import com.example.devicemanagement.audit.DurableAuditRepository
 import com.example.devicemanagement.integration.MonotonicTimeSource
 import com.example.devicemanagement.integration.PolicyMutationResult
 import com.example.devicemanagement.integration.SensitiveActionAuthorization
 import com.example.devicemanagement.integration.SensitiveActionPolicyBackend
+import com.example.devicemanagement.destructive.ProductionDestructiveRealChain
+import com.example.devicemanagement.destructive.ProductionDestructiveRetainer
 import com.example.devicemanagement.logging.StructuredLogger
+import com.example.devicemanagement.persistence.AndroidDestructiveSafetyPersistence
 import com.example.devicemanagement.recovery.DeviceManagementRecoveryInspectionFactory
+import com.example.devicemanagement.recovery.RecoveryInspectionProvider
 
 internal object DeviceManagementComposition {
     fun create(
@@ -23,6 +29,14 @@ internal object DeviceManagementComposition {
         val recoveryInspection = DeviceManagementRecoveryInspectionFactory.create(
             history = audit,
             logger = logger,
+        )
+        val applicationContext = context.applicationContext
+        val platform = AndroidDevicePolicyPlatform(applicationContext)
+        val productionDestructiveRetainer = retainProductionDestructiveImplementation(
+            context = applicationContext,
+            logger = logger,
+            deviceManagementLogger = deviceManagementLogger,
+            platform = platform,
         )
         val sensitiveActions = createSensitiveActions(
                 context = context,
@@ -57,18 +71,19 @@ internal object DeviceManagementComposition {
                 context,
                 deviceManagementLogger,
             )
-        return object : DeviceManagementServices {
-            override val sensitiveActions = sensitiveActions
-            override val deviceManagementStatus = deviceManagementStatus
-            override val provisioningReadiness = provisioningReadiness
-            override val deviceOwnerValidation = deviceOwnerValidation
-            override val screenCapturePolicyStatus = screenCapturePolicyStatus
-            override val cameraPolicyStatus = cameraPolicyStatus
-            override val statusBarPolicyStatus = statusBarPolicyStatus
-            override val auditHistory = audit
-            override val auditStorageStatus = audit
-            override val recoveryInspection = recoveryInspection
-        }
+        return ComposedDeviceManagementServices(
+            sensitiveActions = sensitiveActions,
+            deviceManagementStatus = deviceManagementStatus,
+            provisioningReadiness = provisioningReadiness,
+            deviceOwnerValidation = deviceOwnerValidation,
+            screenCapturePolicyStatus = screenCapturePolicyStatus,
+            cameraPolicyStatus = cameraPolicyStatus,
+            statusBarPolicyStatus = statusBarPolicyStatus,
+            auditHistory = audit,
+            auditStorageStatus = audit,
+            recoveryInspection = recoveryInspection,
+            productionDestructiveRetainer = productionDestructiveRetainer,
+        )
     }
 
     private fun createSensitiveActions(
@@ -111,7 +126,45 @@ internal object DeviceManagementComposition {
             auditWriter = auditWriter,
         )
     }
+
+    private fun retainProductionDestructiveImplementation(
+        context: Context,
+        logger: StructuredLogger,
+        deviceManagementLogger: DeviceManagementLogger,
+        platform: AndroidDevicePolicyPlatform,
+    ): ProductionDestructiveRetainer {
+        return ProductionDestructiveRealChain.retainForProduction(
+            factoryReset = platform.factoryResetService(),
+            liveFacts = AndroidDestructiveLiveFactsSource(
+                validationProvider = DeviceManagementDiagnostics.createDeviceOwnerValidationProvider(
+                    platform = platform,
+                    logger = deviceManagementLogger,
+                ),
+                platform = platform,
+            ),
+            clock = AndroidElapsedRealtimeMonotonicTimeSource,
+            durability = AndroidDestructiveSafetyPersistence.issueRuntimeDurability(
+                context = context,
+                logger = logger,
+            ),
+        )
+    }
 }
+
+internal class ComposedDeviceManagementServices(
+    override val sensitiveActions: SensitiveActionController,
+    override val deviceManagementStatus: DeviceManagementStatusProvider,
+    override val provisioningReadiness: ProvisioningReadinessProvider,
+    override val deviceOwnerValidation: DeviceOwnerValidationProvider,
+    override val screenCapturePolicyStatus: ScreenCapturePolicyStatusProvider,
+    override val cameraPolicyStatus: CameraPolicyStatusProvider,
+    override val statusBarPolicyStatus: StatusBarPolicyStatusProvider,
+    override val auditHistory: AuditHistoryProvider,
+    override val auditStorageStatus: AuditStorageStatusProvider,
+    override val recoveryInspection: RecoveryInspectionProvider,
+    @Suppress("unused")
+    private val productionDestructiveRetainer: ProductionDestructiveRetainer,
+) : DeviceManagementServices
 
 /**
  * Production Android monotonic source for approval freshness. Owned exclusively by

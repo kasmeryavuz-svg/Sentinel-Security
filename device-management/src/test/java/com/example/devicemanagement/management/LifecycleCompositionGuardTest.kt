@@ -18,8 +18,13 @@ class LifecycleCompositionGuardTest {
         ).readText()
 
         assertTrue(composition.contains("DeviceManagementRecoveryInspectionFactory.create"))
-        assertTrue(composition.contains("override val recoveryInspection = recoveryInspection"))
+        assertTrue(composition.contains("recoveryInspection = recoveryInspection"))
+        assertTrue(composition.contains("ComposedDeviceManagementServices("))
         assertTrue(composition.contains("DeviceManagementSensitiveActionControllerFactory.create"))
+        assertTrue(composition.contains("ProductionDestructiveRealChain.retainForProduction"))
+        assertTrue(composition.contains("issueRuntimeDurability"))
+        assertTrue(composition.contains("AndroidDestructiveSafetyPersistence"))
+        assertTrue(composition.contains("factoryResetService()"))
         assertFalse(composition.contains(".submit("))
         assertFalse(composition.contains("BOOT_COMPLETED"))
         assertFalse(composition.contains("setCameraDisabled"))
@@ -41,12 +46,6 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("SimulatedDestructiveExecutor"))
         assertFalse(composition.contains("Checkpoint17ASimulationSink"))
         assertFalse(composition.contains("DenyOnlyCooldownMarkerStore"))
-        assertFalse(composition.contains("RuntimeDestructiveSafetyDurability"))
-        assertFalse(composition.contains("issueRuntimeDurability"))
-        assertFalse(composition.contains("AndroidDestructiveSafetyPersistence"))
-        assertFalse(composition.contains("DestructiveArtifactIdentityAuthority"))
-        assertFalse(composition.contains("DestructiveHumanApprovalAuthority"))
-        assertFalse(composition.contains("DestructiveHumanConfirmationAuthority"))
         assertFalse(composition.contains("issueChallenge"))
         assertFalse(composition.contains("issueFromTrustedConfirmationSource"))
         assertFalse(composition.contains("issueFromTrustedValidationSource"))
@@ -57,8 +56,8 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("FutureDestructiveExecutorContract"))
         assertFalse(composition.contains("Checkpoint18Decision"))
         assertFalse(composition.contains("Checkpoint19ADecision"))
+        assertFalse(composition.contains("Checkpoint19BDecision"))
         assertFalse(composition.contains("AndroidFutureDestructiveExecutor"))
-        assertFalse(composition.contains("AndroidDevicePolicyFactoryResetService"))
     }
 
     @Test

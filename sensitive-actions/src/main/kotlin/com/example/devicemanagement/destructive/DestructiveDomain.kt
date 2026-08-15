@@ -36,7 +36,7 @@ internal enum class DestructiveActionType {
     FACTORY_RESET_SIMULATION,
 }
 
-internal enum class DestructiveManagementValidation {
+enum class DestructiveManagementValidation {
     VERIFIED_DEVICE_OWNER,
     NOT_DEVICE_OWNER,
     CONFIGURATION_ERROR,
@@ -234,7 +234,7 @@ internal class DestructiveTargetBinding private constructor(
     }
 }
 
-internal data class DestructiveLiveFacts(
+data class DestructiveLiveFacts(
     val runningPackage: String,
     val expectedAdminComponent: String,
     val registeredSentinelAdminSet: Set<String>,
@@ -246,7 +246,7 @@ internal data class DestructiveLiveFacts(
     val policyServiceAvailable: Boolean,
 )
 
-internal fun interface DestructiveLiveFactsSource {
+fun interface DestructiveLiveFactsSource {
     fun currentFacts(): DestructiveLiveFacts
 }
 

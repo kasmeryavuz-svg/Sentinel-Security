@@ -136,6 +136,7 @@ class DestructiveDomainIsolationTest {
         assertTrue(sources.contains("DestructiveWipeOptionPolicyProof"))
         assertTrue(sources.contains("Checkpoint19ADecision"))
         assertTrue(sources.contains("REQUIRED_APPROVAL_SENTENCE"))
+        assertTrue(sources.contains("Checkpoint19BDecision"))
         assertFalse(sources.contains("fromTrustedSnapshot"))
         assertFalse(sources.contains("java.nio.file.Files"))
     }

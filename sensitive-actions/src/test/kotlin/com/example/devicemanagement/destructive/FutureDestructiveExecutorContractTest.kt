@@ -382,7 +382,7 @@ class FutureDestructiveExecutorContractTest {
     }
 
     @Test
-    fun `production has no executor implementation and does not wire the boundary`() {
+    fun `production has exactly one executor implementor and does not wire it from UI`() {
         val production = File("src/main/kotlin")
             .walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
@@ -392,10 +392,13 @@ class FutureDestructiveExecutorContractTest {
                 return@filter false
             }
             val text = file.readText()
-            text.contains(": FutureDestructiveExecutorContract") ||
-                text.contains("FutureDestructiveExecutorContract {")
+            text.contains(") : FutureDestructiveExecutorContract()")
         }
-        assertTrue(implementors.isEmpty())
+        assertTrue(implementors.single().name == "AndroidFutureDestructiveExecutor.kt")
+        val executorSource = implementors.single().readText()
+        assertFalse(executorSource.contains("wipeDevice"))
+        assertFalse(executorSource.contains("wipeData"))
+        assertFalse(executorSource.contains("import android.app.admin"))
         val controller = File(
             "src/main/kotlin/com/example/devicemanagement/action/SensitiveActionController.kt",
         ).readText()
@@ -403,6 +406,8 @@ class FutureDestructiveExecutorContractTest {
         assertFalse(controller.contains("assembleAndHandoff"))
         assertFalse(controller.contains("FutureDestructiveExecutorContract"))
         assertFalse(controller.contains("UnwiredFutureDestructiveExecutor"))
+        assertFalse(controller.contains("AndroidFutureDestructiveExecutor"))
+        assertFalse(controller.contains("AuthorizedFactoryResetPort"))
         assertFalse(
             FutureDestructiveExecutorContract::class.java.isAssignableFrom(
                 UnwiredFutureDestructiveExecutor::class.java,

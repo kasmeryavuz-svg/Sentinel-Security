@@ -2,16 +2,12 @@ package com.example.devicemanagement.destructive
 
 /**
  * Machine-readable Checkpoint 19A destructive-implementation approval
- * review.
+ * review, including the later recorded human approval.
  *
- * This object prepares the question that a later human may be asked. It
- * does not record an answer. It does not implement a real executor,
- * policy wrapper, metadata change, production signing path, or hardware
- * validation path.
- *
- * REQUIRED / READY flags describe whether safe prerequisites for asking
- * are complete. They are not approval, implementation, or hardware-
- * validation flags.
+ * Checkpoint 19A prepared the question. The human later issued the
+ * required sentence; this object now records that answer. Implementation
+ * presence is Checkpoint 19B: these PRESENT flags stay false because
+ * 19A itself did not add wipe-capable code.
  *
  * Production source in this module must not spell Android destructive
  * method names; freeze tests reject those tokens.
@@ -19,7 +15,7 @@ package com.example.devicemanagement.destructive
 internal object Checkpoint19ADecision {
     const val ARCHITECTURE_READY_RECONFIRMED = "YES"
     const val DESTRUCTIVE_IMPLEMENTATION_APPROVAL_REQUEST_READY = "YES"
-    const val DESTRUCTIVE_IMPLEMENTATION_APPROVED = "NO"
+    const val DESTRUCTIVE_IMPLEMENTATION_APPROVED = "YES"
     const val DESTRUCTIVE_IMPLEMENTATION_PRESENT = false
     const val DESTRUCTIVE_HARDWARE_VALIDATION_PRESENT = false
 
@@ -29,7 +25,7 @@ internal object Checkpoint19ADecision {
     const val PRODUCTION_REACHABLE_SIMULATION = false
     const val DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED = false
     const val DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED = false
-    const val DESTRUCTIVE_HUMAN_APPROVAL_RECORDED = false
+    const val DESTRUCTIVE_HUMAN_APPROVAL_RECORDED = true
     const val DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED = false
     const val GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED = false
     const val WIPE_DATA_METADATA_REVIEW_APPROVED = false
@@ -48,16 +44,10 @@ internal object Checkpoint19ADecision {
         "com.example.devicemanagement/com.example.devicemanagement.management.SentinelDeviceAdminReceiver"
     const val EXPECTED_BUILD_PURPOSE = "DISPOSABLE_DEVICE_VALIDATION"
 
-    val RECORDED_DISPOSABLE_DEVICE_CERTIFICATE_SHA256: String? = null
-    val RECORDED_DISPOSABLE_DEVICE_ARTIFACT_SHA256: String? = null
-    val RECORDED_APPROVAL_OPERATOR: String? = null
-    val RECORDED_APPROVAL_TIMESTAMP: String? = null
-    val RECORDED_APPROVAL_SENTENCE: String? = null
-
     /**
-     * Exact sentence a later human must issue before any destructive-
-     * boundary implementation starts. Holding this string in source is
-     * not a recorded approval.
+     * Exact sentence the human issued. Holding this string was not itself
+     * a recorded approval; [RECORDED_APPROVAL_SENTENCE] and
+     * [DESTRUCTIVE_HUMAN_APPROVAL_RECORDED] are the record.
      */
     const val REQUIRED_APPROVAL_SENTENCE =
         "I, the human operator responsible for Sentinel Security, " +
@@ -67,12 +57,24 @@ internal object Checkpoint19ADecision {
             "dedicated disposable Sentinel test device identified by the " +
             "Checkpoint 19A hardware contract."
 
+    val RECORDED_DISPOSABLE_DEVICE_CERTIFICATE_SHA256: String? = null
+    val RECORDED_DISPOSABLE_DEVICE_ARTIFACT_SHA256: String? = null
+    const val RECORDED_APPROVAL_OPERATOR = "Yavuz Kasmer <kasmeryavuz@gmail.com>"
+    const val RECORDED_APPROVAL_TIMESTAMP = "2026-08-15T14:28:00Z"
+    const val RECORDED_APPROVAL_GIT_REVISION =
+        "b2c5cafe8f06074495e66dd35885693478f4ceba"
+    const val RECORDED_APPROVAL_DEVICE_IDENTITY =
+        "Checkpoint 19A hardware contract: dedicated operator-controlled " +
+            "disposable Sentinel test device; serial not identified"
+    const val RECORDED_APPROVAL_SENTENCE =
+        REQUIRED_APPROVAL_SENTENCE
+
     val futureAndroidApiImplementationFiles = listOf(
         "sensitive-actions/src/main/kotlin/com/example/devicemanagement/destructive/FutureDestructiveExecutorContract.kt",
         "device-management/src/main/java/com/example/devicemanagement/management/AndroidDeviceManagementInfrastructure.kt",
         "device-management/src/main/java/com/example/devicemanagement/management/SentinelDeviceAdminReceiver.kt",
         "device-management/src/main/java/com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService.kt",
-        "device-management/src/main/java/com/example/devicemanagement/management/AndroidFutureDestructiveExecutor.kt",
+        "sensitive-actions/src/main/kotlin/com/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor.kt",
     )
 
     val futureDeviceAdminMetadataFiles = listOf(
@@ -141,14 +143,12 @@ internal object Checkpoint19ADecision {
     )
 
     val remainingImplementationBlockers = listOf(
-        "DESTRUCTIVE_IMPLEMENTATION_APPROVED",
         "REAL_DESTRUCTIVE_EXECUTOR_PRESENT",
         "DESTRUCTIVE_POLICY_WRAPPER_PRESENT",
         "DESTRUCTIVE_METADATA_PRESENT",
         "PRODUCTION_REACHABLE_SIMULATION",
         "DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED",
         "DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED",
-        "DESTRUCTIVE_HUMAN_APPROVAL_RECORDED",
         "GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED",
         "WIPE_DATA_METADATA_REVIEW_APPROVED",
         "DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED",

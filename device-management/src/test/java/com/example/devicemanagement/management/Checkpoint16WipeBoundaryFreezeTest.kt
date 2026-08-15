@@ -28,12 +28,16 @@ class Checkpoint16WipeBoundaryFreezeTest {
             .map { it.tagName }
             .toSet()
 
-        assertEquals(setOf("disable-camera"), declared)
-        assertFalse("wipe-data" in declared)
+        assertEquals(setOf("disable-camera", "wipe-data"), declared)
+        assertTrue("wipe-data" in declared)
     }
 
     @Test
     fun `production implementation sources do not invoke destructive DPM APIs`() {
+        assertFactoryResetWipeDeviceOrigin(File(
+            requireNotNull(System.getProperty("deviceManagementSourceDir")),
+            "java",
+        ))
         val sources = File(
             requireNotNull(System.getProperty("deviceManagementSourceDir")),
             "java",
@@ -41,8 +45,6 @@ class Checkpoint16WipeBoundaryFreezeTest {
             .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
             .joinToString("\n") { it.readText() }
 
-        assertFalse(sources.contains("wipeData"))
-        assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("WIPE_EXTERNAL_STORAGE"))
         assertFalse(sources.contains("WIPE_RESET_PROTECTION_DATA"))
         assertFalse(sources.contains("WIPE_EUICC"))
@@ -71,6 +73,25 @@ class Checkpoint16WipeBoundaryFreezeTest {
         assertFalse(source.contains("Wipe"))
         assertFalse(source.contains("wipeData"))
         assertFalse(source.contains("wipeDevice"))
+    }
+
+    private fun assertFactoryResetWipeDeviceOrigin(sourceRoot: File) {
+        sourceRoot.walkTopDown()
+            .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
+            .forEach { file ->
+                val text = file.readText()
+                if (file.name == "AndroidDevicePolicyFactoryResetService.kt") {
+                    assertTrue(file.path, text.contains("wipeDevice(0)"))
+                    assertFalse(file.path, text.contains("wipeData"))
+                    assertFalse(file.path, text.contains("WIPE_SILENTLY"))
+                    assertFalse(file.path, text.contains("WIPE_RESET_PROTECTION_DATA"))
+                    assertFalse(file.path, text.contains("WIPE_EUICC"))
+                    assertFalse(file.path, text.contains("WIPE_EXTERNAL_STORAGE"))
+                } else {
+                    assertFalse(file.path, text.contains("wipeDevice"))
+                    assertFalse(file.path, text.contains("wipeData"))
+                }
+            }
     }
 
     private fun org.w3c.dom.NodeList.asElements(): List<Element> {

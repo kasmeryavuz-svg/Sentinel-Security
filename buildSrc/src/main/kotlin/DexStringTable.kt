@@ -15,6 +15,18 @@ internal object DexStringTable {
         })
     }
 
+    fun dexFilesFromApk(apk: File): List<ByteArray> {
+        return dexFilesFromZip(apk) { name ->
+            name == "classes.dex" || name.matches(Regex("""classes\d+\.dex"""))
+        }
+    }
+
+    fun dexFilesFromAab(aab: File): List<ByteArray> {
+        return dexFilesFromZip(aab) { name ->
+            name.endsWith(".dex") && "/dex/" in name
+        }
+    }
+
     fun stringsFromDex(bytes: ByteArray): Set<String> {
         require(bytes.size >= 0x70) { "DEX too small" }
         val magic = bytes.decodeToString(0, 4)
@@ -32,19 +44,20 @@ internal object DexStringTable {
     }
 
     private fun stringsFromZip(archive: File, dexEntry: (String) -> Boolean): Set<String> {
+        return dexFilesFromZip(archive, dexEntry).flatMap { stringsFromDex(it) }.toSet()
+    }
+
+    private fun dexFilesFromZip(archive: File, dexEntry: (String) -> Boolean): List<ByteArray> {
         check(archive.isFile) { "Archive is missing at ${archive.path}" }
-        val strings = mutableSetOf<String>()
         ZipFile(archive).use { zip ->
             val dexEntries = zip.entries().asSequence().filter { dexEntry(it.name) }.toList()
             check(dexEntries.isNotEmpty()) {
                 "${archive.name} contains no DEX files"
             }
-            dexEntries.forEach { entry ->
-                val bytes = zip.getInputStream(entry).use { it.readBytes() }
-                strings += stringsFromDex(bytes)
+            return dexEntries.map { entry ->
+                zip.getInputStream(entry).use { it.readBytes() }
             }
         }
-        return strings
     }
 
     private fun ByteArray.readInt(offset: Int): Int {

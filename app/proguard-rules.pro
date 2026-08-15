@@ -32,3 +32,13 @@
 
 # Fail-safe MOCK_WIPE simulation types are intentionally not kept so R8 may
 # strip them from the controlled production call graph.
+
+# Checkpoint 19B disposable-device factory-reset origin. Kept so R8 cannot
+# strip the sole wipeDevice wrapper while the real chain remains unassembled.
+-keep class com.example.devicemanagement.management.AndroidDevicePolicyFactoryResetService { *; }
+-keep class com.example.devicemanagement.management.ComposedDeviceManagementServices { *; }
+-keep class com.example.devicemanagement.destructive.AndroidFutureDestructiveExecutor { *; }
+-keep class com.example.devicemanagement.destructive.ProductionDestructiveRealChain { *; }
+-keep class com.example.devicemanagement.destructive.ProductionDestructiveRetainer { *; }
+-keep class com.example.devicemanagement.destructive.AuthorizedFactoryResetPort { *; }
+-keep class com.example.devicemanagement.destructive.AuthorizedFactoryResetResult { *; }

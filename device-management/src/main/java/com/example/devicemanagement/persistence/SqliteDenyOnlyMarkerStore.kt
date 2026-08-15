@@ -296,8 +296,9 @@ internal class SqliteDestructivePreExecutionStore(
 
 /**
  * Android factory for Checkpoint 17B runtime-durable safety persistence.
- * Not invoked by DeviceManagement composition. Issuing the runtime
- * capability does not arm, authorize, or execute anything.
+ * DeviceManagement composition may issue the runtime capability so the
+ * Checkpoint 19B retainer can hold it. Issuing the runtime capability
+ * does not arm, authorize, or execute anything.
  *
  * This is the only production mint path for
  * [com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability].
