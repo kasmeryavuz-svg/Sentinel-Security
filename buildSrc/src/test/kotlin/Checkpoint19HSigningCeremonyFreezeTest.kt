@@ -212,7 +212,7 @@ class Checkpoint19HSigningCeremonyFreezeTest {
         assertTrue(appGradle.contains("checkProductionDistributionSigning"))
         val ceremonyBlock = appGradle
             .substringAfter("checkDestructiveSigningCeremonyPreparation")
-            .substringBefore("androidComponents")
+            .substringBefore("checkBackupDataExtractionPolicy")
         assertFalse(ceremonyBlock.contains("dependsOn"))
         assertFalse(ceremonyBlock.contains("assembleProductionRelease"))
         assertFalse(ceremonyBlock.contains("checkProductionDistributionSigning"))
