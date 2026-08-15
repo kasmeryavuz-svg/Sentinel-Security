@@ -29,7 +29,10 @@ class Checkpoint19JDecisionTest {
         assertTrue(!HEX_SHA256.containsMatchIn(source))
         val verifier = File("src/main/kotlin/ProductionBytecodePolicyVerifier.kt").readText()
         assertTrue(
-            verifier.contains("com/example/devicemanagement/destructive/Checkpoint19JDecision"),
+            verifier.contains("com/example/devicemanagement/destructive/Checkpoint19JDecision") &&
+                verifier.contains(
+                    "com/example/devicemanagement/destructive/Checkpoint19PGovernanceObservation",
+                ),
         )
     }
 

@@ -22,6 +22,21 @@ object SigningCeremonyPreparationTestFixtures {
         "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     const val TEST_ONLY_REVISION = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
+    fun presentReadyOnlyInTests(
+        evaluation: SigningCeremonyEvaluation,
+    ): SigningCeremonyEvaluation {
+        check(evaluation.sourceKind == SigningCeremonySourceKind.TEST_ONLY_SYNTHETIC) {
+            "test-only READY presentation requires a TEST_ONLY_SYNTHETIC record"
+        }
+        check(evaluation.blockers.isEmpty()) {
+            "test-only READY presentation requires an empty blocker set"
+        }
+        check(evaluation.status == SigningCeremonyStatus.NOT_READY) {
+            "main evaluate() must have returned NOT_READY"
+        }
+        return evaluation.copy(status = SigningCeremonyStatus.READY)
+    }
+
     fun fullyPopulatedReadyContract(): SigningCeremonyPreparationRecord {
         return SigningCeremonyPreparationRecord(
             sourceKind = SigningCeremonySourceKind.TEST_ONLY_SYNTHETIC,

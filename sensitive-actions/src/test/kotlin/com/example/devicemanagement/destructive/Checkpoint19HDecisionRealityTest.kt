@@ -62,6 +62,7 @@ class Checkpoint19HDecisionRealityTest {
         listOf(
             "Checkpoint19HDecision",
             "Checkpoint19JDecision",
+            "Checkpoint19PGovernanceObservation",
             "DestructiveSigningCeremonyPreparation",
             "checkDestructiveSigningCeremonyPreparation",
             "SigningCeremonyPreparationRecord",
@@ -79,6 +80,7 @@ class Checkpoint19HDecisionRealityTest {
             .joinToString("\n") { it.readText() }
         assertTrue(sources.contains("Checkpoint19HDecision"))
         assertTrue(sources.contains("Checkpoint19JDecision"))
+        assertTrue(sources.contains("Checkpoint19PGovernanceObservation"))
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("DestructiveSigningCeremonyPreparation"))

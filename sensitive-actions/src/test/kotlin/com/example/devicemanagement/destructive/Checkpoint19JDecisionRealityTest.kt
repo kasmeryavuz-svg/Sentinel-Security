@@ -57,6 +57,7 @@ class Checkpoint19JDecisionRealityTest {
         ).readText()
         listOf(
             "Checkpoint19JDecision",
+            "Checkpoint19PGovernanceObservation",
             "ProductionDistributionSigningGate",
             "inspectWriteAndAssertCleanup",
         ).forEach { token ->
@@ -73,6 +74,7 @@ class Checkpoint19JDecisionRealityTest {
             .filter { it.isFile && it.extension == "kt" }
             .joinToString("\n") { it.readText() }
         assertTrue(sources.contains("Checkpoint19JDecision"))
+        assertTrue(sources.contains("Checkpoint19PGovernanceObservation"))
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("ProductionDistributionSigningGate"))

@@ -10,6 +10,7 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import org.gradle.work.DisableCachingByDefault
 import java.io.File
 
 /**
@@ -54,7 +55,12 @@ object DestructiveValidationCandidateEvidenceTaskSupport {
  * Inspect one explicitly supplied APK as an untrusted candidate.
  * Never auto-selects assemble output and never mints a trusted expectation.
  */
+@DisableCachingByDefault(because = DestructiveProofTaskSemantics.REASON)
 abstract class GenerateDestructiveValidationCandidateEvidenceTask : DefaultTask() {
+    init {
+        DestructiveProofTaskSemantics.neverReuseOutputs(this)
+    }
+
     @get:Input
     abstract val candidateApkPath: Property<String>
 
@@ -108,7 +114,12 @@ abstract class GenerateDestructiveValidationCandidateEvidenceTask : DefaultTask(
  * Prove the temporary unsigned release APK is an ineligible untrusted candidate.
  * This is not production signing and does not upload or trust the report.
  */
+@DisableCachingByDefault(because = DestructiveProofTaskSemantics.REASON)
 abstract class CheckUnsignedDestructiveValidationCandidateEvidenceTask : DefaultTask() {
+    init {
+        DestructiveProofTaskSemantics.neverReuseOutputs(this)
+    }
+
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val apkDirectory: DirectoryProperty
@@ -159,7 +170,12 @@ abstract class CheckUnsignedDestructiveValidationCandidateEvidenceTask : Default
  * independently observed build purpose and still remains ineligible.
  * This is not production signing and does not upload or trust the report.
  */
+@DisableCachingByDefault(because = DestructiveProofTaskSemantics.REASON)
 abstract class CheckUnsignedDisposableValidationBuildPurposeEvidenceTask : DefaultTask() {
+    init {
+        DestructiveProofTaskSemantics.neverReuseOutputs(this)
+    }
+
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val apkDirectory: DirectoryProperty

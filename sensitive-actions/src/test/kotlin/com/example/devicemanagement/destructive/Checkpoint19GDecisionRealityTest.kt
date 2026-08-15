@@ -56,6 +56,7 @@ class Checkpoint19GDecisionRealityTest {
             "Checkpoint19GDecision",
             "Checkpoint19HDecision",
             "Checkpoint19JDecision",
+            "Checkpoint19PGovernanceObservation",
             "DESTRUCTIVE_VALIDATION_BUILD_PURPOSE",
             "checkUnsignedDisposableValidationBuildPurposeEvidence",
             "disposableValidation",
@@ -74,6 +75,7 @@ class Checkpoint19GDecisionRealityTest {
         assertTrue(sources.contains("Checkpoint19GDecision"))
         assertTrue(sources.contains("Checkpoint19HDecision"))
         assertTrue(sources.contains("Checkpoint19JDecision"))
+        assertTrue(sources.contains("Checkpoint19PGovernanceObservation"))
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("DESTRUCTIVE_VALIDATION_BUILD_PURPOSE"))

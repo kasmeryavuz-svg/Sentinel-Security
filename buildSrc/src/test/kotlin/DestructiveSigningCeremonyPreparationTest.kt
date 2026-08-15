@@ -31,12 +31,14 @@ class DestructiveSigningCeremonyPreparationTest {
     }
 
     @Test
-    fun `test-only fully populated contract can return READY without changing production flags`() {
+    fun `main evaluator never returns READY for a fully populated synthetic contract`() {
         val ready = SigningCeremonyPreparationTestFixtures.fullyPopulatedReadyContract()
         val evaluation = DestructiveSigningCeremonyPreparation.evaluate(ready)
-        assertEquals(SigningCeremonyStatus.READY, evaluation.status)
+        assertEquals(SigningCeremonyStatus.NOT_READY, evaluation.status)
         assertEquals(SigningCeremonySourceKind.TEST_ONLY_SYNTHETIC, evaluation.sourceKind)
         assertTrue(evaluation.blockers.isEmpty())
+        val presented = SigningCeremonyPreparationTestFixtures.presentReadyOnlyInTests(evaluation)
+        assertEquals(SigningCeremonyStatus.READY, presented.status)
         assertEquals(
             SigningCeremonyStatus.NOT_READY,
             DestructiveSigningCeremonyPreparation.evaluateRepositoryDefault().status,
@@ -46,6 +48,32 @@ class DestructiveSigningCeremonyPreparationTest {
             DestructiveSigningCeremonyPreparation.refuseTrustedExpectationMint(
                 SigningCeremonyPreparationTestFixtures.TEST_ONLY_SIGNED_SHA256,
             ),
+        )
+    }
+
+    @Test
+    fun `any synthetic-looking record passed through the main evaluator remains NOT_READY`() {
+        val cases = listOf(
+            SigningCeremonyPreparationTestFixtures.fullyPopulatedReadyContract(),
+            SigningCeremonyPreparationTestFixtures.fullyPopulatedReadyContract().copy(
+                ceremonyIdentifier = CeremonyEvidence.Absent,
+            ),
+            RepositorySigningCeremonyPreparationSource.record.copy(
+                sourceKind = SigningCeremonySourceKind.TEST_ONLY_SYNTHETIC,
+            ),
+        )
+        cases.forEach { record ->
+            val evaluation = DestructiveSigningCeremonyPreparation.evaluate(record)
+            assertEquals(SigningCeremonyStatus.NOT_READY, evaluation.status, record.toString())
+            assertNotEquals(SigningCeremonyStatus.READY, evaluation.status)
+        }
+        val contract = java.io.File("src/main/kotlin/DestructiveSigningCeremonyPreparation.kt")
+            .readText()
+        assertFalse(contract.contains("SigningCeremonyStatus.READY"))
+        assertFalse(
+            java.io.File("src/main/kotlin/DestructiveSigningCeremonyPreparationTask.kt")
+                .readText()
+                .contains("SigningCeremonyPreparationTestFixtures"),
         )
     }
 

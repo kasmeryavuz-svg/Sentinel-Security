@@ -59,6 +59,11 @@ class Checkpoint19CDecisionTest {
         assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19GDecision"))
         assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19HDecision"))
         assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19JDecision"))
+        assertTrue(
+            source.contains(
+                "com/example/devicemanagement/destructive/Checkpoint19PGovernanceObservation",
+            ),
+        )
         val forbidden = source
             .substringAfter("checkpoint17BForbiddenDpmMethodNames = setOf(")
             .substringBefore(")")

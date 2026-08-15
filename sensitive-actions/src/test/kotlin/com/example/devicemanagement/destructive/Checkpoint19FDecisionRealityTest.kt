@@ -83,6 +83,7 @@ class Checkpoint19FDecisionRealityTest {
             "Checkpoint19GDecision",
             "Checkpoint19HDecision",
             "Checkpoint19JDecision",
+            "Checkpoint19PGovernanceObservation",
             "DestructiveValidationCandidateEvidence",
             "destructive-validation-candidate.txt",
             "sentinel.destructiveValidationCandidateApk",
@@ -108,6 +109,7 @@ class Checkpoint19FDecisionRealityTest {
         assertTrue(sources.contains("Checkpoint19GDecision"))
         assertTrue(sources.contains("Checkpoint19HDecision"))
         assertTrue(sources.contains("Checkpoint19JDecision"))
+        assertTrue(sources.contains("Checkpoint19PGovernanceObservation"))
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("import android.app." + "admin.DevicePolicyManager"))

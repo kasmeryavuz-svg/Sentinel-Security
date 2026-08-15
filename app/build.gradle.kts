@@ -1120,6 +1120,11 @@ tasks.register<CheckDestructiveSigningCeremonyPreparationTask>(
             .asFile
             .absolutePath,
     )
+    filledCeremonyRecord.from(
+        rootProject.layout.projectDirectory.dir("local").asFileTree.matching {
+            include("destructive-signing-ceremony-record.txt")
+        },
+    )
     reportFile.set(
         layout.buildDirectory.file("reports/destructive-signing-ceremony-preparation.txt"),
     )
