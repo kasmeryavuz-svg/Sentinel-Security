@@ -281,8 +281,7 @@ The future record must bind **at minimum**:
 Existing process-local challenge / confirmation / approval types remain
 necessary after assembly, but they do **not** currently bind operator
 identity, UTC time, device serial, flags `0`, or git revision. Those
-fields are a future contract. This checkpoint does not mint or record a
-real confirmation.
+fields are a future contract. This checkpoint does not mint or record a real confirmation.
 
 ```text
 PER_ATTEMPT_HUMAN_CONFIRMATION_WIRED = false
