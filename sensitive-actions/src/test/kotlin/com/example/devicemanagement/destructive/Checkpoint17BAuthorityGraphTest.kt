@@ -118,6 +118,7 @@ class Checkpoint17BAuthorityGraphTest {
             "Checkpoint19BDecision",
             "Checkpoint19CDecision",
             "Checkpoint19DDecision",
+            "Checkpoint19EDecision",
             "ProductionDestructiveRealChainOrchestrator",
             "assembleAlreadyBoundDeviceFactoryReset",
             "ProductionDestructiveHumanConfirmationSource",

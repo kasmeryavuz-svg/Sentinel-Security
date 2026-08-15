@@ -320,6 +320,7 @@ class Checkpoint19CDecisionRealityTest {
         assertFalse(sources.contains("wipeDevice"))
         assertTrue(sources.contains("Checkpoint19CDecision"))
         assertTrue(sources.contains("Checkpoint19DDecision"))
+        assertTrue(sources.contains("Checkpoint19EDecision"))
     }
 
     @Test

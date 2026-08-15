@@ -1,0 +1,142 @@
+# Checkpoint 19E independent GitHub CI.
+# This workflow verifies the existing safety/build suite on pull_request.
+# It is not production signing, artifact-identity, trigger, or hardware
+# authorization. Unsigned release outputs stay local to the runner.
+#
+# Action pins were resolved from the official GitHub repositories:
+# - https://github.com/actions/checkout/releases/tag/v7.0.1
+# - https://github.com/gradle/actions/releases/tag/v6.3.0
+# - https://github.com/actions/setup-java/releases/tag/v5.7.0
+# Annotated tags are peeled to the immutable commit object.
+
+name: Checkpoint 19E independent CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: none
+  attestations: none
+  checks: none
+  deployments: none
+  id-token: none
+  issues: none
+  discussions: none
+  packages: none
+  pages: none
+  pull-requests: none
+  repository-projects: none
+  security-events: none
+  statuses: none
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  independent-safety-verification:
+    name: Independent safety verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Check out the pull-request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate the Gradle wrapper
+        uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Refuse populated production-signing environment variables
+        run: |
+          set -eu
+          failed=0
+          for name in \
+            SENTINEL_RELEASE_STORE_FILE \
+            SENTINEL_RELEASE_STORE_PASSWORD \
+            SENTINEL_RELEASE_KEY_ALIAS \
+            SENTINEL_RELEASE_KEY_PASSWORD \
+            SENTINEL_RELEASE_CERT_SHA256
+          do
+            if [ -n "${!name:-}" ]; then
+              echo "Unexpected production-signing environment variable is populated: ${name}"
+              failed=1
+            fi
+          done
+          if [ "${failed}" -ne 0 ]; then
+            echo "Independent CI must not run while production-signing variables are populated."
+            exit 1
+          fi
+
+      - name: Install required Android SDK packages
+        run: |
+          set -eu
+          SDK_ROOT="${GITHUB_WORKSPACE}/.android-sdk"
+          mkdir -p "${SDK_ROOT}/cmdline-tools"
+          curl -fsSL -o /tmp/commandlinetools.zip \
+            https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip
+          echo "4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583  /tmp/commandlinetools.zip" | sha256sum -c -
+          rm -rf /tmp/cmdline-tools-unpack
+          mkdir -p /tmp/cmdline-tools-unpack
+          unzip -q /tmp/commandlinetools.zip -d /tmp/cmdline-tools-unpack
+          mv /tmp/cmdline-tools-unpack/cmdline-tools "${SDK_ROOT}/cmdline-tools/15859902"
+          rm -f /tmp/commandlinetools.zip
+          rm -rf /tmp/cmdline-tools-unpack
+          SDKMANAGER="${SDK_ROOT}/cmdline-tools/15859902/bin/sdkmanager"
+          export ANDROID_SDK_ROOT="${SDK_ROOT}"
+          export ANDROID_HOME="${SDK_ROOT}"
+          set +e
+          yes | "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --licenses >/tmp/sdk-licenses.log 2>&1
+          set -e
+          "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --install \
+            "platforms;android-36" \
+            "build-tools;35.0.0"
+          printf 'sdk.dir=%s\n' "${SDK_ROOT}" > "${GITHUB_WORKSPACE}/local.properties"
+          if grep -qE '^[[:space:]]*SENTINEL_RELEASE_' "${GITHUB_WORKSPACE}/local.properties"; then
+            echo "local.properties must not contain production-signing keys"
+            exit 1
+          fi
+
+      - name: Run the complete independent safety and build suite
+        env:
+          ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
+          ANDROID_HOME: ${{ github.workspace }}/.android-sdk
+        run: |
+          set -eu
+          ./gradlew --no-daemon --stacktrace \
+            :buildSrc:test \
+            test \
+            checkProductionBytecodePolicy \
+            :app:checkAppApiCompileNegative \
+            :app:checkAppDependencyIsolation \
+            :app:checkDebugEffectiveDeviceAdminMetadata \
+            :app:checkReleaseEffectiveDeviceAdminMetadata \
+            :app:checkDebugProductionBytecodePolicy \
+            :app:checkReleaseProductionBytecodePolicy \
+            assembleDebug \
+            assembleRelease \
+            bundleRelease \
+            checkReleaseProductionSecurity \
+            checkReleaseBundleProductionSecurity \
+            :sensitive-actions:test \
+            :sensitive-actions:checkMainProductionBytecodePolicy
+
+      - name: Prove release outputs remain UNSIGNED local verification artifacts
+        run: |
+          set -eu
+          apk_report=app/build/reports/release-signing-boundary.txt
+          aab_report=app/build/reports/release-bundle-security.txt
+          test -f "${apk_report}"
+          test -f "${aab_report}"
+          grep -qx 'signing=UNSIGNED' "${apk_report}"
+          grep -qx 'signing=UNSIGNED' "${aab_report}"
+          grep -F 'This artifact is unsigned and is not a production distribution.' "${apk_report}"
+          grep -F 'This artifact is unsigned and is not a production distribution.' "${aab_report}"

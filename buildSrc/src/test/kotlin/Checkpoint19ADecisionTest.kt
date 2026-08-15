@@ -17,6 +17,7 @@ class Checkpoint19ADecisionTest {
         assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19BDecision"))
         assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19CDecision"))
         assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19DDecision"))
+        assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19EDecision"))
     }
 
     @Test

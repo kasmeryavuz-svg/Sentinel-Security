@@ -50,6 +50,7 @@ import com.example.devicemanagement.destructive.Checkpoint19ADecision
 import com.example.devicemanagement.destructive.Checkpoint19BDecision
 import com.example.devicemanagement.destructive.Checkpoint19CDecision
 import com.example.devicemanagement.destructive.Checkpoint19DDecision
+import com.example.devicemanagement.destructive.Checkpoint19EDecision
 import com.example.devicemanagement.destructive.UnwiredFutureDestructiveExecutor
 import com.example.devicemanagement.destructive.AuthorizedFactoryResetPort
 import com.example.devicemanagement.destructive.AndroidFutureDestructiveExecutor
@@ -115,6 +116,7 @@ class DestructiveAuthorityAccess(
     val checkpoint19BDecision: Checkpoint19BDecision,
     val checkpoint19CDecision: Checkpoint19CDecision,
     val checkpoint19DDecision: Checkpoint19DDecision,
+    val checkpoint19EDecision: Checkpoint19EDecision,
     val unwiredFutureExecutor: UnwiredFutureDestructiveExecutor,
     val authorizedFactoryResetPort: AuthorizedFactoryResetPort,
     val androidFutureDestructiveExecutor: AndroidFutureDestructiveExecutor,
