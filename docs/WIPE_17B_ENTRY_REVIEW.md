@@ -266,6 +266,68 @@ Ordinary `assembleDebug` / `assembleRelease` / `bundleRelease` must remain
 incapable of wiping a device. Production signing tasks retain fail-closed
 behavior when production secrets are absent.
 
+### Artifact identity precondition
+
+17B adds a safe, unwired artifact-identity snapshot so a later disposable-
+device validation can be bound to exact values:
+
+- signing certificate SHA-256
+- APK / artifact SHA-256
+- expected package name
+- expected admin component
+- build-purpose classification (`ORDINARY_NON_DESTRUCTIVE` vs
+  `DISPOSABLE_DEVICE_VALIDATION`)
+
+Missing, malformed, all-zero, or mismatched values fail closed. Callers
+cannot select the trusted digest at admit time. Ordinary debug/release
+purpose cannot become future-validation eligible. There is no debug-key
+fallback. Identity is evidence / admission data only and cannot
+reconstruct arm, capability, or permit. Production
+`UnwiredDestructiveArtifactIdentitySource` returns no expectation because
+no disposable-device artifact hash is recorded.
+
+```text
+DESTRUCTIVE_ARTIFACT_IDENTITY_PRECONDITION_PRESENT = true
+REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED = false
+DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED = false
+DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED = false
+```
+
+### Destructive human approval / operator challenge
+
+17B adds a separate destructive human-approval domain. It is not the
+reversible `Approval` type. Approval is explicit, short-lived, single-use,
+process-local, and bound to correlation ID, target binding, requested
+scope, artifact identity, and the pending attempt lease. The operator
+challenge is authority-issued unpredictable material, not a fixed magic
+string. Replay, restoration after process death, and Boolean
+`approved=true` cannot authorize. Production mint remains unwired. No
+actual human destructive approval has been recorded.
+
+```text
+DESTRUCTIVE_HUMAN_APPROVAL_AUTHORITY_PRESENT = true
+REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED = false
+DESTRUCTIVE_HUMAN_APPROVAL_RECORDED = false
+```
+
+### Future wipe-option defaults
+
+Decision-domain only. No Android policy-manager call.
+
+| Option / scope | Default |
+| --- | --- |
+| `DEVICE_FACTORY_RESET` | intended scope |
+| `USER_SCOPED_WIPE` | denied |
+| `WIPE_SILENTLY` | `FORBIDDEN` |
+| `WIPE_RESET_PROTECTION_DATA` | `UNRESOLVED_DENY` |
+| `WIPE_EUICC` | `UNRESOLVED_DENY` |
+| unknown future names | `DENY_UNKNOWN` |
+
+```text
+DESTRUCTIVE_WIPE_OPTION_POLICY_PRESENT = true
+REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED = false
+```
+
 ## 6. Lifecycle / crash / reboot
 
 Proven and still required:
@@ -296,6 +358,9 @@ DESTRUCTIVE_METADATA_PRESENT = false
 PRODUCTION_REACHABLE_SIMULATION = false
 REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED = false
 REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED = false
+REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED = false
+REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED = false
+REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED = false
 DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED = false
 DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED = false
 DESTRUCTIVE_HUMAN_APPROVAL_RECORDED = false
@@ -311,12 +376,14 @@ implemented and tested:
 ```text
 TRUSTED_RUNTIME_COOLDOWN_PERSISTENCE_ADAPTER_PRESENT = true
 REAL_DURABLE_DESTRUCTIVE_PRE_EXECUTION_AUDIT_PRESENT = true
+DESTRUCTIVE_ARTIFACT_IDENTITY_PRECONDITION_PRESENT = true
+DESTRUCTIVE_HUMAN_APPROVAL_AUTHORITY_PRESENT = true
+DESTRUCTIVE_WIPE_OPTION_POLICY_PRESENT = true
 ```
 
-The two PRESENT flags prove **component existence** only. They do not
-prove that a future real destructive chain is forced to use those
-runtime-durable components. The two ENFORCED flags stay false until
-that structural pairing exists.
+PRESENT flags prove **component existence** only. They do not prove that
+a future real destructive chain is forced to use those components. The
+ENFORCED flags stay false until that structural pairing exists.
 
 Do not change any flag just because this document says the architecture
 is closer. Tests prove the flags match reality.
@@ -343,8 +410,8 @@ Remaining blockers:
    target remains unresolved.
 8. `WIPE_SILENTLY` remains an unapproved product policy; default is
    forbid.
-9. Signing-certificate digest binding remains an unresolved optional
-   improvement.
+9. Artifact-identity architecture exists, but no disposable-device
+    artifact hash is recorded and the real chain is not enforced.
 10. Hardware-backed confirmation availability remains unresolved.
 11. `DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED` is false — no disposable
     hardware test.
@@ -354,13 +421,18 @@ Remaining blockers:
 15. `DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED` is false.
 16. `DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED` is false — and must not be
     enabled by this checkpoint.
-17. Operator challenge is still optional / unimplemented.
+17. Destructive human-approval architecture exists, but no human
+    destructive approval has been recorded and the real chain is not
+    enforced.
 18. Same-UID arbitrary code remains out of scope for local persistence
     integrity.
 19. `REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED` is false — no
     real destructive chain requires `RuntimeDenyOnlyCooldownStore`.
 20. `REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED` is false — no real
     destructive chain requires `RuntimeDestructivePreExecutionStore`.
+21. `REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED` is false.
+22. `REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED` is false.
+23. `REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED` is false.
 
 A later YES would mean only:
 

@@ -47,10 +47,11 @@ Forum posts are **not** treated as authoritative.
 | `DevicePolicyManager.wipeDevice(int)` exists since API 34 | `VERIFIED_ANDROID` |
 | This repository compiles against SDK 36, so the compile classpath includes API 34+ | `REPO_PROVEN` + `VERIFIED_ANDROID` |
 | `wipeDevice` is absent before API 34. Default for API 26–33: unsupported, fail closed | `VERIFIED_ANDROID` (API added-in) |
+| `wipeDevice` is an API 34+ method | `VERIFIED_ANDROID` |
 | Calling `wipeData` from the primary / last full user as an app targeting API 34+ (`UPSIDE_DOWN_CAKE`) throws `IllegalStateException` | `VERIFIED_ANDROID` |
-| Sentinel `targetSdk` is 36, so a future device-wide wipe cannot use `wipeData` on the primary user | `REPO_PROVEN` + `VERIFIED_ANDROID` |
-| Apps that want to wipe the entire device should use `wipeDevice` | `VERIFIED_ANDROID` |
-| `wipeDevice` requires the calling Device Owner or organization-owned Profile Owner to have requested `DeviceAdminInfo.USES_POLICY_WIPE_DATA`; otherwise `SecurityException` | `VERIFIED_ANDROID` |
+| Sentinel `targetSdk` is 36, so `wipeData` from the primary / last full user is **not** the intended whole-device path | `REPO_PROVEN` + `VERIFIED_ANDROID` |
+| The only documented future device-wide route, if separately approved, is `wipeDevice` | `VERIFIED_ANDROID` |
+| A Device Owner or organization-owned Profile Owner must have requested `DeviceAdminInfo.USES_POLICY_WIPE_DATA`; otherwise `SecurityException` | `VERIFIED_ANDROID` |
 | `USES_POLICY_WIPE_DATA` is declared by a `wipe-data` tag under `uses-policies` | `VERIFIED_ANDROID` |
 | Current Sentinel metadata does not declare `wipe-data` | `REPO_PROVEN` |
 | Privileged alternatives (`MASTER_CLEAR`, or `MANAGE_DEVICE_POLICY_WIPE_DATA` plus `MANAGE_DEVICE_POLICY_ACROSS_USERS`) exist in the public throws clause and are **not** Sentinel’s intended path | `VERIFIED_ANDROID` (documented alternative); refused by Checkpoint 16 |
@@ -136,6 +137,13 @@ destructive DPM wrapper. Simulation ends at
 `REPO_PROVEN`.
 
 GrapheneOS `wipeDevice` / `wipeData` behavior remains
-`UNRESOLVED_REQUIRES_DEVICE_TEST`. Do not resolve that row by guessing.
+`UNRESOLVED_REQUIRES_DEVICE_TEST`. Forum anecdotes are not verification.
+Dedicated disposable-device validation is still required and was **not**
+performed in this checkpoint. `GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED` stays
+false.
+
+Decision-domain defaults for future options (`WIPE_SILENTLY` forbidden;
+reset-protection and eUICC unresolved-deny; unknown names deny) live in
+`DestructiveWipeOptionPolicy`. They are not Android method invocations.
 
 See `docs/WIPE_17B_ENTRY_REVIEW.md`.

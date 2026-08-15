@@ -32,6 +32,11 @@ class DestructiveDomainIsolationTest {
             RuntimeDenyOnlyCooldownStore::class.java,
             RuntimeDestructivePreExecutionStore::class.java,
             RuntimeDestructiveSafetyDurability::class.java,
+            DestructiveArtifactIdentity::class.java,
+            DestructiveArtifactIdentityMatchProof::class.java,
+            DestructiveHumanApproval::class.java,
+            DestructiveOperatorChallenge::class.java,
+            DestructiveHumanApprovalAuthority::class.java,
         )
         types.forEach { type ->
             assertFalse(Serializable::class.java.isAssignableFrom(type))
@@ -77,7 +82,7 @@ class DestructiveDomainIsolationTest {
         assertFalse(sources.contains("DevicePolicyManager"))
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
-        assertFalse(sources.contains("ApprovalAuthority"))
+        assertFalse(sources.contains("com.example.devicemanagement.action.ApprovalAuthority"))
         assertFalse(sources.contains("ActionExecutor"))
         assertFalse(sources.contains("VerifiedPolicyMutation"))
         assertFalse(sources.contains("SafeMockWipeAction"))
@@ -95,6 +100,9 @@ class DestructiveDomainIsolationTest {
         assertTrue(sources.contains("CountedAttemptProof"))
         assertTrue(sources.contains("DurableDestructivePreExecutionRepository"))
         assertTrue(sources.contains("RuntimeDestructiveSafetyDurability"))
+        assertTrue(sources.contains("DestructiveArtifactIdentity"))
+        assertTrue(sources.contains("DestructiveHumanApproval"))
+        assertTrue(sources.contains("DestructiveWipeOptionPolicy"))
         assertFalse(sources.contains("java.nio.file.Files"))
     }
 

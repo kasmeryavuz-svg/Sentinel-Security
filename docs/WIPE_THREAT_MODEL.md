@@ -444,5 +444,7 @@ and a separate durable pre-execution evidence path. Those artifacts can
 only deny or record evidence. They do not authorize wipe, add
 `<wipe-data>`, or make simulation production-reachable. In-memory and
 reconstructable test stores cannot satisfy the runtime-durable
-capability a future real chain must require. GrapheneOS destructive
-API behavior remains unresolved.
+capability a future real chain must require. Artifact identity and
+destructive human approval are process-local admission prerequisites,
+not authorization. GrapheneOS destructive API behavior remains
+unresolved.

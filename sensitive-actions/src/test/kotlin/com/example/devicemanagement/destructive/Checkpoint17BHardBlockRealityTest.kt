@@ -21,6 +21,12 @@ class Checkpoint17BHardBlockRealityTest {
         assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_ARTIFACT_IDENTITY_PRECONDITION_PRESENT)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_AUTHORITY_PRESENT)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_WIPE_OPTION_POLICY_PRESENT)
 
         val production = File("src/main/kotlin")
             .walkTopDown()
@@ -74,6 +80,18 @@ class Checkpoint17BHardBlockRealityTest {
             "REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED" in
                 Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
         )
+        assertTrue(
+            "REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED" in
+                Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
+        )
+        assertTrue(
+            "REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED" in
+                Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
+        )
+        assertTrue(
+            "REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED" in
+                Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
+        )
         Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers.forEach { name ->
             assertTrue(name, name in Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers)
         }
@@ -94,6 +112,9 @@ class Checkpoint17BHardBlockRealityTest {
         assertFalse(controller.contains("TrustedRuntimeDenyOnlyCooldownMarkerStore"))
         assertFalse(controller.contains("RuntimeDestructiveSafetyDurability"))
         assertFalse(controller.contains("issueRuntimeDurability"))
+        assertFalse(controller.contains("DestructiveArtifactIdentityAuthority"))
+        assertFalse(controller.contains("DestructiveHumanApprovalAuthority"))
+        assertFalse(controller.contains("issueChallenge"))
     }
 
     @Test
@@ -121,5 +142,38 @@ class Checkpoint17BHardBlockRealityTest {
                 }
             },
         )
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
+        assertTrue(
+            SimulatedDestructiveExecutor::class.java.declaredConstructors.none { constructor ->
+                constructor.parameterTypes.any {
+                    it == DestructiveArtifactIdentity::class.java ||
+                        it == DestructiveHumanApproval::class.java ||
+                        it == DestructiveWipeOptionPolicy::class.java
+                }
+            },
+        )
+    }
+
+    @Test
+    fun `new prerequisite present flags are true only because the components exist`() {
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_ARTIFACT_IDENTITY_PRECONDITION_PRESENT)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_AUTHORITY_PRESENT)
+        assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_WIPE_OPTION_POLICY_PRESENT)
+        assertTrue(
+            File("src/main/kotlin/com/example/devicemanagement/destructive/DestructiveArtifactIdentity.kt").isFile,
+        )
+        assertTrue(
+            File(
+                "src/main/kotlin/com/example/devicemanagement/destructive/DestructiveHumanApprovalAuthority.kt",
+            ).isFile,
+        )
+        assertTrue(
+            File("src/main/kotlin/com/example/devicemanagement/destructive/DestructiveWipeOptionPolicy.kt").isFile,
+        )
+        assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
+        assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
+        assertFalse(Checkpoint17BHardBlock.DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED)
     }
 }

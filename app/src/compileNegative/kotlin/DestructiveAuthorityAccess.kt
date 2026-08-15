@@ -25,6 +25,12 @@ import com.example.devicemanagement.persistence.AndroidDestructiveSafetyPersiste
 import com.example.devicemanagement.destructive.RuntimeDenyOnlyCooldownStore
 import com.example.devicemanagement.destructive.RuntimeDestructivePreExecutionStore
 import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability
+import com.example.devicemanagement.destructive.DestructiveArtifactIdentity
+import com.example.devicemanagement.destructive.DestructiveArtifactIdentityAuthority
+import com.example.devicemanagement.destructive.DestructiveHumanApproval
+import com.example.devicemanagement.destructive.DestructiveHumanApprovalAuthority
+import com.example.devicemanagement.destructive.DestructiveOperatorChallenge
+import com.example.devicemanagement.destructive.DestructiveWipeOptionPolicy
 
 class DestructiveAuthorityAccess(
     val arming: DestructiveArmingAuthority,
@@ -52,4 +58,10 @@ class DestructiveAuthorityAccess(
     val runtimeCooldown: RuntimeDenyOnlyCooldownStore,
     val runtimePreExecution: RuntimeDestructivePreExecutionStore,
     val runtimeDurability: RuntimeDestructiveSafetyDurability,
+    val artifactIdentity: DestructiveArtifactIdentity,
+    val artifactIdentityAuthority: DestructiveArtifactIdentityAuthority,
+    val humanApproval: DestructiveHumanApproval,
+    val humanApprovalAuthority: DestructiveHumanApprovalAuthority,
+    val operatorChallenge: DestructiveOperatorChallenge,
+    val wipeOptionPolicy: DestructiveWipeOptionPolicy,
 )

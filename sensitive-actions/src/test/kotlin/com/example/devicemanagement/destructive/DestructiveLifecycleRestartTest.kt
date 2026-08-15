@@ -107,6 +107,9 @@ class DestructiveLifecycleRestartTest {
         assertTrue(!source.contains("RuntimeDestructivePreExecutionStore"))
         assertTrue(!source.contains("RuntimeDestructiveSafetyDurability"))
         assertTrue(!source.contains("AndroidDestructiveSafetyPersistence"))
+        assertTrue(!source.contains("DestructiveArtifactIdentityAuthority"))
+        assertTrue(!source.contains("DestructiveHumanApprovalAuthority"))
+        assertTrue(!source.contains("DestructiveWipeOptionPolicy"))
     }
 
     @Test

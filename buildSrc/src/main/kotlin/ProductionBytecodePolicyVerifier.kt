@@ -358,6 +358,12 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/RuntimeDenyOnlyCooldownStore",
         "com/example/devicemanagement/destructive/RuntimeDestructivePreExecutionStore",
         "com/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability",
+        "com/example/devicemanagement/destructive/DestructiveArtifactIdentity",
+        "com/example/devicemanagement/destructive/DestructiveArtifactIdentityAuthority",
+        "com/example/devicemanagement/destructive/DestructiveHumanApprovalAuthority",
+        "com/example/devicemanagement/destructive/DestructiveHumanApproval",
+        "com/example/devicemanagement/destructive/DestructiveOperatorChallenge",
+        "com/example/devicemanagement/destructive/DestructiveWipeOptionPolicy",
     )
 
     private val recoveryForbiddenMethods = setOf(
@@ -376,6 +382,9 @@ internal object ProductionBytecodePolicyVerifier {
         "setStatusBarDisabled",
         "issueFromTrustedAndroidStores",
         "issueRuntimeDurability",
+        "issueChallenge",
+        "redeem",
+        "admit",
     )
 
     private val trustedAuditStoreMutationOrigins = mapOf(

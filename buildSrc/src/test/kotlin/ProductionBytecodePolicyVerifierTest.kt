@@ -1801,6 +1801,29 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `recovery class cannot reference destructive human approval`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/DestructiveHumanApprovalAuthority.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveHumanApprovalAuthority {}
+                """.trimIndent(),
+            "com/example/devicemanagement/recovery/RogueRecoveryHumanApproval.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.destructive.DestructiveHumanApprovalAuthority;
+                public final class RogueRecoveryHumanApproval {
+                    DestructiveHumanApprovalAuthority authority;
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "DestructiveHumanApprovalAuthority" in it })
+    }
+
+    @Test
     fun `authorized TrustedRuntime adapter may persist through the deny-only medium`() {
         val classes = compileJava(
             denyOnlyMarkerMediumStub(),

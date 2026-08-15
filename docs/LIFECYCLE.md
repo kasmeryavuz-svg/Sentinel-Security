@@ -107,5 +107,6 @@ invocation is evidence / outcome-unknown only; it never automatically
 replays or invokes. There is still no `BOOT_COMPLETED` path and no
 recovery execution. Runtime-durable capabilities are a separate type
 from simulation/test stores and are not wired into production
-composition. See `docs/WIPE_17A_PREFLIGHT.md` and
-`docs/WIPE_17B_ENTRY_REVIEW.md`.
+composition. Artifact-identity match proofs and destructive human
+approvals are process-local and die with the process. See
+`docs/WIPE_17A_PREFLIGHT.md` and `docs/WIPE_17B_ENTRY_REVIEW.md`.

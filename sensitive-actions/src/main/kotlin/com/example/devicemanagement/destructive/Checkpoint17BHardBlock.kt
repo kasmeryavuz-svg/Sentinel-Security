@@ -6,9 +6,8 @@ package com.example.devicemanagement.destructive
  * not be flipped merely because documentation claims readiness.
  *
  * PRESENT flags mean the named component exists. ENFORCED flags mean a
- * future real destructive chain is structurally required to use the
- * runtime-durable capability and cannot accept simulation stores. The
- * ENFORCED flags stay false until that pairing exists.
+ * future real destructive chain is structurally required to use that
+ * component. The ENFORCED flags stay false until that pairing exists.
  *
  * Production source in this module must not spell Android destructive
  * method names; freeze tests reject those tokens.
@@ -22,6 +21,12 @@ internal object Checkpoint17BHardBlock {
     const val REAL_DURABLE_DESTRUCTIVE_PRE_EXECUTION_AUDIT_PRESENT = true
     const val REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED = false
     const val REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED = false
+    const val DESTRUCTIVE_ARTIFACT_IDENTITY_PRECONDITION_PRESENT = true
+    const val DESTRUCTIVE_HUMAN_APPROVAL_AUTHORITY_PRESENT = true
+    const val DESTRUCTIVE_WIPE_OPTION_POLICY_PRESENT = true
+    const val REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED = false
+    const val REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED = false
+    const val REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED = false
     const val DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED = false
     const val DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED = false
     const val DESTRUCTIVE_HUMAN_APPROVAL_RECORDED = false
@@ -57,5 +62,8 @@ internal object Checkpoint17BHardBlock {
         "DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED",
         "REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED",
         "REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED",
+        "REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED",
+        "REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED",
+        "REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED",
     )
 }

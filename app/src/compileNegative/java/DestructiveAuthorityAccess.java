@@ -25,6 +25,12 @@ import com.example.devicemanagement.persistence.AndroidDestructiveSafetyPersiste
 import com.example.devicemanagement.destructive.RuntimeDenyOnlyCooldownStore;
 import com.example.devicemanagement.destructive.RuntimeDestructivePreExecutionStore;
 import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability;
+import com.example.devicemanagement.destructive.DestructiveArtifactIdentity;
+import com.example.devicemanagement.destructive.DestructiveArtifactIdentityAuthority;
+import com.example.devicemanagement.destructive.DestructiveHumanApproval;
+import com.example.devicemanagement.destructive.DestructiveHumanApprovalAuthority;
+import com.example.devicemanagement.destructive.DestructiveOperatorChallenge;
+import com.example.devicemanagement.destructive.DestructiveWipeOptionPolicy;
 
 final class DestructiveAuthorityAccess {
     DestructiveArmingAuthority arming;
@@ -52,4 +58,10 @@ final class DestructiveAuthorityAccess {
     RuntimeDenyOnlyCooldownStore runtimeCooldown;
     RuntimeDestructivePreExecutionStore runtimePreExecution;
     RuntimeDestructiveSafetyDurability runtimeDurability;
+    DestructiveArtifactIdentity artifactIdentity;
+    DestructiveArtifactIdentityAuthority artifactIdentityAuthority;
+    DestructiveHumanApproval humanApproval;
+    DestructiveHumanApprovalAuthority humanApprovalAuthority;
+    DestructiveOperatorChallenge operatorChallenge;
+    DestructiveWipeOptionPolicy wipeOptionPolicy;
 }
