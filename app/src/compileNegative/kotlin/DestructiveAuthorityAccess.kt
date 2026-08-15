@@ -27,8 +27,13 @@ import com.example.devicemanagement.destructive.RuntimeDestructivePreExecutionSt
 import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability
 import com.example.devicemanagement.destructive.DestructiveArtifactIdentity
 import com.example.devicemanagement.destructive.DestructiveArtifactIdentityAuthority
+import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation
+import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationFactory
+import com.example.devicemanagement.destructive.TrustedDestructiveArtifactValidationSource
 import com.example.devicemanagement.destructive.DestructiveHumanApproval
 import com.example.devicemanagement.destructive.DestructiveHumanApprovalAuthority
+import com.example.devicemanagement.destructive.DestructiveHumanConfirmation
+import com.example.devicemanagement.destructive.DestructiveHumanConfirmationAuthority
 import com.example.devicemanagement.destructive.DestructiveOperatorChallenge
 import com.example.devicemanagement.destructive.DestructiveWipeOptionPolicy
 
@@ -60,8 +65,13 @@ class DestructiveAuthorityAccess(
     val runtimeDurability: RuntimeDestructiveSafetyDurability,
     val artifactIdentity: DestructiveArtifactIdentity,
     val artifactIdentityAuthority: DestructiveArtifactIdentityAuthority,
+    val artifactIdentityExpectation: DestructiveArtifactIdentityExpectation,
+    val trustedArtifactExpectationFactory: TrustedDestructiveArtifactExpectationFactory,
+    val trustedArtifactValidationSource: TrustedDestructiveArtifactValidationSource,
     val humanApproval: DestructiveHumanApproval,
     val humanApprovalAuthority: DestructiveHumanApprovalAuthority,
+    val humanConfirmation: DestructiveHumanConfirmation,
+    val humanConfirmationAuthority: DestructiveHumanConfirmationAuthority,
     val operatorChallenge: DestructiveOperatorChallenge,
     val wipeOptionPolicy: DestructiveWipeOptionPolicy,
 )

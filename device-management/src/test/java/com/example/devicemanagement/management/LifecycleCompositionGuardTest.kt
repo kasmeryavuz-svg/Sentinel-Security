@@ -46,7 +46,10 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("AndroidDestructiveSafetyPersistence"))
         assertFalse(composition.contains("DestructiveArtifactIdentityAuthority"))
         assertFalse(composition.contains("DestructiveHumanApprovalAuthority"))
+        assertFalse(composition.contains("DestructiveHumanConfirmationAuthority"))
         assertFalse(composition.contains("issueChallenge"))
+        assertFalse(composition.contains("issueFromTrustedConfirmationSource"))
+        assertFalse(composition.contains("issueFromTrustedValidationSource"))
     }
 
     @Test

@@ -1824,6 +1824,181 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `rogue caller cannot mint trusted artifact expectation`() {
+        val classes = compileJava(
+            *trustedArtifactExpectationStubs(),
+            "attack/RogueTrustedArtifactExpectationMint.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.DestructiveArtifactBuildPurpose;
+                import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation;
+                public final class RogueTrustedArtifactExpectationMint {
+                    void forge() {
+                        DestructiveArtifactIdentityExpectation.issueFromTrustedValidationSource(
+                            "aa", "bb", "com.example.app", "com.example.app/Admin",
+                            DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION
+                        );
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "trusted artifact expectation issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedValidationSource" in it })
+    }
+
+    @Test
+    fun `authorized validation source may mint trusted artifact expectation`() {
+        val classes = compileJava(
+            *trustedArtifactExpectationStubs(),
+            "com/example/devicemanagement/destructive/TrustedDestructiveArtifactValidationSource.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class TrustedDestructiveArtifactValidationSource {
+                    public DestructiveArtifactIdentityExpectation trustedExpectation() {
+                        return DestructiveArtifactIdentityExpectation.issueFromTrustedValidationSource(
+                            "aa", "bb", "com.example.app", "com.example.app/Admin",
+                            DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION
+                        );
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "trusted artifact expectation issuance" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `recovery class cannot reference trusted artifact expectation factory`() {
+        val classes = compileJava(
+            *trustedArtifactExpectationStubs(),
+            "com/example/devicemanagement/recovery/RogueRecoveryArtifactExpectation.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation;
+                public final class RogueRecoveryArtifactExpectation {
+                    DestructiveArtifactIdentityExpectation expectation;
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "DestructiveArtifactIdentityExpectation" in it })
+    }
+
+    @Test
+    fun `rogue caller cannot mint human confirmation`() {
+        val classes = compileJava(
+            *humanConfirmationMintStubs(),
+            "attack/RogueHumanConfirmationMint.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.DestructiveHumanConfirmationMint;
+                import com.example.devicemanagement.destructive.DestructiveOperatorChallenge;
+                public final class RogueHumanConfirmationMint {
+                    void forge(DestructiveOperatorChallenge challenge) {
+                        DestructiveHumanConfirmationMint.issueFromTrustedConfirmationSource(
+                            challenge, null, null, null, null, null, 0L
+                        );
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "human confirmation issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedConfirmationSource" in it })
+    }
+
+    @Test
+    fun `confirmation authority may mint human confirmation`() {
+        val classes = compileJava(
+            *humanConfirmationMintStubs(),
+            "com/example/devicemanagement/destructive/DestructiveHumanConfirmationAuthority.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveHumanConfirmationAuthority {
+                    public DestructiveHumanConfirmationResult confirm(
+                        DestructiveOperatorChallenge challenge
+                    ) {
+                        DestructiveHumanConfirmationMint.issueFromTrustedConfirmationSource(
+                            challenge, null, null, null, null, null, 0L
+                        );
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "human confirmation issuance" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `rogue caller cannot invoke human confirmation authority`() {
+        val classes = compileJava(
+            *humanConfirmationMintStubs(),
+            "com/example/devicemanagement/destructive/DestructiveHumanConfirmationAuthority.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveHumanConfirmationAuthority {
+                    public DestructiveHumanConfirmationResult confirm(
+                        DestructiveOperatorChallenge challenge
+                    ) {
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+            "attack/RogueHumanConfirmationConfirm.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.DestructiveHumanConfirmationAuthority;
+                import com.example.devicemanagement.destructive.DestructiveOperatorChallenge;
+                public final class RogueHumanConfirmationConfirm {
+                    void forge(
+                        DestructiveHumanConfirmationAuthority authority,
+                        DestructiveOperatorChallenge challenge
+                    ) {
+                        authority.confirm(challenge);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "human confirmation" in it })
+        assertTrue(violations.any { "outside an unwired" in it })
+    }
+
+    @Test
+    fun `recovery class cannot reference human confirmation mint`() {
+        val classes = compileJava(
+            *humanConfirmationMintStubs(),
+            "com/example/devicemanagement/recovery/RogueRecoveryHumanConfirmation.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.destructive.DestructiveHumanConfirmationMint;
+                public final class RogueRecoveryHumanConfirmation {
+                    DestructiveHumanConfirmationMint mint;
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "DestructiveHumanConfirmationMint" in it })
+    }
+
+    @Test
     fun `authorized TrustedRuntime adapter may persist through the deny-only medium`() {
         val classes = compileJava(
             denyOnlyMarkerMediumStub(),
@@ -2062,6 +2237,93 @@ class ProductionBytecodePolicyVerifierTest {
             package com.example.devicemanagement.destructive;
             public interface MarkerWriteResult {}
             """.trimIndent()
+    }
+
+    private fun trustedArtifactExpectationStubs(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/destructive/DestructiveArtifactBuildPurpose.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public enum DestructiveArtifactBuildPurpose { DISPOSABLE_DEVICE_VALIDATION }
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveArtifactIdentityExpectation.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveArtifactIdentityExpectation {
+                    public static DestructiveArtifactIdentityExpectation issueFromTrustedValidationSource(
+                        String certificateSha256,
+                        String artifactSha256,
+                        String packageName,
+                        String adminComponent,
+                        DestructiveArtifactBuildPurpose buildPurpose
+                    ) {
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+    }
+
+    private fun humanConfirmationMintStubs(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/destructive/DestructiveOperatorChallenge.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveOperatorChallenge {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveCorrelationId.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveCorrelationId {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveTargetBinding.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveTargetBinding {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveScope.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public enum DestructiveScope { DEVICE_FACTORY_RESET }
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveArtifactIdentity.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveArtifactIdentity {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveAttemptLease.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveAttemptLease {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveHumanConfirmation.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveHumanConfirmation {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveHumanConfirmationResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public abstract class DestructiveHumanConfirmationResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveHumanConfirmationMint.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveHumanConfirmationMint {
+                    public static DestructiveHumanConfirmation issueFromTrustedConfirmationSource(
+                        DestructiveOperatorChallenge challenge,
+                        DestructiveCorrelationId correlationId,
+                        DestructiveTargetBinding binding,
+                        DestructiveScope scope,
+                        DestructiveArtifactIdentity artifactIdentity,
+                        DestructiveAttemptLease attemptLease,
+                        long issuedAtMonotonicMillis
+                    ) {
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
     }
 
     private fun runtimeDestructiveSafetyDurabilityStub(): Pair<String, String> {

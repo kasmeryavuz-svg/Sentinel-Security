@@ -34,9 +34,13 @@ class DestructiveDomainIsolationTest {
             RuntimeDestructiveSafetyDurability::class.java,
             DestructiveArtifactIdentity::class.java,
             DestructiveArtifactIdentityMatchProof::class.java,
+            DestructiveArtifactIdentityExpectation::class.java,
             DestructiveHumanApproval::class.java,
+            DestructiveHumanConfirmation::class.java,
             DestructiveOperatorChallenge::class.java,
+            DestructiveChallengeIdentity::class.java,
             DestructiveHumanApprovalAuthority::class.java,
+            DestructiveHumanConfirmationAuthority::class.java,
         )
         types.forEach { type ->
             assertFalse(Serializable::class.java.isAssignableFrom(type))
@@ -101,8 +105,13 @@ class DestructiveDomainIsolationTest {
         assertTrue(sources.contains("DurableDestructivePreExecutionRepository"))
         assertTrue(sources.contains("RuntimeDestructiveSafetyDurability"))
         assertTrue(sources.contains("DestructiveArtifactIdentity"))
+        assertTrue(sources.contains("TrustedDestructiveArtifactExpectationFactory"))
+        assertTrue(sources.contains("issueFromTrustedValidationSource"))
         assertTrue(sources.contains("DestructiveHumanApproval"))
+        assertTrue(sources.contains("DestructiveHumanConfirmationAuthority"))
+        assertTrue(sources.contains("issueFromTrustedConfirmationSource"))
         assertTrue(sources.contains("DestructiveWipeOptionPolicy"))
+        assertFalse(sources.contains("fromTrustedSnapshot"))
         assertFalse(sources.contains("java.nio.file.Files"))
     }
 

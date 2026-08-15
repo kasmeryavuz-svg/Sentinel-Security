@@ -66,6 +66,7 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(uiSources.contains("AndroidDestructiveSafetyPersistence"))
         assertFalse(uiSources.contains("DestructiveArtifactIdentity"))
         assertFalse(uiSources.contains("DestructiveHumanApproval"))
+        assertFalse(uiSources.contains("DestructiveHumanConfirmation"))
         assertFalse(uiSources.contains("approved=true"))
         assertFalse(uiSources.contains("com.example.devicemanagement.destructive"))
         assertFalse(uiSources.contains("SensitiveActionAuditWriter"))

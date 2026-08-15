@@ -278,13 +278,19 @@ device validation can be bound to exact values:
 - build-purpose classification (`ORDINARY_NON_DESTRUCTIVE` vs
   `DISPOSABLE_DEVICE_VALIDATION`)
 
-Missing, malformed, all-zero, or mismatched values fail closed. Callers
-cannot select the trusted digest at admit time. Ordinary debug/release
-purpose cannot become future-validation eligible. There is no debug-key
-fallback. Identity is evidence / admission data only and cannot
-reconstruct arm, capability, or permit. Production
-`UnwiredDestructiveArtifactIdentitySource` returns no expectation because
-no disposable-device artifact hash is recorded.
+Missing, malformed, all-zero, or mismatched values fail closed. Observed
+identity is a separate type from trusted expected identity. A caller-
+created `DestructiveArtifactIdentity` cannot become a trusted
+expectation. The only mint path is
+`TrustedDestructiveArtifactExpectationFactory.issueFromTrustedValidationSource`,
+which does not accept an observed identity. Production bytecode allows
+that mint only from `TrustedDestructiveArtifactValidationSource`, which
+returns null because no disposable-device artifact hash is recorded.
+`UnwiredDestructiveArtifactIdentitySource` also returns no expectation.
+Callers cannot select the trusted digest at admit time. Ordinary
+debug/release purpose cannot become future-validation eligible. There is
+no debug-key fallback. Identity is evidence / admission data only and
+cannot reconstruct arm, capability, or permit.
 
 ```text
 DESTRUCTIVE_ARTIFACT_IDENTITY_PRECONDITION_PRESENT = true
@@ -296,13 +302,21 @@ DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED = false
 ### Destructive human approval / operator challenge
 
 17B adds a separate destructive human-approval domain. It is not the
-reversible `Approval` type. Approval is explicit, short-lived, single-use,
-process-local, and bound to correlation ID, target binding, requested
-scope, artifact identity, and the pending attempt lease. The operator
-challenge is authority-issued unpredictable material, not a fixed magic
-string. Replay, restoration after process death, and Boolean
-`approved=true` cannot authorize. Production mint remains unwired. No
-actual human destructive approval has been recorded.
+reversible `Approval` type. `issueChallenge` returns challenge material
+only. It does not return a response, confirmation, token, or approval.
+Redeem requires a distinct `DestructiveHumanConfirmation` minted by
+`DestructiveHumanConfirmationAuthority`, not by
+`DestructiveHumanApprovalAuthority`. Confirmation is bound to
+correlation ID, target binding, requested scope, artifact identity, the
+pending attempt lease, and challenge identity. It is explicit,
+short-lived, single-use, and process-local. The operator challenge is
+authority-issued unpredictable material, not a fixed magic string. The
+challenge alone cannot mint approval. Holding the approval authority
+cannot manufacture the successful confirmation. Replay, restoration
+after process death, Boolean `approved=true`, and reversible `Approval`
+cannot authorize. Production confirmation/mint remains unwired
+(`UnwiredDestructiveHumanConfirmationSource` returns null). No actual
+human destructive approval has been recorded.
 
 ```text
 DESTRUCTIVE_HUMAN_APPROVAL_AUTHORITY_PRESENT = true
@@ -410,8 +424,9 @@ Remaining blockers:
    target remains unresolved.
 8. `WIPE_SILENTLY` remains an unapproved product policy; default is
    forbid.
-9. Artifact-identity architecture exists, but no disposable-device
-    artifact hash is recorded and the real chain is not enforced.
+9. Artifact-identity architecture exists, but trusted expectation is
+    opaque, no disposable-device artifact hash is recorded, and the real
+    chain is not enforced.
 10. Hardware-backed confirmation availability remains unresolved.
 11. `DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED` is false — no disposable
     hardware test.
@@ -421,9 +436,9 @@ Remaining blockers:
 15. `DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED` is false.
 16. `DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED` is false — and must not be
     enabled by this checkpoint.
-17. Destructive human-approval architecture exists, but no human
-    destructive approval has been recorded and the real chain is not
-    enforced.
+17. Destructive human-approval architecture exists, but challenge
+    issuance cannot self-redeem, no human destructive approval has been
+    recorded, and the real chain is not enforced.
 18. Same-UID arbitrary code remains out of scope for local persistence
     integrity.
 19. `REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED` is false — no

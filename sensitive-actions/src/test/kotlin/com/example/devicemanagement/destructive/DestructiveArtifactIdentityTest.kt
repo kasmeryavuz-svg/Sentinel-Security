@@ -132,14 +132,64 @@ class DestructiveArtifactIdentityTest {
     @Test
     fun `ordinary non-destructive builds cannot become future validation eligible`() {
         val ordinary = requireIdentity(buildPurpose = DestructiveArtifactBuildPurpose.ORDINARY_NON_DESTRUCTIVE)
-        assertNull(DestructiveArtifactIdentityExpectation.fromTrustedSnapshot(ordinary))
-        val expected = DestructiveArtifactIdentityExpectation.fromTrustedSnapshot(validIdentity())
-        assertNotNull(expected)
-        val authority = DestructiveArtifactIdentityAuthority(expected!!, MutableMonotonicClock(1_000L))
+        assertNull(
+            DestructiveArtifactIdentityExpectation.issueFromTrustedValidationSource(
+                certificateSha256 = ordinary.certificateSha256,
+                artifactSha256 = ordinary.artifactSha256,
+                packageName = ordinary.packageName,
+                adminComponent = ordinary.adminComponent,
+                buildPurpose = ordinary.buildPurpose,
+            ),
+        )
+        val expected = requireExpectation(CERT_A, ARTIFACT_A)
+        val authority = DestructiveArtifactIdentityAuthority(expected, MutableMonotonicClock(1_000L))
         assertEquals(
             "observed_build_purpose_not_disposable_validation",
             (authority.admit(ordinary) as ArtifactIdentityAdmitResult.Failed).reason,
         )
+    }
+
+    @Test
+    fun `caller created identity cannot become a trusted expectation`() {
+        val forged = requireIdentity(
+            certificateSha256 = OTHER_CERT,
+            artifactSha256 = ARTIFACT_B,
+        )
+        assertFalse(
+            DestructiveArtifactIdentityExpectation::class.java.declaredMethods.any { method ->
+                method.name == "fromTrustedSnapshot" ||
+                    method.parameterTypes.contains(DestructiveArtifactIdentity::class.java)
+            },
+        )
+        assertFalse(
+            DestructiveArtifactIdentityExpectation::class.java.declaredConstructors.any { constructor ->
+                constructor.parameterTypes.contains(DestructiveArtifactIdentity::class.java)
+            },
+        )
+        assertFalse(
+            DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationFactory::class.java
+                .declaredMethods.any { method ->
+                    method.parameterTypes.contains(DestructiveArtifactIdentity::class.java)
+                },
+        )
+        assertFalse(
+            TrustedDestructiveArtifactValidationSource::class.java.declaredMethods.any { method ->
+                method.parameterTypes.contains(DestructiveArtifactIdentity::class.java)
+            },
+        )
+        assertFalse(
+            UnwiredDestructiveArtifactIdentitySource::class.java.declaredMethods.any { method ->
+                method.parameterTypes.contains(DestructiveArtifactIdentity::class.java)
+            },
+        )
+        assertNull(TrustedDestructiveArtifactValidationSource.trustedExpectation())
+        assertNull(UnwiredDestructiveArtifactIdentitySource.trustedExpectation())
+        assertFalse(DestructiveArtifactIdentity::class.java.isAssignableFrom(
+            DestructiveArtifactIdentityExpectation::class.java,
+        ))
+        assertFalse(forged::class.java == DestructiveArtifactIdentityExpectation::class.java)
+        assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
     }
 
     @Test
@@ -152,6 +202,7 @@ class DestructiveArtifactIdentityTest {
         assertTrue(authority.consume(admitted.proof, identity) is ArtifactIdentityCheck.Rejected)
         assertFalse(identity::class.java.methods.any { it.name == "authorize" || it.name == "arm" })
         assertTrue(UnwiredDestructiveArtifactIdentitySource.trustedExpectation() == null)
+        assertTrue(TrustedDestructiveArtifactValidationSource.trustedExpectation() == null)
     }
 
     @Test
@@ -170,6 +221,8 @@ class DestructiveArtifactIdentityTest {
             DestructiveArtifactIdentityExpectation::class.java,
             DestructiveArtifactIdentityMatchProof::class.java,
             DestructiveArtifactIdentityAuthority::class.java,
+            DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationFactory::class.java,
+            TrustedDestructiveArtifactValidationSource::class.java,
         )
         types.forEach { type ->
             assertFalse(Serializable::class.java.isAssignableFrom(type))
@@ -208,11 +261,26 @@ class DestructiveArtifactIdentityTest {
         identity: DestructiveArtifactIdentity,
         clock: MutableMonotonicClock = MutableMonotonicClock(1_000L),
     ): DestructiveArtifactIdentityAuthority {
-        val expected = requireNotNull(DestructiveArtifactIdentityExpectation.fromTrustedSnapshot(identity))
+        val expected = requireExpectation(identity.certificateSha256, identity.artifactSha256)
         return DestructiveArtifactIdentityAuthority(expected, clock)
     }
 
     private fun validIdentity(): DestructiveArtifactIdentity = requireIdentity()
+
+    private fun requireExpectation(
+        certificateSha256: String,
+        artifactSha256: String,
+    ): DestructiveArtifactIdentityExpectation {
+        return requireNotNull(
+            DestructiveArtifactIdentityExpectation.issueFromTrustedValidationSource(
+                certificateSha256 = certificateSha256,
+                artifactSha256 = artifactSha256,
+                packageName = PACKAGE_NAME,
+                adminComponent = ADMIN,
+                buildPurpose = PURPOSE,
+            ),
+        )
+    }
 
     private fun requireIdentity(
         certificateSha256: String = CERT_A,

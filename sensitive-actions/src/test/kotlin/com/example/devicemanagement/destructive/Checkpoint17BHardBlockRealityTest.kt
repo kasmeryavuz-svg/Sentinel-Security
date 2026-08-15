@@ -114,7 +114,10 @@ class Checkpoint17BHardBlockRealityTest {
         assertFalse(controller.contains("issueRuntimeDurability"))
         assertFalse(controller.contains("DestructiveArtifactIdentityAuthority"))
         assertFalse(controller.contains("DestructiveHumanApprovalAuthority"))
+        assertFalse(controller.contains("DestructiveHumanConfirmationAuthority"))
         assertFalse(controller.contains("issueChallenge"))
+        assertFalse(controller.contains("issueFromTrustedConfirmationSource"))
+        assertFalse(controller.contains("issueFromTrustedValidationSource"))
     }
 
     @Test

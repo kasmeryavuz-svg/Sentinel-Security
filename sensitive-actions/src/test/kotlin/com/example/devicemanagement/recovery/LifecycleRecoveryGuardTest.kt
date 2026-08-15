@@ -54,9 +54,13 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("issueFromTrustedAndroidStores"))
         assertFalse(sources.contains("issueRuntimeDurability"))
         assertFalse(sources.contains("DestructiveArtifactIdentity"))
+        assertFalse(sources.contains("TrustedDestructiveArtifactExpectationFactory"))
+        assertFalse(sources.contains("issueFromTrustedValidationSource"))
         assertFalse(sources.contains("DestructiveHumanApproval"))
+        assertFalse(sources.contains("DestructiveHumanConfirmation"))
         assertFalse(sources.contains("DestructiveWipeOptionPolicy"))
         assertFalse(sources.contains("issueChallenge"))
+        assertFalse(sources.contains("issueFromTrustedConfirmationSource"))
     }
 
     @Test

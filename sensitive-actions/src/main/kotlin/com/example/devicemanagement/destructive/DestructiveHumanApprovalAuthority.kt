@@ -5,27 +5,43 @@ import java.security.SecureRandom
 import java.util.IdentityHashMap
 
 /**
+ * Process-local challenge identity. Distinct from the nonce bytes so a
+ * confirmation can be bound to one issued challenge object.
+ */
+internal class DestructiveChallengeIdentity private constructor() {
+    companion object {
+        fun create(): DestructiveChallengeIdentity = DestructiveChallengeIdentity()
+    }
+}
+
+/**
  * Authority-issued operator challenge. Opaque process-local material, not
  * a fixed magic string. Caller-constructed instances are not registered.
+ * Issuing a challenge never returns a confirmation, response, or approval.
  */
 internal class DestructiveOperatorChallenge private constructor(
+    val identity: DestructiveChallengeIdentity,
     private val nonce: ByteArray,
 ) {
     fun nonceCopy(): ByteArray = nonce.copyOf()
 
     companion object {
         fun create(nonce: ByteArray): DestructiveOperatorChallenge {
-            return DestructiveOperatorChallenge(nonce.copyOf())
+            return DestructiveOperatorChallenge(
+                identity = DestructiveChallengeIdentity.create(),
+                nonce = nonce.copyOf(),
+            )
         }
     }
 }
 
 /**
- * Authority-issued response bound to one challenge. Not a reusable secret.
+ * Distinct human/operator confirmation. Not issued with the challenge.
+ * Caller-constructed instances are not registered and cannot mint approval.
  */
-internal class DestructiveOperatorChallengeResponse private constructor() {
+internal class DestructiveHumanConfirmation private constructor() {
     companion object {
-        fun create(): DestructiveOperatorChallengeResponse = DestructiveOperatorChallengeResponse()
+        fun create(): DestructiveHumanConfirmation = DestructiveHumanConfirmation()
     }
 }
 
@@ -43,10 +59,17 @@ internal class DestructiveHumanApproval private constructor() {
 internal sealed interface DestructiveChallengeIssueResult {
     data class Issued(
         val challenge: DestructiveOperatorChallenge,
-        val response: DestructiveOperatorChallengeResponse,
     ) : DestructiveChallengeIssueResult
 
     data class Failed(val reason: String) : DestructiveChallengeIssueResult
+}
+
+internal sealed interface DestructiveHumanConfirmationResult {
+    data class Confirmed(
+        val confirmation: DestructiveHumanConfirmation,
+    ) : DestructiveHumanConfirmationResult
+
+    data class Failed(val reason: String) : DestructiveHumanConfirmationResult
 }
 
 internal sealed interface DestructiveHumanApprovalResult {
@@ -62,13 +85,120 @@ internal sealed interface DestructiveHumanApprovalCheck {
 }
 
 /**
+ * Sole mint path for a destructive human confirmation. Production bytecode
+ * allows this call only from [DestructiveHumanConfirmationAuthority.confirm].
+ * [DestructiveHumanApprovalAuthority] cannot invoke it. Production
+ * composition does not call confirm, so this mint stays unwired.
+ */
+internal object DestructiveHumanConfirmationMint {
+    private val issued = IdentityHashMap<DestructiveHumanConfirmation, ConfirmationRecord>()
+
+    @JvmStatic
+    @Synchronized
+    fun issueFromTrustedConfirmationSource(
+        challenge: DestructiveOperatorChallenge,
+        correlationId: DestructiveCorrelationId,
+        binding: DestructiveTargetBinding,
+        scope: DestructiveScope,
+        artifactIdentity: DestructiveArtifactIdentity,
+        attemptLease: DestructiveAttemptLease,
+        issuedAtMonotonicMillis: Long,
+    ): DestructiveHumanConfirmation? {
+        if (binding.correlationId != correlationId) {
+            return null
+        }
+        if (binding.scope != scope) {
+            return null
+        }
+        if (artifactIdentity.buildPurpose !=
+            DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION
+        ) {
+            return null
+        }
+        val confirmation = DestructiveHumanConfirmation.create()
+        issued[confirmation] = ConfirmationRecord(
+            challenge = challenge,
+            challengeIdentity = challenge.identity,
+            correlationId = correlationId,
+            binding = binding,
+            scope = scope,
+            artifactIdentity = artifactIdentity,
+            attemptLease = attemptLease,
+            issuedAtMonotonicMillis = issuedAtMonotonicMillis,
+        )
+        return confirmation
+    }
+
+    @Synchronized
+    fun consume(confirmation: DestructiveHumanConfirmation): ConfirmationRecord? {
+        return issued.remove(confirmation)
+    }
+
+    internal data class ConfirmationRecord(
+        val challenge: DestructiveOperatorChallenge,
+        val challengeIdentity: DestructiveChallengeIdentity,
+        val correlationId: DestructiveCorrelationId,
+        val binding: DestructiveTargetBinding,
+        val scope: DestructiveScope,
+        val artifactIdentity: DestructiveArtifactIdentity,
+        val attemptLease: DestructiveAttemptLease,
+        val issuedAtMonotonicMillis: Long,
+    )
+}
+
+/**
+ * Distinct trusted confirmation authority. This is not
+ * [DestructiveHumanApprovalAuthority]. Holding the approval authority does
+ * not construct or invoke this type. Production DeviceManagement does not
+ * mint here. [UnwiredDestructiveHumanConfirmationSource] returns no
+ * confirmation.
+ */
+internal class DestructiveHumanConfirmationAuthority {
+    fun confirm(
+        challenge: DestructiveOperatorChallenge,
+        correlationId: DestructiveCorrelationId,
+        binding: DestructiveTargetBinding,
+        scope: DestructiveScope,
+        artifactIdentity: DestructiveArtifactIdentity,
+        attemptLease: DestructiveAttemptLease,
+        nowMonotonicMillis: Long,
+    ): DestructiveHumanConfirmationResult {
+        if (binding.correlationId != correlationId) {
+            return DestructiveHumanConfirmationResult.Failed("human_confirmation_correlation_mismatch")
+        }
+        if (binding.scope != scope) {
+            return DestructiveHumanConfirmationResult.Failed("human_confirmation_scope_mismatch")
+        }
+        if (artifactIdentity.buildPurpose !=
+            DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION
+        ) {
+            return DestructiveHumanConfirmationResult.Failed(
+                "human_confirmation_artifact_purpose_not_disposable_validation",
+            )
+        }
+        val confirmation = DestructiveHumanConfirmationMint.issueFromTrustedConfirmationSource(
+            challenge = challenge,
+            correlationId = correlationId,
+            binding = binding,
+            scope = scope,
+            artifactIdentity = artifactIdentity,
+            attemptLease = attemptLease,
+            issuedAtMonotonicMillis = nowMonotonicMillis,
+        ) ?: return DestructiveHumanConfirmationResult.Failed("human_confirmation_mint_rejected")
+        return DestructiveHumanConfirmationResult.Confirmed(confirmation)
+    }
+}
+
+/**
  * Separate destructive human-approval domain. Test code may construct this
  * authority. Production DeviceManagement composition does not mint here.
  *
- * Approval is explicit, short-lived, single-use, and bound to correlation
- * ID, target binding, scope, artifact identity, and the pending attempt
- * lease. A Boolean cannot authorize. Reversible Approval cannot satisfy
- * this type.
+ * [issueChallenge] returns challenge material only. It never returns a
+ * confirmation, response, token, or approval. Redeem requires a distinct
+ * [DestructiveHumanConfirmation] minted by
+ * [DestructiveHumanConfirmationAuthority], bound to correlation ID, target
+ * binding, scope, artifact identity, attempt lease, and challenge identity.
+ * A Boolean cannot authorize. Reversible Approval cannot satisfy this type.
  */
 internal class DestructiveHumanApprovalAuthority(
     private val monotonicTimeSource: MonotonicTimeSource,
@@ -76,7 +206,6 @@ internal class DestructiveHumanApprovalAuthority(
     private val maxAgeMillis: Long = MAX_APPROVAL_AGE_MILLIS,
 ) {
     private val challenges = IdentityHashMap<DestructiveOperatorChallenge, ChallengeRecord>()
-    private val responses = IdentityHashMap<DestructiveOperatorChallengeResponse, DestructiveOperatorChallenge>()
     private val approvals = IdentityHashMap<DestructiveHumanApproval, ApprovalRecord>()
 
     @Synchronized
@@ -105,7 +234,6 @@ internal class DestructiveHumanApprovalAuthority(
             return DestructiveChallengeIssueResult.Failed("human_approval_challenge_material_unusable")
         }
         val challenge = DestructiveOperatorChallenge.create(nonce)
-        val response = DestructiveOperatorChallengeResponse.create()
         val now = monotonicTimeSource.nowMillis()
         challenges[challenge] = ChallengeRecord(
             correlationId = correlationId,
@@ -113,16 +241,16 @@ internal class DestructiveHumanApprovalAuthority(
             scope = scope,
             artifactIdentity = artifactIdentity,
             attemptLease = attemptLease,
+            challengeIdentity = challenge.identity,
             issuedAtMonotonicMillis = now,
         )
-        responses[response] = challenge
-        return DestructiveChallengeIssueResult.Issued(challenge, response)
+        return DestructiveChallengeIssueResult.Issued(challenge)
     }
 
     @Synchronized
     fun redeem(
         challenge: DestructiveOperatorChallenge,
-        response: DestructiveOperatorChallengeResponse,
+        confirmation: DestructiveHumanConfirmation,
         correlationId: DestructiveCorrelationId,
         binding: DestructiveTargetBinding,
         scope: DestructiveScope,
@@ -130,18 +258,46 @@ internal class DestructiveHumanApprovalAuthority(
         attemptLease: DestructiveAttemptLease,
         nowMonotonicMillis: Long = monotonicTimeSource.nowMillis(),
     ): DestructiveHumanApprovalResult {
-        val boundChallenge = responses.remove(response)
-            ?: return DestructiveHumanApprovalResult.Failed("human_approval_response_not_issued_or_already_used")
-        if (boundChallenge !== challenge) {
+        val confirmationRecord = DestructiveHumanConfirmationMint.consume(confirmation)
+            ?: return DestructiveHumanApprovalResult.Failed(
+                "human_approval_confirmation_not_issued_or_already_used",
+            )
+        if (confirmationRecord.challenge !== challenge ||
+            confirmationRecord.challengeIdentity !== challenge.identity
+        ) {
             challenges.remove(challenge)
-            return DestructiveHumanApprovalResult.Failed("human_approval_response_challenge_mismatch")
+            return DestructiveHumanApprovalResult.Failed("human_approval_confirmation_challenge_mismatch")
         }
         val record = challenges.remove(challenge)
             ?: return DestructiveHumanApprovalResult.Failed("human_approval_challenge_not_issued_or_already_used")
+        if (record.challengeIdentity !== challenge.identity) {
+            return DestructiveHumanApprovalResult.Failed("human_approval_challenge_identity_mismatch")
+        }
         bindingMismatch(record, correlationId, binding, scope, artifactIdentity, attemptLease)?.let { reason ->
             return DestructiveHumanApprovalResult.Failed(reason)
         }
+        bindingMismatch(
+            ChallengeRecord(
+                correlationId = confirmationRecord.correlationId,
+                binding = confirmationRecord.binding,
+                scope = confirmationRecord.scope,
+                artifactIdentity = confirmationRecord.artifactIdentity,
+                attemptLease = confirmationRecord.attemptLease,
+                challengeIdentity = confirmationRecord.challengeIdentity,
+                issuedAtMonotonicMillis = confirmationRecord.issuedAtMonotonicMillis,
+            ),
+            correlationId,
+            binding,
+            scope,
+            artifactIdentity,
+            attemptLease,
+        )?.let { reason ->
+            return DestructiveHumanApprovalResult.Failed(reason)
+        }
         freshnessFailure(record.issuedAtMonotonicMillis, nowMonotonicMillis)?.let { reason ->
+            return DestructiveHumanApprovalResult.Failed(reason)
+        }
+        freshnessFailure(confirmationRecord.issuedAtMonotonicMillis, nowMonotonicMillis)?.let { reason ->
             return DestructiveHumanApprovalResult.Failed(reason)
         }
         val approval = DestructiveHumanApproval.create()
@@ -234,6 +390,7 @@ internal class DestructiveHumanApprovalAuthority(
         val scope: DestructiveScope,
         val artifactIdentity: DestructiveArtifactIdentity,
         val attemptLease: DestructiveAttemptLease,
+        val challengeIdentity: DestructiveChallengeIdentity,
         val issuedAtMonotonicMillis: Long,
     )
 
@@ -252,6 +409,7 @@ internal class DestructiveHumanApprovalAuthority(
                 scope = scope,
                 artifactIdentity = artifactIdentity,
                 attemptLease = attemptLease,
+                challengeIdentity = DestructiveChallengeIdentity.create(),
                 issuedAtMonotonicMillis = issuedAtMonotonicMillis,
             )
         }
@@ -267,6 +425,22 @@ internal class DestructiveHumanApprovalAuthority(
             return nonce
         }
     }
+}
+
+/**
+ * Production confirmation source. Not invoked by DeviceManagement or UI.
+ * Constructing this object does not confirm or approve anything. No
+ * disposable-device human confirmation is recorded.
+ */
+internal object UnwiredDestructiveHumanConfirmationSource {
+    fun confirm(
+        challenge: DestructiveOperatorChallenge,
+        correlationId: DestructiveCorrelationId,
+        binding: DestructiveTargetBinding,
+        scope: DestructiveScope,
+        artifactIdentity: DestructiveArtifactIdentity,
+        attemptLease: DestructiveAttemptLease,
+    ): DestructiveHumanConfirmation? = null
 }
 
 /**

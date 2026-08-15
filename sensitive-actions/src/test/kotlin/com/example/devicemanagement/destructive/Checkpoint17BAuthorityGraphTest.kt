@@ -99,7 +99,11 @@ class Checkpoint17BAuthorityGraphTest {
             "RuntimeDestructivePreExecutionStore",
             "RuntimeDestructiveSafetyDurability",
             "DestructiveArtifactIdentityAuthority",
+            "TrustedDestructiveArtifactExpectationFactory",
+            "issueFromTrustedValidationSource",
             "DestructiveHumanApprovalAuthority",
+            "DestructiveHumanConfirmationAuthority",
+            "issueFromTrustedConfirmationSource",
             "DestructiveWipeOptionPolicy",
             "SimulatedDestructiveExecutor",
             "FinalExecutionPermit",
@@ -145,7 +149,9 @@ class Checkpoint17BAuthorityGraphTest {
             RuntimeDestructiveSafetyDurability::class.java,
             DestructiveArtifactIdentityMatchProof::class.java,
             DestructiveHumanApproval::class.java,
+            DestructiveHumanConfirmation::class.java,
             DestructiveOperatorChallenge::class.java,
+            DestructiveChallengeIdentity::class.java,
         )
         types.forEach { type ->
             assertFalse(Serializable::class.java.isAssignableFrom(type))

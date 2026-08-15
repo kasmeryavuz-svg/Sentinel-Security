@@ -360,9 +360,16 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability",
         "com/example/devicemanagement/destructive/DestructiveArtifactIdentity",
         "com/example/devicemanagement/destructive/DestructiveArtifactIdentityAuthority",
+        "com/example/devicemanagement/destructive/DestructiveArtifactIdentityExpectation",
+        "com/example/devicemanagement/destructive/TrustedDestructiveArtifactExpectationFactory",
+        "com/example/devicemanagement/destructive/TrustedDestructiveArtifactValidationSource",
         "com/example/devicemanagement/destructive/DestructiveHumanApprovalAuthority",
         "com/example/devicemanagement/destructive/DestructiveHumanApproval",
+        "com/example/devicemanagement/destructive/DestructiveHumanConfirmation",
+        "com/example/devicemanagement/destructive/DestructiveHumanConfirmationAuthority",
+        "com/example/devicemanagement/destructive/DestructiveHumanConfirmationMint",
         "com/example/devicemanagement/destructive/DestructiveOperatorChallenge",
+        "com/example/devicemanagement/destructive/DestructiveChallengeIdentity",
         "com/example/devicemanagement/destructive/DestructiveWipeOptionPolicy",
     )
 
@@ -382,6 +389,8 @@ internal object ProductionBytecodePolicyVerifier {
         "setStatusBarDisabled",
         "issueFromTrustedAndroidStores",
         "issueRuntimeDurability",
+        "issueFromTrustedValidationSource",
+        "issueFromTrustedConfirmationSource",
         "issueChallenge",
         "redeem",
         "admit",
@@ -464,6 +473,21 @@ internal object ProductionBytecodePolicyVerifier {
             "Lcom/example/devicemanagement/persistence/DenyOnlyMarkerDurableMedium;" +
             "Lcom/example/devicemanagement/destructive/DestructivePreExecutionDurableStore;)" +
             "Lcom/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability;"
+
+    private val trustedArtifactExpectationIssueOrigin = InvocationOrigin(
+        "com/example/devicemanagement/destructive/TrustedDestructiveArtifactValidationSource",
+        "trustedExpectation",
+        "()Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentityExpectation;",
+    )
+
+    private val trustedArtifactExpectationFactoryOwner =
+        "com/example/devicemanagement/destructive/DestructiveArtifactIdentityExpectation"
+
+    private val trustedHumanConfirmationMintOwner =
+        "com/example/devicemanagement/destructive/DestructiveHumanConfirmationMint"
+
+    private val trustedHumanConfirmationAuthorityOwner =
+        "com/example/devicemanagement/destructive/DestructiveHumanConfirmationAuthority"
 
     private val trustedDestructiveSafetyMutationOrigins = mapOf(
         "com/example/devicemanagement/destructive/DenyOnlyCooldownMarkerStore." +
@@ -661,6 +685,9 @@ internal object ProductionBytecodePolicyVerifier {
                 checkTrustedAuditStoreMutationInvocation(owner, name, descriptor, location)
                 checkTrustedDestructiveSafetyMutationInvocation(owner, name, descriptor, location)
                 checkTrustedRuntimeDurabilityIssueInvocation(owner, name, descriptor, location)
+                checkTrustedArtifactExpectationIssueInvocation(owner, name, descriptor, location)
+                checkTrustedHumanConfirmationMintInvocation(owner, name, descriptor, location)
+                checkTrustedHumanConfirmationConfirmInvocation(owner, name, descriptor, location)
                 checkRecoveryIsolation(owner, name, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
                 checkContextDatabaseInvocation(owner, name, location)
@@ -741,6 +768,24 @@ internal object ProductionBytecodePolicyVerifier {
                 "$location method handle",
             )
             checkTrustedRuntimeDurabilityIssueInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
+            checkTrustedArtifactExpectationIssueInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
+            checkTrustedHumanConfirmationMintInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
+            checkTrustedHumanConfirmationConfirmInvocation(
                 handle.owner,
                 handle.name,
                 handle.desc,
@@ -910,6 +955,74 @@ internal object ProductionBytecodePolicyVerifier {
                         "AndroidDestructiveSafetyPersistence",
                 )
             }
+        }
+
+        private fun checkTrustedArtifactExpectationIssueInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            if (owner != trustedArtifactExpectationFactoryOwner ||
+                name != "issueFromTrustedValidationSource"
+            ) {
+                return
+            }
+            val invocation = "$owner.$name$descriptor"
+            val actualOrigin = InvocationOrigin(
+                className,
+                methodName(location),
+                methodDescriptor(location),
+            )
+            if (
+                target.artifactPath != ":sensitive-actions" ||
+                actualOrigin != trustedArtifactExpectationIssueOrigin
+            ) {
+                violation(
+                    "$location invokes trusted artifact expectation issuance $invocation " +
+                        "outside TrustedDestructiveArtifactValidationSource",
+                )
+            }
+        }
+
+        private fun checkTrustedHumanConfirmationMintInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            if (owner != trustedHumanConfirmationMintOwner ||
+                name != "issueFromTrustedConfirmationSource"
+            ) {
+                return
+            }
+            val invocation = "$owner.$name$descriptor"
+            if (
+                target.artifactPath != ":sensitive-actions" ||
+                className != trustedHumanConfirmationAuthorityOwner ||
+                methodName(location) != "confirm"
+            ) {
+                violation(
+                    "$location invokes human confirmation issuance $invocation outside " +
+                        "DestructiveHumanConfirmationAuthority",
+                )
+            }
+        }
+
+        private fun checkTrustedHumanConfirmationConfirmInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            if (owner != trustedHumanConfirmationAuthorityOwner || name != "confirm") {
+                return
+            }
+            val invocation = "$owner.$name$descriptor"
+            violation(
+                "$location invokes human confirmation $invocation outside an unwired " +
+                    "production confirmation path",
+            )
         }
 
         private fun checkTrustedDestructiveSafetyMutationInvocation(

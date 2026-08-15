@@ -19,9 +19,10 @@ internal enum class DestructiveArtifactBuildPurpose {
  * Immutable artifact identity snapshot. Evidence and admission data only.
  * Never authorization, arming, a capability, a permit, or a resume token.
  *
- * Expected digests are held by [DestructiveArtifactIdentityExpectation],
- * not chosen by the caller of [DestructiveArtifactIdentityAuthority.admit].
- * There is no debug-key fallback.
+ * This type is observed identity only. Expected digests are held by an
+ * opaque [DestructiveArtifactIdentityExpectation] minted only by
+ * [TrustedDestructiveArtifactExpectationFactory]. An observed snapshot
+ * cannot become a trusted expectation. There is no debug-key fallback.
  */
 internal class DestructiveArtifactIdentity private constructor(
     val certificateSha256: String,
@@ -100,7 +101,7 @@ internal class DestructiveArtifactIdentity private constructor(
             )
         }
 
-        private fun normalizeDigest(raw: String): String? {
+        internal fun normalizeDigest(raw: String): String? {
             val hex = raw.trim().lowercase()
             if (!HEX.matches(hex) || hex == ZERO_DIGEST) {
                 return null
@@ -108,7 +109,9 @@ internal class DestructiveArtifactIdentity private constructor(
             return hex
         }
 
-        private fun isAdminComponent(admin: String, packageName: String): Boolean {
+        internal fun isValidPackage(packageName: String): Boolean = PACKAGE.matches(packageName)
+
+        internal fun isAdminComponent(admin: String, packageName: String): Boolean {
             val slash = admin.indexOf('/')
             if (slash <= 0 || slash == admin.lastIndex) {
                 return false
@@ -128,22 +131,65 @@ internal class DestructiveArtifactIdentity private constructor(
 }
 
 /**
- * Trusted expected identity. Callers of admit cannot supply or replace
- * the expected certificate or artifact digest.
+ * Opaque trusted expected identity. This is not an observed
+ * [DestructiveArtifactIdentity] and cannot be constructed from one.
+ * The only mint path is
+ * [TrustedDestructiveArtifactExpectationFactory.issueFromTrustedValidationSource].
  */
 internal class DestructiveArtifactIdentityExpectation private constructor(
-    val identity: DestructiveArtifactIdentity,
+    val certificateSha256: String,
+    val artifactSha256: String,
+    val packageName: String,
+    val adminComponent: String,
+    val buildPurpose: DestructiveArtifactBuildPurpose,
 ) {
-    companion object {
-        fun fromTrustedSnapshot(
-            identity: DestructiveArtifactIdentity,
+    /**
+     * Sole mint path for a trusted artifact expectation. Production bytecode
+     * allows this call only from
+     * [TrustedDestructiveArtifactValidationSource.trustedExpectation].
+     * The factory does not accept a caller-created or observed
+     * [DestructiveArtifactIdentity].
+     */
+    companion object TrustedDestructiveArtifactExpectationFactory {
+        @JvmStatic
+        fun issueFromTrustedValidationSource(
+            certificateSha256: String,
+            artifactSha256: String,
+            packageName: String,
+            adminComponent: String,
+            buildPurpose: DestructiveArtifactBuildPurpose,
         ): DestructiveArtifactIdentityExpectation? {
-            if (identity.buildPurpose != DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION) {
+            if (buildPurpose != DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION) {
                 return null
             }
-            return DestructiveArtifactIdentityExpectation(identity)
+            val certificate = DestructiveArtifactIdentity.normalizeDigest(certificateSha256) ?: return null
+            val artifact = DestructiveArtifactIdentity.normalizeDigest(artifactSha256) ?: return null
+            val pkg = packageName.trim()
+            val admin = adminComponent.trim()
+            if (!DestructiveArtifactIdentity.isValidPackage(pkg)) {
+                return null
+            }
+            if (!DestructiveArtifactIdentity.isAdminComponent(admin, pkg)) {
+                return null
+            }
+            return DestructiveArtifactIdentityExpectation(
+                certificateSha256 = certificate,
+                artifactSha256 = artifact,
+                packageName = pkg,
+                adminComponent = admin,
+                buildPurpose = buildPurpose,
+            )
         }
     }
+}
+
+/**
+ * Dedicated trusted artifact-validation source. No disposable-device
+ * artifact hash is recorded, so this source cannot mint an expectation.
+ * Generic sensitive-actions code cannot promote an observed identity here.
+ */
+internal object TrustedDestructiveArtifactValidationSource {
+    fun trustedExpectation(): DestructiveArtifactIdentityExpectation? = null
 }
 
 /**
@@ -185,7 +231,7 @@ internal class DestructiveArtifactIdentityAuthority(
         if (observed == null) {
             return ArtifactIdentityAdmitResult.Failed("artifact_identity_missing")
         }
-        if (expected.identity.buildPurpose !=
+        if (expected.buildPurpose !=
             DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION
         ) {
             return ArtifactIdentityAdmitResult.Failed("expected_build_purpose_not_disposable_validation")
@@ -226,7 +272,7 @@ internal class DestructiveArtifactIdentityAuthority(
     }
 
     private fun mismatchReason(observed: DestructiveArtifactIdentity): String? {
-        val trusted = expected.identity
+        val trusted = expected
         if (observed.certificateSha256 != trusted.certificateSha256) {
             return "certificate_digest_mismatch"
         }
@@ -254,9 +300,11 @@ internal class DestructiveArtifactIdentityAuthority(
 
 /**
  * Production expected-identity source. Not invoked by DeviceManagement.
- * No disposable-device artifact digest is recorded, so this source cannot
- * admit a future destructive validation.
+ * Delegates to the dedicated validation source, which remains null because
+ * no disposable-device artifact digest is recorded.
  */
 internal object UnwiredDestructiveArtifactIdentitySource {
-    fun trustedExpectation(): DestructiveArtifactIdentityExpectation? = null
+    fun trustedExpectation(): DestructiveArtifactIdentityExpectation? {
+        return TrustedDestructiveArtifactValidationSource.trustedExpectation()
+    }
 }
