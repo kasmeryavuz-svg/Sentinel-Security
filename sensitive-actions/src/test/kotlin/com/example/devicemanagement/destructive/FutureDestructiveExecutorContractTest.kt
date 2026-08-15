@@ -25,8 +25,39 @@ class FutureDestructiveExecutorContractTest {
             execute.single().returnType,
         )
         assertTrue(
-            FutureDestructiveExecutionBundle::class.java.declaredConstructors.any { constructor ->
+            FutureDestructiveExecutionBundle::class.java.declaredConstructors.all { constructor ->
                 Modifier.isPrivate(constructor.modifiers)
+            },
+        )
+        assertTrue(
+            RealChainFinalLiveValidationPermit::class.java.declaredConstructors.all { constructor ->
+                Modifier.isPrivate(constructor.modifiers)
+            },
+        )
+        assertTrue(
+            RuntimeDurablePreExecutionCommitProof::class.java.declaredConstructors.all { constructor ->
+                Modifier.isPrivate(constructor.modifiers)
+            },
+        )
+        assertTrue(
+            FutureDestructiveExecutionBundle::class.java.declaredMethods.none { it.name == "create" },
+        )
+        assertTrue(
+            RealChainFinalLiveValidationPermit::class.java.declaredMethods.none { it.name == "create" },
+        )
+        assertTrue(
+            RuntimeDurablePreExecutionCommitProof::class.java.declaredMethods.none { it.name == "create" },
+        )
+        assertTrue(
+            FutureDestructiveExecutionBundle::class.java.declaredClasses.none { nested ->
+                nested.simpleName == "Companion" &&
+                    nested.declaredMethods.any { it.name == "create" }
+            },
+        )
+        assertTrue(
+            RealChainFinalLiveValidationPermit::class.java.declaredClasses.none { nested ->
+                nested.simpleName == "Companion" &&
+                    nested.declaredMethods.any { it.name == "create" }
             },
         )
     }
@@ -47,6 +78,7 @@ class FutureDestructiveExecutorContractTest {
         assertFalse(DurableDestructivePreExecutionRepository::class.java in parameters)
         assertFalse(DestructiveOperatorChallenge::class.java in parameters)
         assertFalse(DestructiveHumanConfirmation::class.java in parameters)
+        assertFalse(RuntimeDurablePreExecutionCommitProof::class.java in parameters)
         assertFalse(
             ApprovalAuthority::class.java.methods.any { method ->
                 method.returnType == FutureDestructiveExecutionBundle::class.java
@@ -85,7 +117,7 @@ class FutureDestructiveExecutorContractTest {
     }
 
     @Test
-    fun `unregistered runtime proof cannot assemble or reach the executor`() {
+    fun `unwired append after consume cannot assemble or reach the executor`() {
         val fixture = RealChainBoundaryFixture.create()
         val recorder = RecordingFutureExecutor()
         val result = fixture.boundary.assembleAndHandoff(
@@ -97,15 +129,14 @@ class FutureDestructiveExecutorContractTest {
             artifactMatchProof = fixture.artifactProof,
             observedIdentity = fixture.identity,
             humanApproval = fixture.approval,
-            runtimePreExecutionProof = RuntimeDurablePreExecutionCommitProof.create(),
             wipeOptionPolicyProof = fixture.wipeProof,
         )
         assertTrue(result is FutureDestructiveHandoffResult.Failed)
         assertEquals(
-            "runtime_pre_execution_not_committed_or_already_consumed",
+            "runtime_pre_execution_issuer_unwired",
             (result as FutureDestructiveHandoffResult.Failed).reason,
         )
-        assertEquals(0, recorder.invocations)
+        assertEquals(0, recorder.authorizedInvocations)
         assertTrue(
             fixture.authorities.authorization.consume(
                 fixture.authorized.capability,
@@ -137,11 +168,10 @@ class FutureDestructiveExecutorContractTest {
             artifactMatchProof = fixture.artifactProof,
             observedIdentity = fixture.identity,
             humanApproval = DestructiveHumanApproval.create(),
-            runtimePreExecutionProof = RuntimeDurablePreExecutionCommitProof.create(),
             wipeOptionPolicyProof = fixture.wipeProof,
         )
         assertTrue(result is FutureDestructiveHandoffResult.Failed)
-        assertEquals(0, recorder.invocations)
+        assertEquals(0, recorder.authorizedInvocations)
         assertTrue(
             (result as FutureDestructiveHandoffResult.Failed).reason.contains("human_approval"),
         )
@@ -161,11 +191,10 @@ class FutureDestructiveExecutorContractTest {
             artifactMatchProof = first.artifactProof,
             observedIdentity = first.identity,
             humanApproval = first.approval,
-            runtimePreExecutionProof = RuntimeDurablePreExecutionCommitProof.create(),
             wipeOptionPolicyProof = first.wipeProof,
         )
         assertTrue(result is FutureDestructiveHandoffResult.Failed)
-        assertEquals(0, recorder.invocations)
+        assertEquals(0, recorder.authorizedInvocations)
         assertTrue(
             reconstructed.humanApprovalAuthority.consume(
                 first.approval,
@@ -183,16 +212,31 @@ class FutureDestructiveExecutorContractTest {
         val durability = reflectRuntimeDurabilityForRejectPathTests()
         val binding = verifiedBinding()
         val lease = DestructiveAttemptLease.create()
+        val consumedProof = ConsumedDestructiveAuthorizationProof.create()
         assertNull(
-            UnwiredRuntimeDurablePreExecutionCommitSource.commit(durability, binding, lease),
-        )
-        val authority = RuntimeDurablePreExecutionCommitAuthority(durability)
-        assertTrue(authority.commit(binding, lease) is RuntimeDurablePreExecutionCommitResult.Failed)
-        assertTrue(
-            authority.consume(
-                RuntimeDurablePreExecutionCommitProof.create(),
+            UnwiredRuntimeDurablePreExecutionCommitSource.commitAfterConsumedAuthorization(
+                durability,
+                consumedProof,
                 binding,
                 lease,
+            ),
+        )
+        val authority = RuntimeDurablePreExecutionCommitAuthority(durability)
+        assertTrue(
+            authority.commitAfterConsumedAuthorization(
+                consumedProof = consumedProof,
+                expectedBinding = binding,
+                expectedLease = lease,
+                expectedArmToken = DestructiveArmingToken.create(),
+                authorizationAuthority = DestructiveAuthorityBundle().authorization,
+            ) is RuntimeDurablePreExecutionCommitResult.Failed,
+        )
+        assertTrue(
+            authority.consume(
+                reflectConstruct(RuntimeDurablePreExecutionCommitProof::class.java),
+                binding,
+                lease,
+                consumedProof,
             ) is RuntimeDurablePreExecutionCheck.Rejected,
         )
         assertFalse(
@@ -221,17 +265,23 @@ class FutureDestructiveExecutorContractTest {
         assertFalse(source.contains("wipeDevice"))
         assertFalse(source.contains("wipeData"))
         assertFalse(source.contains("import android.app.admin"))
-        val consumeCapability = source.indexOf("authorizationAuthority.consume")
-        val runtimeProof = source.indexOf("runtimePreExecutionAuthority.consume")
+        val consumeCapability = source.indexOf("val consumption = authorizationAuthority.consume")
+        val runtimeCommit = source.indexOf("runtimePreExecutionAuthority.commitAfterConsumedAuthorization")
+        val runtimeProof = source.indexOf("val runtime = runtimePreExecutionAuthority.consume")
         val liveFacts = source.indexOf("liveFactsSource.currentFacts")
-        val permit = source.indexOf("RealChainFinalLiveValidationPermit.create")
-        val execute = source.indexOf("executor.execute")
-        assertTrue(consumeCapability in 0 until runtimeProof)
+        val permit = source.indexOf("val permit = mintFinalLiveValidationPermit")
+        val assembleBundle = source.indexOf("val bundle = assembleBundleFromPermit")
+        val execute = source.indexOf("executor.execute(bundle)")
+        assertTrue(consumeCapability in 0 until runtimeCommit)
+        assertTrue(runtimeCommit in 0 until runtimeProof)
         assertTrue(runtimeProof in 0 until liveFacts)
         assertTrue(liveFacts in 0 until permit)
-        assertTrue(permit in 0 until execute)
+        assertTrue(permit in 0 until assembleBundle)
+        assertTrue(assembleBundle in 0 until execute)
+        assertFalse(source.contains("runtimePreExecutionProof"))
+        assertFalse(source.contains("fun create()"))
         assertFalse(
-            FutureDestructiveRealChainBoundary::class.java.declaredMethods.any { method ->
+            FutureDestructiveRealChainBoundary::class.java.methods.any { method ->
                 method.returnType == FutureDestructiveExecutionBundle::class.java ||
                     method.returnType == RealChainFinalLiveValidationPermit::class.java
             },
@@ -260,18 +310,100 @@ class FutureDestructiveExecutorContractTest {
         assertFalse(controller.contains("assembleAndHandoff"))
         assertFalse(controller.contains("FutureDestructiveExecutorContract"))
         assertFalse(controller.contains("UnwiredFutureDestructiveExecutor"))
-        assertTrue(UnwiredFutureDestructiveExecutor::class.java.interfaces.none {
-            it == FutureDestructiveExecutorContract::class.java
-        })
+        assertFalse(
+            FutureDestructiveExecutorContract::class.java.isAssignableFrom(
+                UnwiredFutureDestructiveExecutor::class.java,
+            ),
+        )
     }
 
-    private class RecordingFutureExecutor : FutureDestructiveExecutorContract {
-        var invocations = 0
+    @Test
+    fun `forged bundle and permit cannot mint or invoke the executor`() {
+        val recorder = RecordingFutureExecutor()
+        val forgedBundle = reflectConstruct(FutureDestructiveExecutionBundle::class.java)
+        val acknowledgement = recorder.execute(forgedBundle)
+        assertTrue(acknowledgement is FutureDestructiveHandoffAcknowledgement.Refused)
+        assertEquals(
+            "forged_or_consumed_bundle",
+            (acknowledgement as FutureDestructiveHandoffAcknowledgement.Refused).reason,
+        )
+        assertEquals(0, recorder.authorizedInvocations)
+        val forgedPermit = reflectConstruct(RealChainFinalLiveValidationPermit::class.java)
+        val assemble = FutureDestructiveRealChainBoundary::class.java.declaredMethods
+            .single { it.name == "assembleBundleFromPermit" }
+        assemble.isAccessible = true
+        val fixture = RealChainBoundaryFixture.create()
+        assertNull(assemble.invoke(fixture.boundary, forgedPermit))
+        assertEquals(0, recorder.authorizedInvocations)
+        val mint = FutureDestructiveRealChainBoundary::class.java.declaredMethods
+            .single { it.name == "mintFinalLiveValidationPermit" }
+        assertTrue(Modifier.isPrivate(mint.modifiers))
+        assertTrue(Modifier.isPrivate(assemble.modifiers))
+    }
 
-        override fun execute(
-            bundle: FutureDestructiveExecutionBundle,
-        ): FutureDestructiveHandoffAcknowledgement {
-            invocations += 1
+    @Test
+    fun `pre-created or pre-banked runtime proof cannot satisfy the real-chain boundary`() {
+        val handoff = FutureDestructiveRealChainBoundary::class.java.declaredMethods
+            .single { it.name == "assembleAndHandoff" }
+        assertFalse(RuntimeDurablePreExecutionCommitProof::class.java in handoff.parameterTypes)
+        val fixture = RealChainBoundaryFixture.create()
+        val durability = reflectRuntimeDurabilityForRejectPathTests()
+        val authority = RuntimeDurablePreExecutionCommitAuthority(durability)
+        val forgedProof = reflectConstruct(RuntimeDurablePreExecutionCommitProof::class.java)
+        assertTrue(
+            authority.consume(
+                forgedProof,
+                fixture.binding,
+                fixture.authorized.attemptLease,
+                ConsumedDestructiveAuthorizationProof.create(),
+            ) is RuntimeDurablePreExecutionCheck.Rejected,
+        )
+        val beforeConsume = authority.commitAfterConsumedAuthorization(
+            consumedProof = ConsumedDestructiveAuthorizationProof.create(),
+            expectedBinding = fixture.binding,
+            expectedLease = fixture.authorized.attemptLease,
+            expectedArmToken = fixture.authorized.armToken,
+            authorizationAuthority = fixture.authorities.authorization,
+        )
+        assertTrue(beforeConsume is RuntimeDurablePreExecutionCommitResult.Failed)
+        val consumed = fixture.authorities.authorization.consume(
+            fixture.authorized.capability,
+            fixture.binding,
+            fixture.authorized.attemptLease,
+        ) as DestructiveCapabilityConsumption.Accepted
+        val afterConsume = authority.commitAfterConsumedAuthorization(
+            consumedProof = consumed.proof,
+            expectedBinding = consumed.binding,
+            expectedLease = consumed.attemptLease,
+            expectedArmToken = consumed.armToken,
+            authorizationAuthority = fixture.authorities.authorization,
+        )
+        assertTrue(afterConsume is RuntimeDurablePreExecutionCommitResult.Failed)
+        assertEquals(
+            "runtime_pre_execution_issuer_unwired",
+            (afterConsume as RuntimeDurablePreExecutionCommitResult.Failed).reason,
+        )
+        val recorder = RecordingFutureExecutor()
+        val result = fixture.boundary.assembleAndHandoff(
+            executor = recorder,
+            binding = fixture.binding,
+            attemptLease = fixture.authorized.attemptLease,
+            capability = fixture.authorized.capability,
+            armToken = fixture.authorized.armToken,
+            artifactMatchProof = fixture.artifactProof,
+            observedIdentity = fixture.identity,
+            humanApproval = fixture.approval,
+            wipeOptionPolicyProof = fixture.wipeProof,
+        )
+        assertTrue(result is FutureDestructiveHandoffResult.Failed)
+        assertEquals(0, recorder.authorizedInvocations)
+    }
+
+    private class RecordingFutureExecutor : FutureDestructiveExecutorContract() {
+        var authorizedInvocations = 0
+
+        override fun onAuthorizedHandoff(): FutureDestructiveHandoffAcknowledgement {
+            authorizedInvocations += 1
             return FutureDestructiveHandoffAcknowledgement.Refused("test_stub_refused")
         }
     }
@@ -392,6 +524,17 @@ internal fun reflectRuntimeDurabilityForRejectPathTests(): RuntimeDestructiveSaf
         InMemoryDestructivePreExecutionDurableStore(),
     )
     return newInternalInstance(RuntimeDestructiveSafetyDurability::class.java, cooldown, preExecution)
+}
+
+internal fun <T> reflectConstruct(type: Class<T>): T {
+    val constructor = type.declaredConstructors.first { candidate ->
+        candidate.parameterTypes.all { it.name == "kotlin.jvm.internal.DefaultConstructorMarker" } ||
+            candidate.parameterCount == 0
+    }
+    constructor.isAccessible = true
+    val args = Array<Any?>(constructor.parameterCount) { null }
+    @Suppress("UNCHECKED_CAST")
+    return constructor.newInstance(*args) as T
 }
 
 private fun <T> newInternalInstance(type: Class<T>, vararg args: Any): T {

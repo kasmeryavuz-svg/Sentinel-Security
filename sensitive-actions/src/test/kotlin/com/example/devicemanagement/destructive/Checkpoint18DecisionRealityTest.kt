@@ -12,12 +12,15 @@ class Checkpoint18DecisionRealityTest {
     @Test
     fun `structural required flags are true only because the contract requires those types`() {
         assertTrue(Checkpoint18Decision.DESTRUCTIVE_EXECUTOR_CONTRACT_PRESENT)
+        assertTrue(Checkpoint18Decision.REAL_CHAIN_UNFORGEABLE_HANDOFF_PRESENT)
         assertTrue(Checkpoint18Decision.REAL_CHAIN_RUNTIME_DURABILITY_REQUIRED)
         assertTrue(Checkpoint18Decision.REAL_CHAIN_ARTIFACT_IDENTITY_REQUIRED)
         assertTrue(Checkpoint18Decision.REAL_CHAIN_HUMAN_APPROVAL_REQUIRED)
         assertTrue(Checkpoint18Decision.REAL_CHAIN_WIPE_OPTION_POLICY_REQUIRED)
         assertTrue(Checkpoint18Decision.REAL_CHAIN_FINAL_LIVE_VALIDATION_REQUIRED)
-        assertEquals("YES", Checkpoint18Decision.ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL)
+        assertTrue(Checkpoint18Decision.REAL_CHAIN_PRE_EXECUTION_APPEND_AFTER_CONSUME_REQUIRED)
+        assertFalse(Checkpoint18Decision.REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED)
+        assertEquals("NO", Checkpoint18Decision.ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL)
 
         val handoff = FutureDestructiveRealChainBoundary::class.java.declaredMethods
             .single { it.name == "assembleAndHandoff" }
@@ -28,7 +31,7 @@ class Checkpoint18DecisionRealityTest {
         assertTrue(DestructiveCapability::class.java in parameters)
         assertTrue(DestructiveArtifactIdentityMatchProof::class.java in parameters)
         assertTrue(DestructiveHumanApproval::class.java in parameters)
-        assertTrue(RuntimeDurablePreExecutionCommitProof::class.java in parameters)
+        assertFalse(RuntimeDurablePreExecutionCommitProof::class.java in parameters)
         assertTrue(DestructiveWipeOptionPolicyProof::class.java in parameters)
         assertTrue(
             FutureDestructiveRealChainBoundary::class.java.declaredConstructors.any { constructor ->
@@ -78,7 +81,7 @@ class Checkpoint18DecisionRealityTest {
             },
         )
         val docs = File("../docs/WIPE_18_DESTRUCTIVE_BOUNDARY_DECISION.md").readText()
-        assertTrue(docs.contains("18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL = YES"))
+        assertTrue(docs.contains("18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL = NO"))
         assertTrue(docs.contains("NO REAL WIPE IMPLEMENTED"))
         assertTrue(docs.contains("DO NOT MERGE"))
         assertTrue(docs.contains("A. architecture readiness"))

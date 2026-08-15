@@ -140,6 +140,40 @@ internal class DestructiveAuthorizationAuthority(
     }
 
     @Synchronized
+    fun requirePendingConsumption(
+        proof: ConsumedDestructiveAuthorizationProof,
+        expectedBinding: DestructiveTargetBinding,
+        expectedLease: DestructiveAttemptLease,
+        expectedArmToken: DestructiveArmingToken,
+    ): ConsumedAuthorizationCheck {
+        val record = pendingConsumption[proof]
+            ?: return ConsumedAuthorizationCheck.Rejected(
+                "consumed_authorization_not_issued_or_already_consumed",
+            )
+        if (record.attemptLease !== expectedLease) {
+            return ConsumedAuthorizationCheck.Rejected("consumed_authorization_attempt_lease_mismatch")
+        }
+        if (record.armToken !== expectedArmToken) {
+            return ConsumedAuthorizationCheck.Rejected("consumed_authorization_arm_mismatch")
+        }
+        if (record.binding.correlationId != expectedBinding.correlationId) {
+            return ConsumedAuthorizationCheck.Rejected("consumed_authorization_correlation_mismatch")
+        }
+        if (record.binding != expectedBinding) {
+            return if (record.binding.scope != expectedBinding.scope) {
+                ConsumedAuthorizationCheck.Rejected("consumed_authorization_scope_mismatch")
+            } else {
+                ConsumedAuthorizationCheck.Rejected("consumed_authorization_target_mismatch")
+            }
+        }
+        return ConsumedAuthorizationCheck.Accepted(
+            binding = record.binding,
+            armToken = record.armToken,
+            attemptLease = record.attemptLease,
+        )
+    }
+
+    @Synchronized
     fun requireConsumedFresh(
         proof: ConsumedDestructiveAuthorizationProof,
         expectedBinding: DestructiveTargetBinding,

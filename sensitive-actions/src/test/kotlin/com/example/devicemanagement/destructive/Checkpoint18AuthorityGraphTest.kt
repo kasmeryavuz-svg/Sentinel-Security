@@ -133,8 +133,9 @@ class Checkpoint18AuthorityGraphTest {
         assertFalse(controller.contains("RuntimeDestructiveSafetyDurabilityMint"))
         assertFalse(controller.contains("assembleAndHandoff"))
         assertFalse(controller.contains("FutureDestructiveRealChainBoundary"))
-        assertTrue(UnwiredRuntimeDurablePreExecutionCommitSource.commit(
+        assertTrue(UnwiredRuntimeDurablePreExecutionCommitSource.commitAfterConsumedAuthorization(
             reflectRuntimeDurabilityForRejectPathTests(),
+            ConsumedDestructiveAuthorizationProof.create(),
             verifiedBinding(),
             DestructiveAttemptLease.create(),
         ) == null)

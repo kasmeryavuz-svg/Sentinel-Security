@@ -14,6 +14,10 @@ class Checkpoint18DecisionTest {
         assertTrue(source.contains("FutureDestructiveRealChainBoundary"))
         assertTrue(source.contains("assembleAndHandoff"))
         assertTrue(source.contains("RuntimeDurablePreExecutionCommitProof"))
+        assertTrue(source.contains("mintFinalLiveValidationPermit"))
+        assertTrue(source.contains("assembleBundleFromPermit"))
+        assertTrue(source.contains("commitAfterConsumedAuthorization"))
+        assertTrue(source.contains("onAuthorizedHandoff"))
     }
 
     @Test

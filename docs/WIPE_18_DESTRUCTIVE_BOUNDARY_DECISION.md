@@ -145,11 +145,11 @@ New types (no Android DevicePolicyManager calls):
 
 | Type | Role |
 | --- | --- |
-| `FutureDestructiveExecutorContract` | sole entrypoint; `execute(bundle)` only |
-| `FutureDestructiveExecutionBundle` | opaque process-local bundle; only legal executor input |
-| `FutureDestructiveRealChainBoundary` | assembler + immediate synchronous handoff |
-| `RuntimeDurablePreExecutionCommitProof` | distinct from simulation pre-execution proof |
-| `RealChainFinalLiveValidationPermit` | process-local permit; never returned or persisted |
+| `FutureDestructiveExecutorContract` | abstract contract; `execute(bundle)` consumes a registered bundle then calls `onAuthorizedHandoff` |
+| `FutureDestructiveExecutionBundle` | nested private-constructor bundle; no companion `create()` |
+| `FutureDestructiveRealChainBoundary` | sole mint of permit/bundle and sole production origin of `execute` |
+| `RuntimeDurablePreExecutionCommitProof` | nested private-constructor proof; issued only after consumed authorization |
+| `RealChainFinalLiveValidationPermit` | nested private-constructor permit; no companion `create()` |
 | `DestructiveWipeOptionPolicyProof` | default-deny option-policy proof |
 
 The bundle can only be assembled after:
@@ -160,8 +160,8 @@ The bundle can only be assembled after:
 - artifact identity match proof
 - destructive human approval
 - consumed destructive authorization / capability
-- runtime-durable pre-execution proof type
-- final live validation permit
+- runtime-durable PRE_EXECUTION_COMMITTED append invoked after that consume
+- final live validation permit minted only after that append and live validation
 - approved wipe-option policy proof
 - `RuntimeDestructiveSafetyDurability` at construction
 
@@ -174,6 +174,7 @@ The executor boundary does **not** accept:
 - caller-selected artifact hashes
 - recovered / persisted authority
 - simulation-only proof types (`PreExecutionEvidenceCommitProof`, `FinalExecutionPermit`)
+- a caller-supplied or pre-banked `RuntimeDurablePreExecutionCommitProof`
 
 There is **no** production implementation of
 `FutureDestructiveExecutorContract`. `UnwiredFutureDestructiveExecutor`
@@ -182,11 +183,34 @@ is not an executor. DeviceManagement does not construct the boundary.
 `REAL_DESTRUCTIVE_EXECUTOR_PRESENT` remains false because no Android
 wipe executor exists.
 
+The handoff bundle and final permit have **no** general `create()` /
+companion mint. They are nested private-constructor types of
+`FutureDestructiveRealChainBoundary`. The boundary mints a permit only
+after live validation, assembles the bundle only from that exact live
+permit, and production bytecode allows `execute` only from
+`assembleAndHandoff`. A reflected or caller-constructed bundle is not
+registered and cannot reach `onAuthorizedHandoff`.
+
+```text
+REAL_CHAIN_UNFORGEABLE_HANDOFF_PRESENT = true
+```
+
 Checkpoint 18 does **not** add an issuer that writes a runtime-durable
 pre-execution row. `UnwiredRuntimeDurablePreExecutionCommitSource`
 returns null. That keeps this checkpoint from recording fake durable
-evidence. The **type** is still required at the boundary, so a later
-approved issuer cannot be skipped.
+evidence. The boundary still **invokes**
+`commitAfterConsumedAuthorization` after capability consumption. Append
+failure means no permit, no bundle, and no executor call. A surviving
+durable row, if a later approved issuer writes one, remains evidence
+only.
+
+```text
+REAL_CHAIN_PRE_EXECUTION_APPEND_AFTER_CONSUME_REQUIRED = true
+REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED = false
+```
+
+Because the production runtime issuer remains unwired, durable-append
+pairing is not complete. Architecture verdict remains **NO**.
 
 ## 3. Runtime durability pairing
 
@@ -273,10 +297,13 @@ Required order inside `assembleAndHandoff`:
 
 ```text
 consume capability
-  -> consume runtime-durable pre-execution proof
+  -> invoke runtime-durable PRE_EXECUTION_COMMITTED append
+     (commitAfterConsumedAuthorization; bound to consumed auth)
+  -> obtain paired single-use proof
+  -> consume that proof
   -> AFTER that, fresh live validation
-  -> issue RealChainFinalLiveValidationPermit
-  -> create bundle
+  -> mint RealChainFinalLiveValidationPermit
+  -> assemble bundle from that exact live permit
   -> immediate executor.execute(bundle)
 ```
 
@@ -289,9 +316,11 @@ REAL_CHAIN_FINAL_LIVE_VALIDATION_REQUIRED = true
 ```
 
 Because the runtime-durable proof issuer is unwired, the method fail-
-closes before permit issue. That is the honest Checkpoint 18 state:
-the order is encoded; a later approved issuer can complete it without
-redesigning the graph.
+closes at the append step, before permit issue. That is the honest
+Checkpoint 18 state: the order is encoded; a later approved issuer can
+complete the append without redesigning the graph. A pre-created or
+pre-banked proof cannot satisfy the boundary because the proof is not
+an input.
 
 ## Machine-readable Checkpoint 18 flags
 
@@ -299,16 +328,19 @@ Structurally proven (true):
 
 ```text
 DESTRUCTIVE_EXECUTOR_CONTRACT_PRESENT = true
+REAL_CHAIN_UNFORGEABLE_HANDOFF_PRESENT = true
 REAL_CHAIN_RUNTIME_DURABILITY_REQUIRED = true
 REAL_CHAIN_ARTIFACT_IDENTITY_REQUIRED = true
 REAL_CHAIN_HUMAN_APPROVAL_REQUIRED = true
 REAL_CHAIN_WIPE_OPTION_POLICY_REQUIRED = true
 REAL_CHAIN_FINAL_LIVE_VALIDATION_REQUIRED = true
+REAL_CHAIN_PRE_EXECUTION_APPEND_AFTER_CONSUME_REQUIRED = true
 ```
 
 Remain false:
 
 ```text
+REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED = false
 REAL_DESTRUCTIVE_EXECUTOR_PRESENT = false
 DESTRUCTIVE_POLICY_WRAPPER_PRESENT = false
 DESTRUCTIVE_METADATA_PRESENT = false
@@ -330,15 +362,18 @@ REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED = false
 ## Verdict
 
 ```text
-18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL = YES
+18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL = NO
 ```
 
-YES means **only**:
+NO because the production runtime-durable pre-execution issuer remains
+unwired. The unforgeable-handoff and append-after-consume *order* are
+structurally encoded, but actual durable-append pairing is not complete.
+A YES would mean **only**:
 
 > the non-Android architecture is ready to request a new explicit
 > approval
 
-YES does **not** authorize:
+YES would **not** authorize:
 
 - `wipeDevice`
 - `<wipe-data>`
@@ -363,8 +398,9 @@ B–E, plus production wiring):
 12. `DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED` is false.
 13. `DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED` is false.
 14. Runtime-durable pre-execution **issuer** is still unwired (type required; no fake row).
-15. 17B ENFORCED flags remain false because production is not wired.
-16. Same-UID arbitrary code remains out of scope for local persistence integrity.
+15. `REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED` is false — append-after-consume is encoded, but no trusted issuer writes a row.
+16. 17B ENFORCED flags remain false because production is not wired.
+17. Same-UID arbitrary code remains out of scope for local persistence integrity.
 
 **NO REAL WIPE IMPLEMENTED**
 **NO WIPE-DATA METADATA ADDED**

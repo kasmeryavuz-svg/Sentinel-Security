@@ -1,20 +1,19 @@
 package com.example.devicemanagement.destructive
 
+import java.util.IdentityHashMap
+
 /**
  * Distinct real-chain proof that a PRE_EXECUTION_COMMITTED append happened
- * through [RuntimeDestructiveSafetyDurability], not through a generic
- * simulation store.
+ * through [RuntimeDestructiveSafetyDurability] after a consumed
+ * destructive capability. This is not [PreExecutionEvidenceCommitProof].
  *
- * This is not [PreExecutionEvidenceCommitProof]. Caller-constructed
- * instances are not registered. Checkpoint 18 does not add a production
- * issuer that writes durable rows: [UnwiredRuntimeDurablePreExecutionCommitSource]
- * returns null so this checkpoint cannot mint fake durable evidence.
+ * No companion mint. Caller-constructed instances are not registered.
+ * Checkpoint 18 does not add a production issuer that writes durable
+ * rows: [UnwiredRuntimeDurablePreExecutionCommitSource] returns null so
+ * this checkpoint cannot mint fake durable evidence.
  */
-internal class RuntimeDurablePreExecutionCommitProof private constructor() {
-    companion object {
-        fun create(): RuntimeDurablePreExecutionCommitProof = RuntimeDurablePreExecutionCommitProof()
-    }
-}
+internal typealias RuntimeDurablePreExecutionCommitProof =
+    RuntimeDurablePreExecutionCommitAuthority.RuntimeDurablePreExecutionCommitProof
 
 internal sealed interface RuntimeDurablePreExecutionCommitResult {
     data class Committed(val proof: RuntimeDurablePreExecutionCommitProof) :
@@ -30,67 +29,129 @@ internal sealed interface RuntimeDurablePreExecutionCheck {
 }
 
 /**
- * Would-be registrar for [RuntimeDurablePreExecutionCommitProof].
+ * Registrar for [RuntimeDurablePreExecutionCommitProof].
  *
  * The constructor structurally requires [RuntimeDestructiveSafetyDurability]
  * so generic [DestructivePreExecutionDurableStore] / in-memory stores cannot
- * satisfy this authority. [commit] does not append and does not issue a
- * proof: no fake durable evidence is recorded in this checkpoint.
+ * satisfy this authority.
+ *
+ * [commitAfterConsumedAuthorization] is the only commit entry. It must be
+ * invoked after capability consumption and is bound to the exact consumed
+ * authorization, binding, lease, and arm token. A pre-created or
+ * pre-banked proof cannot be supplied to the real-chain boundary.
+ *
+ * [commitAfterConsumedAuthorization] does not append and does not issue a
+ * proof while the issuer is unwired: no fake durable evidence is recorded
+ * in this checkpoint. Append failure means no proof.
  */
 internal class RuntimeDurablePreExecutionCommitAuthority(
     private val durability: RuntimeDestructiveSafetyDurability,
 ) {
-    fun commit(
-        binding: DestructiveTargetBinding,
-        attemptLease: DestructiveAttemptLease,
+    class RuntimeDurablePreExecutionCommitProof private constructor()
+
+    private val issued = IdentityHashMap<RuntimeDurablePreExecutionCommitProof, CommitRecord>()
+
+    @Synchronized
+    fun commitAfterConsumedAuthorization(
+        consumedProof: ConsumedDestructiveAuthorizationProof,
+        expectedBinding: DestructiveTargetBinding,
+        expectedLease: DestructiveAttemptLease,
+        expectedArmToken: DestructiveArmingToken,
+        authorizationAuthority: DestructiveAuthorizationAuthority,
     ): RuntimeDurablePreExecutionCommitResult {
         requireDurabilityBound()
-        if (binding.scope != DestructiveScope.DEVICE_FACTORY_RESET) {
+        when (
+            val pending = authorizationAuthority.requirePendingConsumption(
+                proof = consumedProof,
+                expectedBinding = expectedBinding,
+                expectedLease = expectedLease,
+                expectedArmToken = expectedArmToken,
+            )
+        ) {
+            is ConsumedAuthorizationCheck.Rejected -> {
+                return RuntimeDurablePreExecutionCommitResult.Failed(pending.reason)
+            }
+            is ConsumedAuthorizationCheck.Accepted -> Unit
+        }
+        if (expectedBinding.scope != DestructiveScope.DEVICE_FACTORY_RESET) {
             return RuntimeDurablePreExecutionCommitResult.Failed("runtime_pre_execution_scope_denied")
         }
-        if (binding.correlationId.value.isBlank()) {
+        if (expectedBinding.correlationId.value.isBlank()) {
             return RuntimeDurablePreExecutionCommitResult.Failed("runtime_pre_execution_correlation_blank")
         }
-        if (attemptLease.javaClass != DestructiveAttemptLease::class.java) {
+        if (expectedLease.javaClass != DestructiveAttemptLease::class.java) {
             return RuntimeDurablePreExecutionCommitResult.Failed("runtime_pre_execution_lease_type")
         }
-        return RuntimeDurablePreExecutionCommitResult.Failed("runtime_pre_execution_issuer_unwired")
+        if (consumedProof.javaClass != ConsumedDestructiveAuthorizationProof::class.java) {
+            return RuntimeDurablePreExecutionCommitResult.Failed("runtime_pre_execution_consumed_proof_type")
+        }
+        val minted = UnwiredRuntimeDurablePreExecutionCommitSource.commitAfterConsumedAuthorization(
+            durability = durability,
+            consumedProof = consumedProof,
+            binding = expectedBinding,
+            attemptLease = expectedLease,
+        ) ?: return RuntimeDurablePreExecutionCommitResult.Failed(
+            "runtime_pre_execution_issuer_unwired",
+        )
+        issued[minted] = CommitRecord(
+            binding = expectedBinding,
+            attemptLease = expectedLease,
+            consumedProof = consumedProof,
+        )
+        return RuntimeDurablePreExecutionCommitResult.Committed(minted)
     }
 
+    @Synchronized
     fun consume(
         proof: RuntimeDurablePreExecutionCommitProof,
         expectedBinding: DestructiveTargetBinding,
         expectedLease: DestructiveAttemptLease,
+        expectedConsumedProof: ConsumedDestructiveAuthorizationProof,
     ): RuntimeDurablePreExecutionCheck {
         requireDurabilityBound()
-        if (proof.javaClass != RuntimeDurablePreExecutionCommitProof::class.java) {
-            return RuntimeDurablePreExecutionCheck.Rejected("runtime_pre_execution_proof_type")
+        val record = issued.remove(proof)
+            ?: return RuntimeDurablePreExecutionCheck.Rejected(
+                "runtime_pre_execution_not_committed_or_already_consumed",
+            )
+        if (record.attemptLease !== expectedLease) {
+            return RuntimeDurablePreExecutionCheck.Rejected("runtime_pre_execution_lease_mismatch")
         }
-        if (expectedLease.javaClass != DestructiveAttemptLease::class.java) {
-            return RuntimeDurablePreExecutionCheck.Rejected("runtime_pre_execution_lease_type")
+        if (record.consumedProof !== expectedConsumedProof) {
+            return RuntimeDurablePreExecutionCheck.Rejected(
+                "runtime_pre_execution_consumed_proof_mismatch",
+            )
+        }
+        if (record.binding != expectedBinding) {
+            return RuntimeDurablePreExecutionCheck.Rejected("runtime_pre_execution_target_mismatch")
         }
         if (expectedBinding.scope != DestructiveScope.DEVICE_FACTORY_RESET) {
             return RuntimeDurablePreExecutionCheck.Rejected("runtime_pre_execution_scope_denied")
         }
-        return RuntimeDurablePreExecutionCheck.Rejected(
-            "runtime_pre_execution_not_committed_or_already_consumed",
-        )
+        return RuntimeDurablePreExecutionCheck.Accepted
     }
 
     private fun requireDurabilityBound() {
         durability.cooldown
         durability.preExecution
     }
+
+    private data class CommitRecord(
+        val binding: DestructiveTargetBinding,
+        val attemptLease: DestructiveAttemptLease,
+        val consumedProof: ConsumedDestructiveAuthorizationProof,
+    )
 }
 
 /**
  * Production issuer for runtime-durable pre-execution proofs. Not invoked
  * by DeviceManagement. Always returns null so no disposable-device or
- * fake durable evidence can be recorded here.
+ * fake durable evidence can be recorded here. A surviving durable row,
+ * if a later approved issuer writes one, remains evidence only.
  */
 internal object UnwiredRuntimeDurablePreExecutionCommitSource {
-    fun commit(
+    fun commitAfterConsumedAuthorization(
         durability: RuntimeDestructiveSafetyDurability,
+        consumedProof: ConsumedDestructiveAuthorizationProof,
         binding: DestructiveTargetBinding,
         attemptLease: DestructiveAttemptLease,
     ): RuntimeDurablePreExecutionCommitProof? {
@@ -100,6 +161,9 @@ internal object UnwiredRuntimeDurablePreExecutionCommitSource {
             return null
         }
         if (attemptLease.javaClass != DestructiveAttemptLease::class.java) {
+            return null
+        }
+        if (consumedProof.javaClass != ConsumedDestructiveAuthorizationProof::class.java) {
             return null
         }
         return null

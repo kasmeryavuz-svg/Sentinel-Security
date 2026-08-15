@@ -1,46 +1,33 @@
 package com.example.devicemanagement.destructive
 
 import com.example.devicemanagement.integration.MonotonicTimeSource
+import java.util.IdentityHashMap
 
 /**
- * Narrow future destructive executor entrypoint.
+ * Narrow future destructive executor type boundary.
  *
- * The only input is [FutureDestructiveExecutionBundle]. This interface
- * accepts no Boolean, raw digest string, reversible Approval, generic
- * persistence, caller-selected artifact hash, recovered authority, or
- * simulation-only proof type.
+ * There is no general [create] mint for the handoff bundle or the final
+ * permit. Those values are nested private-constructor types of
+ * [FutureDestructiveRealChainBoundary] and can be assembled only after a
+ * live permit is minted by that boundary.
+ *
+ * [execute] consumes a single-use registered bundle. A reflected or
+ * caller-constructed instance is not registered and cannot authorize
+ * [onAuthorizedHandoff]. Production bytecode allows [execute] only from
+ * [FutureDestructiveRealChainBoundary.assembleAndHandoff].
  *
  * There is no Android policy-manager implementation of this contract
  * in this checkpoint. Production DeviceManagement does not implement or
  * wire it.
  */
-internal interface FutureDestructiveExecutorContract {
-    fun execute(bundle: FutureDestructiveExecutionBundle): FutureDestructiveHandoffAcknowledgement
-}
+internal typealias FutureDestructiveExecutorContract =
+    FutureDestructiveRealChainBoundary.FutureDestructiveExecutorContract
 
-/**
- * Opaque process-local real-chain execution bundle. The only value a
- * [FutureDestructiveExecutorContract] may accept. Not serializable. Not
- * reconstructable. Caller-created instances are not assembled by
- * [FutureDestructiveRealChainBoundary] and cannot be obtained from a
- * public assemble API.
- */
-internal class FutureDestructiveExecutionBundle private constructor() {
-    companion object {
-        fun create(): FutureDestructiveExecutionBundle = FutureDestructiveExecutionBundle()
-    }
-}
+internal typealias FutureDestructiveExecutionBundle =
+    FutureDestructiveRealChainBoundary.FutureDestructiveExecutionBundle
 
-/**
- * Ultra-short-lived process-local permit issued only after a fresh live
- * validation that itself happens after the runtime-durable pre-execution
- * proof is consumed. Never returned to callers. Never persisted.
- */
-internal class RealChainFinalLiveValidationPermit private constructor() {
-    companion object {
-        fun create(): RealChainFinalLiveValidationPermit = RealChainFinalLiveValidationPermit()
-    }
-}
+internal typealias RealChainFinalLiveValidationPermit =
+    FutureDestructiveRealChainBoundary.RealChainFinalLiveValidationPermit
 
 internal sealed interface FutureDestructiveHandoffAcknowledgement {
     data class Refused(val reason: String) : FutureDestructiveHandoffAcknowledgement
@@ -55,7 +42,7 @@ internal sealed interface FutureDestructiveHandoffResult {
 }
 
 /**
- * Production stand-in. Not an executor. Does not implement
+ * Production stand-in. Not an executor. Does not extend
  * [FutureDestructiveExecutorContract]. Constructing this object does not
  * wipe, authorize, or hand off.
  */
@@ -68,9 +55,14 @@ internal object UnwiredFutureDestructiveExecutor
  * returns the bundle or the final permit, never hops threads, and never
  * calls an Android policy manager.
  *
+ * After capability consumption the boundary invokes
+ * [RuntimeDurablePreExecutionCommitAuthority.commitAfterConsumedAuthorization].
+ * It does not accept a caller-supplied runtime pre-execution proof.
+ *
  * [assembleAndHandoff] cannot complete in this checkpoint because
  * [RuntimeDurablePreExecutionCommitAuthority] has no issuer. That is
- * intentional: no fake durable evidence is recorded.
+ * intentional: no fake durable evidence is recorded. Append failure
+ * means no permit, no bundle, and no executor call.
  */
 internal class FutureDestructiveRealChainBoundary(
     private val durability: RuntimeDestructiveSafetyDurability,
@@ -84,6 +76,36 @@ internal class FutureDestructiveRealChainBoundary(
     private val cooldown: DestructiveDenyOnlyCooldown,
     private val monotonicTimeSource: MonotonicTimeSource,
 ) {
+    /**
+     * Opaque process-local real-chain execution bundle. The only value a
+     * [FutureDestructiveExecutorContract] may accept. Not serializable.
+     * No companion mint. Only [assembleBundleFromPermit] can construct
+     * and register an instance, and only from an exact live permit.
+     */
+    class FutureDestructiveExecutionBundle private constructor()
+
+    /**
+     * Ultra-short-lived process-local permit minted only by
+     * [mintFinalLiveValidationPermit] after fresh live validation.
+     * Never returned to callers. Never persisted. No companion mint.
+     */
+    class RealChainFinalLiveValidationPermit private constructor()
+
+    abstract class FutureDestructiveExecutorContract {
+        fun execute(
+            bundle: FutureDestructiveExecutionBundle,
+        ): FutureDestructiveHandoffAcknowledgement {
+            if (!consumeIssuedBundle(bundle)) {
+                return FutureDestructiveHandoffAcknowledgement.Refused(
+                    "forged_or_consumed_bundle",
+                )
+            }
+            return onAuthorizedHandoff()
+        }
+
+        protected abstract fun onAuthorizedHandoff(): FutureDestructiveHandoffAcknowledgement
+    }
+
     private val runtimePreExecutionAuthority = RuntimeDurablePreExecutionCommitAuthority(durability)
 
     fun assembleAndHandoff(
@@ -95,7 +117,6 @@ internal class FutureDestructiveRealChainBoundary(
         artifactMatchProof: DestructiveArtifactIdentityMatchProof,
         observedIdentity: DestructiveArtifactIdentity,
         humanApproval: DestructiveHumanApproval,
-        runtimePreExecutionProof: RuntimeDurablePreExecutionCommitProof,
         wipeOptionPolicyProof: DestructiveWipeOptionPolicyProof,
     ): FutureDestructiveHandoffResult {
         durability.cooldown
@@ -142,11 +163,27 @@ internal class FutureDestructiveRealChainBoundary(
             }
             is DestructiveCapabilityConsumption.Accepted -> consumption
         }
-        when (
-            val runtime = runtimePreExecutionAuthority.consume(
-                proof = runtimePreExecutionProof,
+        val committed = when (
+            val commit = runtimePreExecutionAuthority.commitAfterConsumedAuthorization(
+                consumedProof = consumed.proof,
                 expectedBinding = consumed.binding,
                 expectedLease = consumed.attemptLease,
+                expectedArmToken = consumed.armToken,
+                authorizationAuthority = authorizationAuthority,
+            )
+        ) {
+            is RuntimeDurablePreExecutionCommitResult.Failed -> {
+                authorizationAuthority.invalidateProof(consumed.proof)
+                return FutureDestructiveHandoffResult.Failed(commit.reason)
+            }
+            is RuntimeDurablePreExecutionCommitResult.Committed -> commit
+        }
+        when (
+            val runtime = runtimePreExecutionAuthority.consume(
+                proof = committed.proof,
+                expectedBinding = consumed.binding,
+                expectedLease = consumed.attemptLease,
+                expectedConsumedProof = consumed.proof,
             )
         ) {
             is RuntimeDurablePreExecutionCheck.Rejected -> {
@@ -203,12 +240,57 @@ internal class FutureDestructiveRealChainBoundary(
             }
             CooldownUsable.Usable -> Unit
         }
-        RealChainFinalLiveValidationPermit.create()
-        val bundle = FutureDestructiveExecutionBundle.create()
+        val permit = mintFinalLiveValidationPermit()
+        val bundle = assembleBundleFromPermit(permit)
+            ?: return FutureDestructiveHandoffResult.Failed("real_chain_permit_not_live")
         return when (val acknowledgement = executor.execute(bundle)) {
             is FutureDestructiveHandoffAcknowledgement.Refused -> {
                 FutureDestructiveHandoffResult.Acknowledged(acknowledgement)
             }
+        }
+    }
+
+    private fun mintFinalLiveValidationPermit(): RealChainFinalLiveValidationPermit {
+        val permit = RealChainFinalLiveValidationPermit()
+        registerIssuedPermit(permit)
+        return permit
+    }
+
+    private fun assembleBundleFromPermit(
+        permit: RealChainFinalLiveValidationPermit,
+    ): FutureDestructiveExecutionBundle? {
+        if (!consumeIssuedPermit(permit)) {
+            return null
+        }
+        val bundle = FutureDestructiveExecutionBundle()
+        registerIssuedBundle(bundle)
+        return bundle
+    }
+
+    private companion object {
+        private val issuedPermits =
+            IdentityHashMap<RealChainFinalLiveValidationPermit, Unit>()
+        private val issuedBundles =
+            IdentityHashMap<FutureDestructiveExecutionBundle, Unit>()
+
+        @Synchronized
+        fun registerIssuedPermit(permit: RealChainFinalLiveValidationPermit) {
+            issuedPermits[permit] = Unit
+        }
+
+        @Synchronized
+        fun consumeIssuedPermit(permit: RealChainFinalLiveValidationPermit): Boolean {
+            return issuedPermits.remove(permit) != null
+        }
+
+        @Synchronized
+        fun registerIssuedBundle(bundle: FutureDestructiveExecutionBundle) {
+            issuedBundles[bundle] = Unit
+        }
+
+        @Synchronized
+        fun consumeIssuedBundle(bundle: FutureDestructiveExecutionBundle): Boolean {
+            return issuedBundles.remove(bundle) != null
         }
     }
 }

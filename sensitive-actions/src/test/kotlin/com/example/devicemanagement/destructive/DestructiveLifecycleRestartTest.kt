@@ -113,6 +113,8 @@ class DestructiveLifecycleRestartTest {
         assertTrue(!source.contains("FutureDestructiveExecutorContract"))
         assertTrue(!source.contains("FutureDestructiveRealChainBoundary"))
         assertTrue(!source.contains("assembleAndHandoff"))
+        assertTrue(!source.contains("mintFinalLiveValidationPermit"))
+        assertTrue(!source.contains("commitAfterConsumedAuthorization"))
         assertTrue(!source.contains("RuntimeDurablePreExecutionCommitProof"))
         assertTrue(!source.contains("RealChainFinalLiveValidationPermit"))
         assertTrue(!source.contains("DestructiveWipeOptionPolicyProof"))

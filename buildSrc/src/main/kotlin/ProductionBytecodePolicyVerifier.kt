@@ -380,8 +380,12 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/FutureDestructiveExecutorContract",
         "com/example/devicemanagement/destructive/FutureDestructiveExecutionBundle",
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary",
+        "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$FutureDestructiveExecutorContract",
+        "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$FutureDestructiveExecutionBundle",
+        "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitProof",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority",
+        "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority\$RuntimeDurablePreExecutionCommitProof",
         "com/example/devicemanagement/destructive/RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/Checkpoint18Decision",
         "com/example/devicemanagement/destructive/UnwiredFutureDestructiveExecutor",
@@ -413,6 +417,15 @@ internal object ProductionBytecodePolicyVerifier {
         "admit",
         "assembleAndHandoff",
         "verifyDefaultDeny",
+        "mintFinalLiveValidationPermit",
+        "assembleBundleFromPermit",
+        "commitAfterConsumedAuthorization",
+        "onAuthorizedHandoff",
+        "requirePendingConsumption",
+        "registerIssuedPermit",
+        "registerIssuedBundle",
+        "consumeIssuedPermit",
+        "consumeIssuedBundle",
     )
 
     private val trustedAuditStoreMutationOrigins = mapOf(
@@ -508,6 +521,54 @@ internal object ProductionBytecodePolicyVerifier {
         "issueFromTrustedConfirmationSource",
         "mintFromTrustedAndroidMedium",
         "mintFromTrustedAndroidStore",
+    )
+
+    private val realChainBoundaryOwner =
+        "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary"
+
+    private val realChainExecutorContractOwners = setOf(
+        "com/example/devicemanagement/destructive/FutureDestructiveExecutorContract",
+        "$realChainBoundaryOwner\$FutureDestructiveExecutorContract",
+    )
+
+    private val realChainHandoffMaterialOwners = setOf(
+        "com/example/devicemanagement/destructive/FutureDestructiveExecutionBundle",
+        "com/example/devicemanagement/destructive/RealChainFinalLiveValidationPermit",
+        "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitProof",
+        "$realChainBoundaryOwner\$FutureDestructiveExecutionBundle",
+        "$realChainBoundaryOwner\$RealChainFinalLiveValidationPermit",
+        "com/example/devicemanagement/destructive/" +
+            "RuntimeDurablePreExecutionCommitAuthority\$RuntimeDurablePreExecutionCommitProof",
+    )
+
+    private val realChainHandoffConstructorOwners = setOf(
+        realChainBoundaryOwner,
+        "$realChainBoundaryOwner\$Companion",
+        "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority",
+        "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority\$Companion",
+    )
+
+    private val realChainHandoffConstructorMethods = setOf(
+        "mintFinalLiveValidationPermit",
+        "assembleBundleFromPermit",
+        "commitAfterConsumedAuthorization",
+        "assembleAndHandoff",
+    )
+
+    private val trustedRealChainHandoffOrigin = InvocationOrigin(
+        realChainBoundaryOwner,
+        "assembleAndHandoff",
+        "(Lcom/example/devicemanagement/destructive/" +
+            "FutureDestructiveRealChainBoundary\$FutureDestructiveExecutorContract;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveCapability;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveArmingToken;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentityMatchProof;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentity;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveHumanApproval;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveWipeOptionPolicyProof;)" +
+            "Lcom/example/devicemanagement/destructive/FutureDestructiveHandoffResult;",
     )
 
     private val trustedDestructiveSafetyMutationOrigins = mapOf(
@@ -709,6 +770,7 @@ internal object ProductionBytecodePolicyVerifier {
                 checkTrustedArtifactExpectationIssueInvocation(owner, name, descriptor, location)
                 checkTrustedHumanConfirmationMintInvocation(owner, name, descriptor, location)
                 checkTrustedHumanConfirmationConfirmInvocation(owner, name, descriptor, location)
+                checkRealChainHandoffInvocation(owner, name, descriptor, location)
                 checkRecoveryIsolation(owner, name, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
                 checkContextDatabaseInvocation(owner, name, location)
@@ -807,6 +869,12 @@ internal object ProductionBytecodePolicyVerifier {
                 "$location method handle",
             )
             checkTrustedHumanConfirmationConfirmInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
+            checkRealChainHandoffInvocation(
                 handle.owner,
                 handle.name,
                 handle.desc,
@@ -1059,6 +1127,179 @@ internal object ProductionBytecodePolicyVerifier {
                         owner == "com/example/devicemanagement/destructive/" +
                         "RuntimeDestructiveSafetyDurabilityMint"
                     )
+        }
+
+        private fun checkRealChainHandoffInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            checkRealChainExecutorExecute(owner, name, descriptor, location)
+            checkRealChainOnAuthorizedHandoff(owner, name, location)
+            checkRealChainHandoffMint(owner, name, descriptor, location)
+            checkRealChainHandoffConstructor(owner, name, location)
+            checkRealChainCompanionCreate(owner, name, descriptor, location)
+        }
+
+        private fun checkRealChainExecutorExecute(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            if (!isRealChainExecutorExecute(owner, name, descriptor)) {
+                return
+            }
+            val callerMethod = methodName(location)
+            val authorized = target.artifactPath == ":sensitive-actions" &&
+                className == realChainBoundaryOwner &&
+                callerMethod == "assembleAndHandoff"
+            if (authorized) {
+                return
+            }
+            val invocation = "$owner.$name$descriptor"
+            violation(
+                "$location invokes future executor $invocation outside " +
+                    "FutureDestructiveRealChainBoundary.assembleAndHandoff",
+            )
+        }
+
+        private fun isRealChainExecutorExecute(
+            owner: String,
+            name: String,
+            descriptor: String,
+        ): Boolean {
+            if (name != "execute") {
+                return false
+            }
+            if (owner in realChainExecutorContractOwners) {
+                return true
+            }
+            return realChainHandoffMaterialOwners.any { material ->
+                descriptor.contains("L$material;")
+            } && "FutureDestructiveExecutionBundle" in descriptor
+        }
+
+        private fun checkRealChainOnAuthorizedHandoff(
+            owner: String,
+            name: String,
+            location: String,
+        ) {
+            if (name != "onAuthorizedHandoff") {
+                return
+            }
+            val callerMethod = methodName(location)
+            val authorized = className in realChainExecutorContractOwners &&
+                callerMethod == "execute"
+            if (authorized) {
+                return
+            }
+            violation(
+                "$location invokes future executor $owner.$name outside " +
+                    "FutureDestructiveExecutorContract.execute",
+            )
+        }
+
+        private fun checkRealChainHandoffMint(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            val mintNames = setOf(
+                "mintFinalLiveValidationPermit",
+                "assembleBundleFromPermit",
+                "commitAfterConsumedAuthorization",
+                "registerIssuedPermit",
+                "registerIssuedBundle",
+                "consumeIssuedPermit",
+                "consumeIssuedBundle",
+            )
+            if (name !in mintNames) {
+                return
+            }
+            val callerMethod = methodName(location)
+            val authorized = when (name) {
+                "mintFinalLiveValidationPermit",
+                "assembleBundleFromPermit",
+                "commitAfterConsumedAuthorization",
+                -> {
+                    target.artifactPath == ":sensitive-actions" &&
+                        className == realChainBoundaryOwner &&
+                        callerMethod == "assembleAndHandoff"
+                }
+                "registerIssuedPermit" -> {
+                    className == realChainBoundaryOwner &&
+                        callerMethod == "mintFinalLiveValidationPermit"
+                }
+                "registerIssuedBundle",
+                "consumeIssuedPermit",
+                -> {
+                    className == realChainBoundaryOwner &&
+                        callerMethod == "assembleBundleFromPermit"
+                }
+                "consumeIssuedBundle" -> {
+                    className in realChainExecutorContractOwners &&
+                        callerMethod == "execute"
+                }
+                else -> false
+            } || isKotlinMintBridge(owner, name, className, callerMethod)
+            if (authorized) {
+                return
+            }
+            val invocation = "$owner.$name$descriptor"
+            violation(
+                "$location invokes real-chain handoff mint $invocation outside " +
+                    "FutureDestructiveRealChainBoundary",
+            )
+        }
+
+        private fun checkRealChainHandoffConstructor(
+            owner: String,
+            name: String,
+            location: String,
+        ) {
+            if (name != "<init>" || owner !in realChainHandoffMaterialOwners) {
+                return
+            }
+            val callerMethod = methodName(location)
+            val authorizedOwner = className in realChainHandoffConstructorOwners ||
+                className.startsWith("$realChainBoundaryOwner$") ||
+                className.startsWith(
+                    "com/example/devicemanagement/destructive/" +
+                        "RuntimeDurablePreExecutionCommitAuthority$",
+                )
+            val authorizedMethod = callerMethod in realChainHandoffConstructorMethods ||
+                callerMethod.startsWith("access\$")
+            if (authorizedOwner && authorizedMethod) {
+                return
+            }
+            violation(
+                "$location constructs real-chain handoff material $owner outside " +
+                    "the FutureDestructiveRealChainBoundary mint",
+            )
+        }
+
+        private fun checkRealChainCompanionCreate(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            if (name != "create") {
+                return
+            }
+            val isHandoffOwner = owner in realChainHandoffMaterialOwners ||
+                owner.endsWith("\$Companion") &&
+                realChainHandoffMaterialOwners.any { owner.startsWith("$it$") }
+            if (!isHandoffOwner) {
+                return
+            }
+            val invocation = "$owner.$name$descriptor"
+            violation(
+                "$location invokes forbidden real-chain companion mint $invocation",
+            )
         }
 
         private fun checkTrustedHumanConfirmationConfirmInvocation(
