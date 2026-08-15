@@ -6,9 +6,11 @@ import java.util.IdentityHashMap
 /**
  * Opaque process-local destructive attempt / admission lease.
  *
- * Issued only after cooldown admission, deny-only marker write, and marker
- * readback all succeed. Never serialized or persisted. Process death
- * destroys every lease; a surviving deny-only marker can only deny.
+ * Issued only after a [CountedAttemptProof] is consumed. That proof is
+ * issued only after cooldown admission, deny-only marker write, and marker
+ * readback all succeed. The persisted marker is never the proof and never
+ * the lease. Never serialized or persisted. Process death destroys every
+ * lease and every unused proof; a surviving deny-only marker can only deny.
  *
  * At most one non-terminal lease exists per authority. Terminal close is
  * explicit and never clears the deny-only cooldown.
@@ -20,24 +22,57 @@ internal class DestructiveAttemptLease private constructor() {
 }
 
 /**
+ * Opaque one-time bridge from a just-recorded counted attempt to lease
+ * issuance. Caller-constructed tokens are not registered. A Present marker
+ * is not this proof.
+ */
+internal class CountedAttemptProof private constructor() {
+    companion object {
+        fun create(): CountedAttemptProof = CountedAttemptProof()
+    }
+}
+
+/**
  * Authoritative issuer of [DestructiveAttemptLease] values. The persisted
  * deny-only marker is never a lease and can never arm, authorize, or
- * execute.
+ * execute. [issueLease] requires and consumes a [CountedAttemptProof];
+ * there is no marker-only issuance path.
  */
 internal class DestructiveAttemptAdmissionAuthority(
     private val cooldown: DestructiveDenyOnlyCooldown,
     private val monotonicTimeSource: MonotonicTimeSource,
     private val maxAgeMillis: Long = MAX_LEASE_AGE_MILLIS,
+    private val maxCountedAttemptProofAgeMillis: Long = MAX_COUNTED_ATTEMPT_PROOF_AGE_MILLIS,
 ) {
     private val liveLeases = IdentityHashMap<DestructiveAttemptLease, AttemptLeaseRecord>()
+    private val pendingCountedAttempts = IdentityHashMap<CountedAttemptProof, CountedAttemptRecord>()
 
     @Synchronized
-    fun recordCountedAttempt(): CooldownRecordResult {
+    fun recordCountedAttempt(
+        correlationId: DestructiveCorrelationId,
+        requestedScope: DestructiveScope?,
+    ): CountedAttemptRecordResult {
         when (val decision = cooldown.canAcceptNewRequest()) {
-            is CooldownDecision.Deny -> return CooldownRecordResult.Failed(decision.reason)
+            is CooldownDecision.Deny -> return CountedAttemptRecordResult.Failed(decision.reason)
             CooldownDecision.NotDenied -> Unit
         }
-        return cooldown.recordAttempt()
+        return when (val recorded = cooldown.recordAttempt()) {
+            is CooldownRecordResult.Failed -> CountedAttemptRecordResult.Failed(recorded.reason)
+            CooldownRecordResult.Recorded -> {
+                val proof = CountedAttemptProof.create()
+                pendingCountedAttempts[proof] = CountedAttemptRecord(
+                    correlationId = correlationId,
+                    requestedScope = requestedScope,
+                    issuedAtMonotonicMillis = monotonicTimeSource.nowMillis(),
+                )
+                CountedAttemptRecordResult.Recorded(proof)
+            }
+        }
+    }
+
+    @Synchronized
+    fun discardCountedAttempt(proof: CountedAttemptProof) {
+        pendingCountedAttempts.remove(proof)
     }
 
     @Synchronized
@@ -48,18 +83,40 @@ internal class DestructiveAttemptAdmissionAuthority(
         if (liveLeases.isNotEmpty()) {
             return AttemptAdmissionResult.Rejected("attempt_lease_already_live")
         }
-        when (val recorded = recordCountedAttempt()) {
-            is CooldownRecordResult.Failed -> return AttemptAdmissionResult.Rejected(recorded.reason)
-            CooldownRecordResult.Recorded -> Unit
+        return when (val recorded = recordCountedAttempt(correlationId, requestedScope)) {
+            is CountedAttemptRecordResult.Failed -> AttemptAdmissionResult.Rejected(recorded.reason)
+            is CountedAttemptRecordResult.Recorded -> issueLease(
+                proof = recorded.proof,
+                correlationId = correlationId,
+                requestedScope = requestedScope,
+            )
         }
-        return issueLeaseAfterRecorded(correlationId, requestedScope)
     }
 
     @Synchronized
     fun issueLease(
+        proof: CountedAttemptProof,
         correlationId: DestructiveCorrelationId,
         requestedScope: DestructiveScope,
+        nowMonotonicMillis: Long = monotonicTimeSource.nowMillis(),
     ): AttemptAdmissionResult {
+        val counted = pendingCountedAttempts.remove(proof)
+            ?: return AttemptAdmissionResult.Rejected(
+                "counted_attempt_not_issued_or_already_consumed",
+            )
+        val proofAge = nowMonotonicMillis - counted.issuedAtMonotonicMillis
+        if (proofAge < 0L) {
+            return AttemptAdmissionResult.Rejected("counted_attempt_negative_monotonic_delta")
+        }
+        if (proofAge > maxCountedAttemptProofAgeMillis) {
+            return AttemptAdmissionResult.Rejected("counted_attempt_stale")
+        }
+        if (counted.correlationId != correlationId) {
+            return AttemptAdmissionResult.Rejected("counted_attempt_correlation_mismatch")
+        }
+        if (counted.requestedScope != requestedScope) {
+            return AttemptAdmissionResult.Rejected("counted_attempt_scope_mismatch")
+        }
         if (liveLeases.isNotEmpty()) {
             return AttemptAdmissionResult.Rejected("attempt_lease_already_live")
         }
@@ -67,7 +124,15 @@ internal class DestructiveAttemptAdmissionAuthority(
             is CooldownUsable.Unusable -> return AttemptAdmissionResult.Rejected(marker.reason)
             CooldownUsable.Usable -> Unit
         }
-        return issueLeaseAfterRecorded(correlationId, requestedScope)
+        val lease = DestructiveAttemptLease.create()
+        liveLeases[lease] = AttemptLeaseRecord(
+            correlationId = correlationId,
+            requestedScope = requestedScope,
+            binding = null,
+            phase = AttemptLeasePhase.ADMITTED,
+            issuedAtMonotonicMillis = nowMonotonicMillis,
+        )
+        return AttemptAdmissionResult.Admitted(lease)
     }
 
     @Synchronized
@@ -160,21 +225,6 @@ internal class DestructiveAttemptAdmissionAuthority(
     @Synchronized
     fun hasNonTerminalLease(): Boolean = liveLeases.isNotEmpty()
 
-    private fun issueLeaseAfterRecorded(
-        correlationId: DestructiveCorrelationId,
-        requestedScope: DestructiveScope,
-    ): AttemptAdmissionResult {
-        val lease = DestructiveAttemptLease.create()
-        liveLeases[lease] = AttemptLeaseRecord(
-            correlationId = correlationId,
-            requestedScope = requestedScope,
-            binding = null,
-            phase = AttemptLeasePhase.ADMITTED,
-            issuedAtMonotonicMillis = monotonicTimeSource.nowMillis(),
-        )
-        return AttemptAdmissionResult.Admitted(lease)
-    }
-
     private fun freshnessReason(
         record: AttemptLeaseRecord,
         nowMonotonicMillis: Long,
@@ -202,6 +252,12 @@ internal class DestructiveAttemptAdmissionAuthority(
         return null
     }
 
+    private data class CountedAttemptRecord(
+        val correlationId: DestructiveCorrelationId,
+        val requestedScope: DestructiveScope?,
+        val issuedAtMonotonicMillis: Long,
+    )
+
     private data class AttemptLeaseRecord(
         val correlationId: DestructiveCorrelationId,
         val requestedScope: DestructiveScope,
@@ -218,7 +274,14 @@ internal class DestructiveAttemptAdmissionAuthority(
 
     internal companion object {
         const val MAX_LEASE_AGE_MILLIS = 15_000L
+        const val MAX_COUNTED_ATTEMPT_PROOF_AGE_MILLIS = 15_000L
     }
+}
+
+internal sealed interface CountedAttemptRecordResult {
+    data class Recorded(val proof: CountedAttemptProof) : CountedAttemptRecordResult
+
+    data class Failed(val reason: String) : CountedAttemptRecordResult
 }
 
 internal sealed interface AttemptAdmissionResult {

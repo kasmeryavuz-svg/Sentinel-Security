@@ -94,6 +94,8 @@ class DestructiveLifecycleRestartTest {
         assertTrue(!source.contains("DestructiveCapability"))
         assertTrue(!source.contains("DestructiveAttemptLease"))
         assertTrue(!source.contains("ConsumedDestructiveAuthorizationProof"))
+        assertTrue(!source.contains("CountedAttemptProof"))
+        assertTrue(!source.contains("PreExecutionEvidenceCommitProof"))
         assertTrue(!source.contains("FinalExecutionPermit"))
         assertTrue(!source.contains("SimulatedDestructiveExecutor"))
         assertTrue(!source.contains("Checkpoint17ASimulationSink"))

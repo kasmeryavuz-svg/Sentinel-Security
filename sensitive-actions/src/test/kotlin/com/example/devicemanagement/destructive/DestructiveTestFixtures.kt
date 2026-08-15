@@ -120,6 +120,7 @@ internal class DestructiveSimulationComposition(
     val clock: MutableMonotonicClock,
     val executor: SimulatedDestructiveExecutor,
     val gate: DestructiveFinalExecutionGate,
+    val preExecutionAuthority: PreExecutionEvidenceCommitAuthority,
     val cleanup: DestructiveTerminalCleanup,
     val markerStore: InMemoryDenyOnlyCooldownMarkerStore?,
 ) {
@@ -143,6 +144,26 @@ internal class DestructiveSimulationComposition(
             (authorized as DestructiveAuthorizationResult.Rejected).reason
         }
         return authorized
+    }
+
+    fun commitPreExecution(
+        binding: DestructiveTargetBinding,
+        attemptLease: DestructiveAttemptLease,
+    ): PreExecutionEvidenceCommitProof {
+        val committed = preExecutionAuthority.commit(
+            evidence = simulationEvidence(
+                correlationId = binding.correlationId.value,
+                phase = DestructiveEvidencePhase.PRE_EXECUTION_COMMITTED,
+                presentationWallClockMillis = 0L,
+                binding = binding,
+            ),
+            binding = binding,
+            attemptLease = attemptLease,
+        )
+        check(committed is PreExecutionEvidenceCommitResult.Committed) {
+            (committed as PreExecutionEvidenceCommitResult.Failed).reason
+        }
+        return committed.proof
     }
 
     companion object {
@@ -170,10 +191,15 @@ internal class DestructiveSimulationComposition(
                 monotonicTimeSource = clock,
                 admissionAuthority = admissionAuthority,
             )
+            val preExecutionAuthority = PreExecutionEvidenceCommitAuthority(
+                writer = evidenceWriter,
+                monotonicTimeSource = clock,
+            )
             val cleanup = DestructiveTerminalCleanup(
                 admissionAuthority = admissionAuthority,
                 armingAuthority = armingAuthority,
                 authorizationAuthority = authorizationAuthority,
+                preExecutionAuthority = preExecutionAuthority,
             )
             val gate = DestructiveFinalExecutionGate(
                 liveFactsSource = liveFacts,
@@ -181,12 +207,14 @@ internal class DestructiveSimulationComposition(
                 authorizationAuthority = authorizationAuthority,
                 admissionAuthority = admissionAuthority,
                 cooldown = cooldown,
+                preExecutionAuthority = preExecutionAuthority,
                 monotonicTimeSource = clock,
             )
             val sink = Checkpoint17ASimulationSink(gate)
             val executor = SimulatedDestructiveExecutor(
                 authorizationAuthority = authorizationAuthority,
                 gate = gate,
+                preExecutionAuthority = preExecutionAuthority,
                 evidenceWriter = evidenceWriter,
                 sink = sink,
                 cleanup = cleanup,
@@ -216,6 +244,7 @@ internal class DestructiveSimulationComposition(
                 clock = clock,
                 executor = executor,
                 gate = gate,
+                preExecutionAuthority = preExecutionAuthority,
                 cleanup = cleanup,
                 markerStore = store as? InMemoryDenyOnlyCooldownMarkerStore,
             )

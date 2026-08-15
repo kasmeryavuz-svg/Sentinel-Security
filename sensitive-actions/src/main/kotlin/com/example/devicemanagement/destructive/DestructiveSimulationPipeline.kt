@@ -5,9 +5,9 @@ import java.util.UUID
 
 /**
  * Trusted Checkpoint 17A request acceptor. Creates the authoritative
- * correlation ID, records a deny-only attempt, then walks lease issuance →
- * assessment → arming → authorization → simulated executor. Never reaches
- * an Android policy service.
+ * correlation ID, records a deny-only attempt (opaque counted-attempt
+ * proof), then walks lease issuance → assessment → arming → authorization
+ * → simulated executor. Never reaches an Android policy service.
  *
  * Not wired into production DeviceManagement composition.
  */
@@ -88,20 +88,33 @@ internal class DestructiveSimulationPipeline(
                 )
             }
 
-            when (val recorded = admissionAuthority.recordCountedAttempt()) {
-                is CooldownRecordResult.Failed -> return reject(correlationId.value, recorded.reason)
-                CooldownRecordResult.Recorded -> Unit
+            val counted = when (
+                val recorded = admissionAuthority.recordCountedAttempt(
+                    correlationId = correlationId,
+                    requestedScope = request.requestedScope,
+                )
+            ) {
+                is CountedAttemptRecordResult.Failed -> return reject(correlationId.value, recorded.reason)
+                is CountedAttemptRecordResult.Recorded -> recorded
             }
 
             val scope = request.requestedScope
             if (scope == null) {
+                admissionAuthority.discardCountedAttempt(counted.proof)
                 return reject(correlationId.value, "unspecified_scope")
             }
             if (scope != DestructiveScope.DEVICE_FACTORY_RESET) {
+                admissionAuthority.discardCountedAttempt(counted.proof)
                 return reject(correlationId.value, "unsupported_scope")
             }
 
-            val admitted = when (val issued = admissionAuthority.issueLease(correlationId, scope)) {
+            val admitted = when (
+                val issued = admissionAuthority.issueLease(
+                    proof = counted.proof,
+                    correlationId = correlationId,
+                    requestedScope = scope,
+                )
+            ) {
                 is AttemptAdmissionResult.Rejected -> return reject(correlationId.value, issued.reason)
                 is AttemptAdmissionResult.Admitted -> issued
             }

@@ -10,6 +10,7 @@ internal class DestructiveTerminalCleanup(
     private val admissionAuthority: DestructiveAttemptAdmissionAuthority,
     private val armingAuthority: DestructiveArmingAuthority,
     private val authorizationAuthority: DestructiveAuthorizationAuthority,
+    private val preExecutionAuthority: PreExecutionEvidenceCommitAuthority? = null,
 ) {
     fun close(
         lease: DestructiveAttemptLease?,
@@ -22,6 +23,7 @@ internal class DestructiveTerminalCleanup(
         if (lease != null) {
             armingAuthority.invalidateForLease(lease)
             authorizationAuthority.invalidateForLease(lease)
+            preExecutionAuthority?.invalidateForLease(lease)
             admissionAuthority.close(lease)
         }
         if (consumptionProof != null) {

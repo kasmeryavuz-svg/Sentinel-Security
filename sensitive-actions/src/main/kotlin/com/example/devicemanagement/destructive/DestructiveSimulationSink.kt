@@ -4,9 +4,12 @@ package com.example.devicemanagement.destructive
  * Checkpoint 17A non-destructive simulation boundary. Records that a
  * destructive action would execute. It has no Android policy-service
  * dependency and is not the fail-safe mock action.
+ *
+ * Structurally paired with the concrete [DestructiveFinalExecutionGate].
+ * There is no injectable permit-consumer path.
  */
 internal class Checkpoint17ASimulationSink(
-    private val permits: FinalExecutionPermitConsumer,
+    private val permitGate: DestructiveFinalExecutionGate,
 ) {
     private val invocations = mutableListOf<String>()
 
@@ -14,7 +17,7 @@ internal class Checkpoint17ASimulationSink(
         permit: FinalExecutionPermit,
         expectedBinding: DestructiveTargetBinding,
     ): SimulationSinkResult {
-        return when (val consumption = permits.consume(permit, expectedBinding)) {
+        return when (val consumption = permitGate.consume(permit, expectedBinding)) {
             is PermitConsumption.Rejected -> SimulationSinkResult.Denied(consumption.reason)
             is PermitConsumption.Accepted -> {
                 invocations += MESSAGE

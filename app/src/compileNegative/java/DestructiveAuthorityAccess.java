@@ -2,6 +2,9 @@ package attack;
 
 import com.example.devicemanagement.destructive.Checkpoint17ASimulationSink;
 import com.example.devicemanagement.destructive.ConsumedDestructiveAuthorizationProof;
+import com.example.devicemanagement.destructive.CountedAttemptProof;
+import com.example.devicemanagement.destructive.PreExecutionEvidenceCommitAuthority;
+import com.example.devicemanagement.destructive.PreExecutionEvidenceCommitProof;
 import com.example.devicemanagement.destructive.DestructiveArmingAuthority;
 import com.example.devicemanagement.destructive.DestructiveAttemptAdmissionAuthority;
 import com.example.devicemanagement.destructive.DestructiveAttemptLease;
@@ -20,6 +23,9 @@ final class DestructiveAuthorityAccess {
     DestructiveCapability capability;
     DestructiveAttemptLease attemptLease;
     ConsumedDestructiveAuthorizationProof consumedProof;
+    CountedAttemptProof countedAttemptProof;
+    PreExecutionEvidenceCommitProof preExecutionProof;
+    PreExecutionEvidenceCommitAuthority preExecutionAuthority;
     FinalExecutionPermit permit;
     DestructiveFinalExecutionGate gate;
     SimulatedDestructiveExecutor executor;

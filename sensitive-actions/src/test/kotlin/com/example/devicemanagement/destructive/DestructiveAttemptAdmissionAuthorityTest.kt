@@ -144,6 +144,142 @@ class DestructiveAttemptAdmissionAuthorityTest {
     }
 
     @Test
+    fun `issueLease without a fresh counted-attempt proof fails after cooldown expiry`() {
+        val bundle = DestructiveAuthorityBundle()
+        val binding = verifiedBinding()
+        val recorded = bundle.admission.recordCountedAttempt(binding.correlationId, binding.scope)
+        val firstProof = (recorded as CountedAttemptRecordResult.Recorded).proof
+        val first = bundle.admission.issueLease(
+            proof = firstProof,
+            correlationId = binding.correlationId,
+            requestedScope = binding.scope,
+        )
+        assertTrue(first is AttemptAdmissionResult.Admitted)
+        bundle.cleanup.close((first as AttemptAdmissionResult.Admitted).lease)
+        assertTrue(!bundle.admission.hasNonTerminalLease())
+
+        bundle.clock.now = 1_000L + DestructiveDenyOnlyCooldown.DEFAULT_COOLDOWN_MILLIS
+        assertEquals(CooldownDecision.NotDenied, bundle.cooldown.canAcceptNewRequest())
+        assertEquals(CooldownUsable.Usable, bundle.cooldown.assertCurrentAttemptMarkerPresent())
+
+        val leftover = bundle.admission.issueLease(
+            proof = firstProof,
+            correlationId = binding.correlationId,
+            requestedScope = binding.scope,
+        )
+        assertEquals(
+            "counted_attempt_not_issued_or_already_consumed",
+            (leftover as AttemptAdmissionResult.Rejected).reason,
+        )
+        val withoutFreshProof = bundle.admission.issueLease(
+            proof = CountedAttemptProof.create(),
+            correlationId = binding.correlationId,
+            requestedScope = binding.scope,
+        )
+        assertEquals(
+            "counted_attempt_not_issued_or_already_consumed",
+            (withoutFreshProof as AttemptAdmissionResult.Rejected).reason,
+        )
+        assertTrue(!bundle.admission.hasNonTerminalLease())
+
+        val fresh = bundle.admission.recordCountedAttempt(
+            DestructiveCorrelationId.generate { "fresh-after-cooldown" },
+            binding.scope,
+        )
+        val freshLease = bundle.admission.issueLease(
+            proof = (fresh as CountedAttemptRecordResult.Recorded).proof,
+            correlationId = DestructiveCorrelationId.generate { "fresh-after-cooldown" },
+            requestedScope = binding.scope,
+        )
+        assertTrue(freshLease is AttemptAdmissionResult.Admitted)
+    }
+
+    @Test
+    fun `fresh counted-attempt proof issues exactly one lease`() {
+        val bundle = DestructiveAuthorityBundle()
+        val binding = verifiedBinding()
+        val recorded = bundle.admission.recordCountedAttempt(binding.correlationId, binding.scope)
+        assertTrue(recorded is CountedAttemptRecordResult.Recorded)
+        val proof = (recorded as CountedAttemptRecordResult.Recorded).proof
+
+        val first = bundle.admission.issueLease(
+            proof = proof,
+            correlationId = binding.correlationId,
+            requestedScope = binding.scope,
+        )
+        assertTrue(first is AttemptAdmissionResult.Admitted)
+
+        val replay = bundle.admission.issueLease(
+            proof = proof,
+            correlationId = binding.correlationId,
+            requestedScope = binding.scope,
+        )
+        assertEquals(
+            "counted_attempt_not_issued_or_already_consumed",
+            (replay as AttemptAdmissionResult.Rejected).reason,
+        )
+        assertTrue(bundle.admission.hasNonTerminalLease())
+    }
+
+    @Test
+    fun `foreign counted-attempt proof cannot issue a lease`() {
+        val first = DestructiveAuthorityBundle()
+        val second = DestructiveAuthorityBundle()
+        val binding = verifiedBinding()
+        val recorded = first.admission.recordCountedAttempt(binding.correlationId, binding.scope)
+        val proof = (recorded as CountedAttemptRecordResult.Recorded).proof
+
+        val foreign = second.admission.issueLease(
+            proof = proof,
+            correlationId = binding.correlationId,
+            requestedScope = binding.scope,
+        )
+        assertEquals(
+            "counted_attempt_not_issued_or_already_consumed",
+            (foreign as AttemptAdmissionResult.Rejected).reason,
+        )
+        assertTrue(!second.admission.hasNonTerminalLease())
+    }
+
+    @Test
+    fun `malformed counted attempt is discarded and never becomes a lease`() {
+        val bundle = DestructiveAuthorityBundle()
+        val correlationId = DestructiveCorrelationId.generate { "malformed" }
+        val recorded = bundle.admission.recordCountedAttempt(correlationId, null)
+        assertTrue(recorded is CountedAttemptRecordResult.Recorded)
+        val proof = (recorded as CountedAttemptRecordResult.Recorded).proof
+        bundle.admission.discardCountedAttempt(proof)
+
+        val issued = bundle.admission.issueLease(
+            proof = proof,
+            correlationId = correlationId,
+            requestedScope = DestructiveScope.DEVICE_FACTORY_RESET,
+        )
+        assertEquals(
+            "counted_attempt_not_issued_or_already_consumed",
+            (issued as AttemptAdmissionResult.Rejected).reason,
+        )
+        assertTrue(!bundle.admission.hasNonTerminalLease())
+    }
+
+    @Test
+    fun `issueLease has no marker-only overload`() {
+        val methods = DestructiveAttemptAdmissionAuthority::class.java.declaredMethods
+            .filter { it.name == "issueLease" }
+        assertTrue(methods.isNotEmpty())
+        methods.forEach { method ->
+            assertTrue(CountedAttemptProof::class.java in method.parameterTypes)
+        }
+        assertFalse(
+            methods.any { method ->
+                method.parameterTypes.contentEquals(
+                    arrayOf(DestructiveCorrelationId::class.java, DestructiveScope::class.java),
+                )
+            },
+        )
+    }
+
+    @Test
     fun `persisted marker is never treated as a lease`() {
         val source = java.io.File(
             "src/main/kotlin/com/example/devicemanagement/destructive/DestructiveDenyOnlyCooldown.kt",

@@ -5,8 +5,9 @@ import com.example.devicemanagement.logging.StructuredLogger
 
 /**
  * Synchronous Checkpoint 17A executor chain:
- * consume capability → pre-execution simulation evidence → live final
- * validation+permit issuance → immediate non-destructive simulation sink.
+ * consume capability → pre-execution simulation evidence + commit proof →
+ * live final validation+permit issuance → immediate non-destructive
+ * simulation sink.
  *
  * Simulation evidence proves ordering and fail-closed behavior only. It is
  * not a durable production audit. There is no Android policy-service call
@@ -15,6 +16,7 @@ import com.example.devicemanagement.logging.StructuredLogger
 internal class SimulatedDestructiveExecutor(
     private val authorizationAuthority: DestructiveAuthorizationAuthority,
     private val gate: DestructiveFinalExecutionGate,
+    private val preExecutionAuthority: PreExecutionEvidenceCommitAuthority,
     private val evidenceWriter: DestructiveSimulationEvidenceWriter,
     private val sink: Checkpoint17ASimulationSink,
     private val cleanup: DestructiveTerminalCleanup,
@@ -30,6 +32,7 @@ internal class SimulatedDestructiveExecutor(
         val correlationId = expectedBinding.correlationId.value
         var armToken: DestructiveArmingToken? = null
         var proof: ConsumedDestructiveAuthorizationProof? = null
+        var preExecutionProof: PreExecutionEvidenceCommitProof? = null
         try {
             val consumed = when (
                 val consumption = authorizationAuthority.consume(
@@ -51,26 +54,29 @@ internal class SimulatedDestructiveExecutor(
             armToken = consumed.armToken
             proof = consumed.proof
 
-            val preExecution = evidenceWriter.append(
-                simulationEvidence(
+            val committed = preExecutionAuthority.commit(
+                evidence = simulationEvidence(
                     correlationId = correlationId,
                     phase = DestructiveEvidencePhase.PRE_EXECUTION_COMMITTED,
                     presentationWallClockMillis = presentationWallClockMillis(),
                     binding = consumed.binding,
                 ),
+                binding = consumed.binding,
+                attemptLease = consumed.attemptLease,
             )
-            if (preExecution is DestructiveEvidenceAppendResult.Failed) {
+            if (committed is PreExecutionEvidenceCommitResult.Failed) {
                 logger.warn(
                     event = "destructive_pre_execution_evidence_failed",
                     fields = mapOf("correlation_id" to correlationId),
                 )
                 return closedSimulationStatus(
                     outcome = DestructiveSimulationOutcome.FAILED_PRE_EXECUTION,
-                    reason = "audit_persistence_unavailable",
+                    reason = committed.reason,
                     correlationId = correlationId,
                     state = DestructiveExecutionState.FAILED_PRE_EXECUTION,
                 )
             }
+            preExecutionProof = (committed as PreExecutionEvidenceCommitResult.Committed).proof
 
             val gated = try {
                 gate.validateAndIssue(
@@ -78,6 +84,7 @@ internal class SimulatedDestructiveExecutor(
                     armToken = consumed.armToken,
                     attemptLease = consumed.attemptLease,
                     consumptionProof = consumed.proof,
+                    preExecutionProof = preExecutionProof,
                     nowMonotonicMillis = monotonicTimeSource.nowMillis(),
                 )
             } catch (_: Throwable) {
@@ -134,6 +141,9 @@ internal class SimulatedDestructiveExecutor(
                 }
             }
         } finally {
+            preExecutionProof?.let { leftover ->
+                preExecutionAuthority.invalidate(leftover)
+            }
             cleanup.close(attemptLease, armToken, proof)
         }
     }

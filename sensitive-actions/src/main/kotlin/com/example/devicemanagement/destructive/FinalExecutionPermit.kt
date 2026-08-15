@@ -2,20 +2,14 @@ package com.example.devicemanagement.destructive
 
 /**
  * Opaque in-chain hand-off issued only by [DestructiveFinalExecutionGate]
- * after live final validation. Consumable once, only by the paired sink.
- * There is no raw binding-only minting API.
+ * after live final validation. Consumable once, only by the paired sink
+ * through that same concrete gate. There is no raw binding-only minting
+ * API and no injectable permit-consumer interface.
  */
 internal class FinalExecutionPermit private constructor() {
     companion object {
         fun create(): FinalExecutionPermit = FinalExecutionPermit()
     }
-}
-
-internal fun interface FinalExecutionPermitConsumer {
-    fun consume(
-        permit: FinalExecutionPermit,
-        expectedBinding: DestructiveTargetBinding,
-    ): PermitConsumption
 }
 
 internal sealed interface PermitConsumption {

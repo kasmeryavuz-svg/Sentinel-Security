@@ -18,11 +18,14 @@ class DestructiveDomainIsolationTest {
             DestructiveCapability::class.java,
             DestructiveAttemptLease::class.java,
             ConsumedDestructiveAuthorizationProof::class.java,
+            CountedAttemptProof::class.java,
+            PreExecutionEvidenceCommitProof::class.java,
             FinalExecutionPermit::class.java,
             DestructiveArmingAuthority::class.java,
             DestructiveAuthorizationAuthority::class.java,
             DestructiveAttemptAdmissionAuthority::class.java,
             DestructiveFinalExecutionGate::class.java,
+            PreExecutionEvidenceCommitAuthority::class.java,
             FrozenAdminSet::class.java,
             SimulatedDestructiveExecutor::class.java,
         )
@@ -83,6 +86,9 @@ class DestructiveDomainIsolationTest {
         assertTrue(sources.contains("checkpoint_17a_simulation_only"))
         assertFalse(sources.contains("fun issue(binding: DestructiveTargetBinding)"))
         assertFalse(sources.contains("FinalValidation.Passed"))
+        assertFalse(sources.contains("FinalExecutionPermitConsumer"))
+        assertTrue(sources.contains("PreExecutionEvidenceCommitProof"))
+        assertTrue(sources.contains("CountedAttemptProof"))
     }
 
     @Test
@@ -96,7 +102,9 @@ class DestructiveDomainIsolationTest {
         assertFalse(
             DestructiveSimulationEvidenceWriter::class.java.methods.any { method ->
                 method.returnType == DestructiveCapability::class.java ||
-                    method.returnType == FinalExecutionPermit::class.java
+                    method.returnType == FinalExecutionPermit::class.java ||
+                    method.returnType == PreExecutionEvidenceCommitProof::class.java ||
+                    method.returnType == CountedAttemptProof::class.java
             },
         )
     }

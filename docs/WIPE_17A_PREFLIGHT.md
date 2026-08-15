@@ -37,8 +37,8 @@ Every Checkpoint 17 criterion from `docs/WIPE_DESIGN.md` §12:
 | Target binding using only proven DPC facts | **Implemented (simulation)** | Package, expected admin, registered Sentinel admin set, Device Owner expectation, Profile Owner must be false, active-admin facts, management validation, explicit scope, authoritative correlation ID | Signing-certificate digest and any hardware-unique ID remain unresolved and unused | `DestructiveTargetBindingTest`, `DestructiveTargetRules` |
 | Separate anti-replay authorization domain | **Implemented (simulation)** | `DestructiveAuthorizationAuthority` + opaque `DestructiveCapability`; one arm mints at most one authorization; post-append freshness uses an opaque consumed-authorization proof | Must not be reused as a real-wipe ticket without 17B review | `DestructiveAuthorizationAuthorityTest` |
 | Non-executing process-local arming | **Implemented** | `DestructiveArmingAuthority`; requires a live attempt/admission lease; cannot reach a policy service | Operator challenge remains optional / unimplemented | `DestructiveArmingAuthorityTest` |
-| Executor order: consume → pre-exec audit → live validation → immediate sink | **Implemented with simulation sink** | `SimulatedDestructiveExecutor` + `FinalExecutionPermit`; final validation rechecks original capability issuance age after the append | Immediate **DPM wrapper** call is 17B-only | `SimulatedDestructiveExecutorTest` |
-| Deny-only cooldown / circuit breaker | **Implemented (state machine + TESTED PERSISTENCE SEMANTICS)** | Core deny-only codec/state machine; attempt/admission lease issued only after write + readback; persisted marker may only deny and is never the lease; persistence semantics exercised with a test-only reconstruction adapter | Purpose-specific trusted RUNTIME PERSISTENCE IMPLEMENTATION is a 17B blocker. Same-UID arbitrary code remains application compromise | `DestructiveDenyOnlyCooldownTest`, `DestructiveAttemptAdmissionAuthorityTest` |
+| Executor order: consume → pre-exec audit → live validation → immediate sink | **Implemented with simulation sink** | `SimulatedDestructiveExecutor` + `FinalExecutionPermit`; final validation requires and consumes a pre-execution commit proof issued only after `PRE_EXECUTION_COMMITTED`; rechecks original capability issuance age after the append | Immediate **DPM wrapper** call is 17B-only | `SimulatedDestructiveExecutorTest`, `FinalExecutionPermitTest` |
+| Deny-only cooldown / circuit breaker | **Implemented (state machine + TESTED PERSISTENCE SEMANTICS)** | Core deny-only codec/state machine; `recordCountedAttempt` issues an opaque `CountedAttemptProof` only after write + readback; `issueLease` consumes that proof and has no marker-only path; persisted marker may only deny and is never the lease or the proof; persistence semantics exercised with a test-only reconstruction adapter | Purpose-specific trusted RUNTIME PERSISTENCE IMPLEMENTATION is a 17B blocker. Same-UID arbitrary code remains application compromise | `DestructiveDenyOnlyCooldownTest`, `DestructiveAttemptAdmissionAuthorityTest` |
 | Audit semantics: pre-exec before live validation; no false APPLIED | **Implemented for ordering / fail-closed simulation evidence only** | `DestructiveEvidencePhase` is not production schema v1; APPLIED is never used; in-process writer is not durable | Real durable destructive pre-execution evidence and any additive production schema (`EXECUTION_COMMITTED`, `EXECUTION_INITIATED`) remain 17B blockers. No production durable destructive audit exists in 17A | `SimulatedDestructiveExecutorTest`, `docs/AUDIT.md` |
 | Lifecycle: no boot path, no recovery execution, no persisted authority | **Preserved and tested** | Reconstruction cannot resume arm/capability/permit | Still no boot receiver | `DestructiveLifecycleRestartTest`, Checkpoint 14 guards |
 | Destructive API semantics verified on intended OS | **Research only; not complete** | Documented Android facts + GrapheneOS primary-source facts | GrapheneOS/device behavior and disposable-hardware tests | `docs/WIPE_PLATFORM_PREFLIGHT.md` |
@@ -64,7 +64,9 @@ untrusted DestructiveSimulationRequest
        creates authoritative correlation ID
        deny-only cooldown may only deny
        REQUESTED simulation evidence
-       admit attempt only after marker write + readback
+       recordCountedAttempt after marker write + readback
+         -> opaque single-use CountedAttemptProof
+       issueLease consumes that proof
          -> opaque process-local DestructiveAttemptLease
   -> assessment / DestructiveTargetBinding (defensive collection snapshot)
   -> bind lease to target
@@ -73,10 +75,13 @@ untrusted DestructiveSimulationRequest
   -> SimulatedDestructiveExecutor
        1 consume DestructiveCapability -> opaque consumption proof
        2 pre-execution simulation evidence (fail closed; not durable)
+            -> opaque PreExecutionEvidenceCommitProof after PRE_EXECUTION_COMMITTED
        3 AFTER append: DestructiveFinalExecutionGate.validateAndIssue
-            (live facts + lease + arm + original capability freshness
-             + current-attempt marker Present; then opaque permit)
+            (requires and consumes the pre-execution proof; live facts +
+             lease + arm + original capability freshness + current-attempt
+             marker Present; then opaque permit)
        4 immediately invoke Checkpoint17ASimulationSink
+            (paired to the concrete DestructiveFinalExecutionGate only)
   -> sink records DESTRUCTIVE ACTION WOULD EXECUTE
 ```
 

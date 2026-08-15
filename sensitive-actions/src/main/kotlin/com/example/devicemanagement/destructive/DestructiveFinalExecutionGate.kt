@@ -7,6 +7,10 @@ import java.util.IdentityHashMap
  * Single final-execution authority. Live validation and permit issuance are
  * one atomic step. There is no Boolean/Passed result that can be honored
  * later, and no [issue] API that accepts only a binding.
+ *
+ * [validateAndIssue] requires and consumes a [PreExecutionEvidenceCommitProof]
+ * issued only after a successful PRE_EXECUTION_COMMITTED append. There is
+ * no callable path that skips that evidence.
  */
 internal class DestructiveFinalExecutionGate(
     private val liveFactsSource: DestructiveLiveFactsSource,
@@ -14,9 +18,10 @@ internal class DestructiveFinalExecutionGate(
     private val authorizationAuthority: DestructiveAuthorizationAuthority,
     private val admissionAuthority: DestructiveAttemptAdmissionAuthority,
     private val cooldown: DestructiveDenyOnlyCooldown,
+    private val preExecutionAuthority: PreExecutionEvidenceCommitAuthority,
     private val monotonicTimeSource: MonotonicTimeSource,
     private val maxPermitAgeMillis: Long = MAX_PERMIT_AGE_MILLIS,
-) : FinalExecutionPermitConsumer {
+) {
     private val issued = IdentityHashMap<FinalExecutionPermit, PermitRecord>()
 
     fun validateAndIssue(
@@ -24,6 +29,7 @@ internal class DestructiveFinalExecutionGate(
         armToken: DestructiveArmingToken,
         attemptLease: DestructiveAttemptLease,
         consumptionProof: ConsumedDestructiveAuthorizationProof,
+        preExecutionProof: PreExecutionEvidenceCommitProof,
         nowMonotonicMillis: Long = monotonicTimeSource.nowMillis(),
     ): FinalExecutionGateResult {
         denyReason(
@@ -31,6 +37,7 @@ internal class DestructiveFinalExecutionGate(
             armToken = armToken,
             attemptLease = attemptLease,
             consumptionProof = consumptionProof,
+            preExecutionProof = preExecutionProof,
             nowMonotonicMillis = nowMonotonicMillis,
         )?.let { reason ->
             return FinalExecutionGateResult.Failed(reason)
@@ -43,7 +50,7 @@ internal class DestructiveFinalExecutionGate(
         return FinalExecutionGateResult.Issued(permit)
     }
 
-    override fun consume(
+    fun consume(
         permit: FinalExecutionPermit,
         expectedBinding: DestructiveTargetBinding,
     ): PermitConsumption {
@@ -68,8 +75,20 @@ internal class DestructiveFinalExecutionGate(
         armToken: DestructiveArmingToken,
         attemptLease: DestructiveAttemptLease,
         consumptionProof: ConsumedDestructiveAuthorizationProof,
+        preExecutionProof: PreExecutionEvidenceCommitProof,
         nowMonotonicMillis: Long,
     ): String? {
+        when (
+            val committed = preExecutionAuthority.consume(
+                proof = preExecutionProof,
+                expectedBinding = binding,
+                expectedLease = attemptLease,
+                nowMonotonicMillis = nowMonotonicMillis,
+            )
+        ) {
+            is PreExecutionEvidenceCheck.Rejected -> return committed.reason
+            PreExecutionEvidenceCheck.Accepted -> Unit
+        }
         val facts = try {
             liveFactsSource.currentFacts()
         } catch (_: Throwable) {
