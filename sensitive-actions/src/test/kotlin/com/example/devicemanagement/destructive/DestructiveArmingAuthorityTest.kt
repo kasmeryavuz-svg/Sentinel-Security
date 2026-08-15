@@ -71,7 +71,7 @@ class DestructiveArmingAuthorityTest {
     @Test
     fun `wrong scope is rejected`() {
         val (lease, token) = bundle.arm(binding)
-        val mismatched = binding.copy(scope = DestructiveScope.USER_SCOPED_WIPE)
+        val mismatched = binding.withScope(DestructiveScope.USER_SCOPED_WIPE)
 
         val check = authority.requireLive(token, mismatched, lease)
         assertEquals("arm_scope_mismatch", (check as ArmingCheck.Dead).reason)

@@ -58,6 +58,17 @@ internal class DestructiveArmingAuthority(
     }
 
     @Synchronized
+    fun invalidate(token: DestructiveArmingToken) {
+        liveArms.remove(token)
+    }
+
+    @Synchronized
+    fun invalidateForLease(lease: DestructiveAttemptLease) {
+        val stale = liveArms.entries.filter { it.value.attemptLease === lease }.map { it.key }
+        stale.forEach { liveArms.remove(it) }
+    }
+
+    @Synchronized
     fun requireLive(
         token: DestructiveArmingToken,
         expectedBinding: DestructiveTargetBinding,

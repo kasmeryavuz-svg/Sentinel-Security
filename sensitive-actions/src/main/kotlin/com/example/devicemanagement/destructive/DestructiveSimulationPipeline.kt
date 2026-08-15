@@ -5,8 +5,9 @@ import java.util.UUID
 
 /**
  * Trusted Checkpoint 17A request acceptor. Creates the authoritative
- * correlation ID, walks admission → assessment → arming → authorization →
- * simulated executor, and never reaches an Android policy service.
+ * correlation ID, records a deny-only attempt, then walks lease issuance →
+ * assessment → arming → authorization → simulated executor. Never reaches
+ * an Android policy service.
  *
  * Not wired into production DeviceManagement composition.
  */
@@ -18,6 +19,7 @@ internal class DestructiveSimulationPipeline(
     private val cooldown: DestructiveDenyOnlyCooldown,
     private val executor: SimulatedDestructiveExecutor,
     private val evidenceWriter: DestructiveSimulationEvidenceWriter,
+    private val cleanup: DestructiveTerminalCleanup,
     private val logger: StructuredLogger,
     private val correlationIdGenerator: () -> String = { UUID.randomUUID().toString() },
     private val presentationWallClockMillis: () -> Long = { 0L },
@@ -64,77 +66,103 @@ internal class DestructiveSimulationPipeline(
     }
 
     private fun runPipeline(request: DestructiveSimulationRequest): DestructiveSimulationStatus {
+        var lease: DestructiveAttemptLease? = null
+        var armToken: DestructiveArmingToken? = null
+        var handedToExecutor = false
         val correlationId = DestructiveCorrelationId.generate(correlationIdGenerator)
-        val requested = evidenceWriter.append(
-            simulationEvidence(
-                correlationId = correlationId.value,
-                phase = DestructiveEvidencePhase.REQUESTED,
-                presentationWallClockMillis = presentationWallClockMillis(),
-                callerRequestId = request.callerRequestId,
-            ),
-        )
-        if (requested is DestructiveEvidenceAppendResult.Failed) {
-            return closedSimulationStatus(
-                outcome = DestructiveSimulationOutcome.REJECTED,
-                reason = "audit_persistence_unavailable",
-                correlationId = correlationId.value,
-                state = DestructiveExecutionState.REJECTED,
+        try {
+            val requested = evidenceWriter.append(
+                simulationEvidence(
+                    correlationId = correlationId.value,
+                    phase = DestructiveEvidencePhase.REQUESTED,
+                    presentationWallClockMillis = presentationWallClockMillis(),
+                    callerRequestId = request.callerRequestId,
+                ),
             )
-        }
-
-        val scope = request.requestedScope
-            ?: return reject(correlationId.value, "unspecified_scope")
-        val admitted = when (val admission = admissionAuthority.admit(correlationId, scope)) {
-            is AttemptAdmissionResult.Rejected -> return reject(correlationId.value, admission.reason)
-            is AttemptAdmissionResult.Admitted -> admission
-        }
-
-        val facts = try {
-            liveFactsSource.currentFacts()
-        } catch (_: Throwable) {
-            return reject(correlationId.value, "live_facts_unavailable")
-        }
-        val binding = DestructiveTargetRules.bindingFromAssessedFacts(
-            facts = facts,
-            scope = scope,
-            correlationId = correlationId,
-        )
-        DestructiveTargetRules.denyReason(binding, facts)?.let { reason ->
-            return reject(correlationId.value, reason)
-        }
-        when (val bound = admissionAuthority.bindTarget(admitted.lease, binding)) {
-            is AttemptBindResult.Rejected -> return reject(correlationId.value, bound.reason)
-            is AttemptBindResult.Bound -> Unit
-        }
-
-        val armed = when (val arm = armingAuthority.arm(binding, admitted.lease)) {
-            is ArmingIssueResult.Rejected -> return reject(correlationId.value, arm.reason)
-            is ArmingIssueResult.Armed -> arm
-        }
-        val authorized = when (
-            val authorization = authorizationAuthority.authorize(
-                armToken = armed.token,
-                binding = binding,
-                attemptLease = admitted.lease,
-            )
-        ) {
-            is DestructiveAuthorizationResult.Rejected -> {
-                armingAuthority.disarm(armed.token)
-                return reject(correlationId.value, authorization.reason)
+            if (requested is DestructiveEvidenceAppendResult.Failed) {
+                return closedSimulationStatus(
+                    outcome = DestructiveSimulationOutcome.REJECTED,
+                    reason = "audit_persistence_unavailable",
+                    correlationId = correlationId.value,
+                    state = DestructiveExecutionState.REJECTED,
+                )
             }
-            is DestructiveAuthorizationResult.Authorized -> authorization
+
+            when (val recorded = admissionAuthority.recordCountedAttempt()) {
+                is CooldownRecordResult.Failed -> return reject(correlationId.value, recorded.reason)
+                CooldownRecordResult.Recorded -> Unit
+            }
+
+            val scope = request.requestedScope
+            if (scope == null) {
+                return reject(correlationId.value, "unspecified_scope")
+            }
+            if (scope != DestructiveScope.DEVICE_FACTORY_RESET) {
+                return reject(correlationId.value, "unsupported_scope")
+            }
+
+            val admitted = when (val issued = admissionAuthority.issueLease(correlationId, scope)) {
+                is AttemptAdmissionResult.Rejected -> return reject(correlationId.value, issued.reason)
+                is AttemptAdmissionResult.Admitted -> issued
+            }
+            lease = admitted.lease
+
+            val facts = try {
+                liveFactsSource.currentFacts()
+            } catch (_: Throwable) {
+                return reject(correlationId.value, "live_facts_unavailable", lease)
+            }
+            val binding = DestructiveTargetRules.bindingFromAssessedFacts(
+                facts = facts,
+                scope = scope,
+                correlationId = correlationId,
+            )
+            DestructiveTargetRules.denyReason(binding, facts)?.let { reason ->
+                return reject(correlationId.value, reason, lease)
+            }
+            when (val bound = admissionAuthority.bindTarget(admitted.lease, binding)) {
+                is AttemptBindResult.Rejected -> return reject(correlationId.value, bound.reason, lease)
+                is AttemptBindResult.Bound -> Unit
+            }
+
+            val armed = when (val arm = armingAuthority.arm(binding, admitted.lease)) {
+                is ArmingIssueResult.Rejected -> return reject(correlationId.value, arm.reason, lease)
+                is ArmingIssueResult.Armed -> arm
+            }
+            armToken = armed.token
+            val authorized = when (
+                val authorization = authorizationAuthority.authorize(
+                    armToken = armed.token,
+                    binding = binding,
+                    attemptLease = admitted.lease,
+                )
+            ) {
+                is DestructiveAuthorizationResult.Rejected -> {
+                    return reject(correlationId.value, authorization.reason, lease, armed.token)
+                }
+                is DestructiveAuthorizationResult.Authorized -> authorization
+            }
+            handedToExecutor = true
+            return executor.execute(
+                capability = authorized.capability,
+                expectedBinding = binding,
+                attemptLease = authorized.attemptLease,
+            )
+        } catch (_: Throwable) {
+            if (!handedToExecutor) {
+                cleanup.close(lease, armToken)
+            }
+            return reject(correlationId.value, "evaluation_error", lease, armToken)
         }
-        return executor.execute(
-            capability = authorized.capability,
-            expectedBinding = binding,
-            attemptLease = authorized.attemptLease,
-        )
     }
 
     private fun reject(
         correlationId: String,
         reason: String,
+        lease: DestructiveAttemptLease? = null,
+        armToken: DestructiveArmingToken? = null,
     ): DestructiveSimulationStatus {
+        cleanup.close(lease, armToken)
         evidenceWriter.append(
             simulationEvidence(
                 correlationId = correlationId,

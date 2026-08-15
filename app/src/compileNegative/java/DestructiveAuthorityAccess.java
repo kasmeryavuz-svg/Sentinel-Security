@@ -9,6 +9,7 @@ import com.example.devicemanagement.destructive.DestructiveAuthorizationAuthorit
 import com.example.devicemanagement.destructive.DestructiveCapability;
 import com.example.devicemanagement.destructive.DestructiveDenyOnlyCooldown;
 import com.example.devicemanagement.destructive.DenyOnlyCooldownMarkerStore;
+import com.example.devicemanagement.destructive.DestructiveFinalExecutionGate;
 import com.example.devicemanagement.destructive.FinalExecutionPermit;
 import com.example.devicemanagement.destructive.SimulatedDestructiveExecutor;
 
@@ -20,6 +21,7 @@ final class DestructiveAuthorityAccess {
     DestructiveAttemptLease attemptLease;
     ConsumedDestructiveAuthorizationProof consumedProof;
     FinalExecutionPermit permit;
+    DestructiveFinalExecutionGate gate;
     SimulatedDestructiveExecutor executor;
     DestructiveDenyOnlyCooldown cooldown;
     DenyOnlyCooldownMarkerStore store;

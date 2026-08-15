@@ -22,6 +22,8 @@ class DestructiveDomainIsolationTest {
             DestructiveArmingAuthority::class.java,
             DestructiveAuthorizationAuthority::class.java,
             DestructiveAttemptAdmissionAuthority::class.java,
+            DestructiveFinalExecutionGate::class.java,
+            FrozenAdminSet::class.java,
             SimulatedDestructiveExecutor::class.java,
         )
         types.forEach { type ->
@@ -79,6 +81,8 @@ class DestructiveDomainIsolationTest {
         assertFalse(sources.contains("FileOutputStream"))
         assertTrue(sources.contains("DESTRUCTIVE ACTION WOULD EXECUTE"))
         assertTrue(sources.contains("checkpoint_17a_simulation_only"))
+        assertFalse(sources.contains("fun issue(binding: DestructiveTargetBinding)"))
+        assertFalse(sources.contains("FinalValidation.Passed"))
     }
 
     @Test
@@ -105,6 +109,7 @@ class DestructiveDomainIsolationTest {
         assertFalse(controller.contains("DestructiveSimulationPipeline"))
         assertFalse(controller.contains("DestructiveArmingAuthority"))
         assertFalse(controller.contains("DestructiveAttemptAdmissionAuthority"))
+        assertFalse(controller.contains("DestructiveFinalExecutionGate"))
         assertFalse(controller.contains("SimulatedDestructiveExecutor"))
         assertFalse(controller.contains("Checkpoint17ASimulationSink"))
     }

@@ -73,10 +73,10 @@ untrusted DestructiveSimulationRequest
   -> SimulatedDestructiveExecutor
        1 consume DestructiveCapability -> opaque consumption proof
        2 pre-execution simulation evidence (fail closed; not durable)
-       3 AFTER append: DestructiveFinalValidator
-            (live facts + lease + arm + original capability freshness)
-       4 issue FinalExecutionPermit and immediately invoke
-         Checkpoint17ASimulationSink
+       3 AFTER append: DestructiveFinalExecutionGate.validateAndIssue
+            (live facts + lease + arm + original capability freshness
+             + current-attempt marker Present; then opaque permit)
+       4 immediately invoke Checkpoint17ASimulationSink
   -> sink records DESTRUCTIVE ACTION WOULD EXECUTE
 ```
 
@@ -156,9 +156,11 @@ Distinguish these two contracts:
 | **RUNTIME PERSISTENCE IMPLEMENTATION** | **Not implemented.** 17A uses an in-memory deny-only store and an in-memory simulation evidence writer. There is no trusted production adapter and no generic filesystem write primitive in `sensitive-actions` main sources. |
 
 A purpose-specific trusted runtime deny-only persistence adapter is an
-explicit 17B blocker. Real durable destructive pre-execution evidence is
-an explicit 17B blocker. 17A simulation evidence proves ordering and
-fail-closed behavior only.
+explicit 17B blocker (`TRUSTED_RUNTIME_COOLDOWN_PERSISTENCE_ADAPTER_PRESENT
+= false`). Real durable destructive pre-execution evidence is an explicit
+17B blocker (`REAL_DURABLE_DESTRUCTIVE_PRE_EXECUTION_AUDIT_PRESENT =
+false`). 17A simulation evidence proves ordering and fail-closed behavior
+only. Do not flip those flags by implementing the adapters in 17A.
 
 The attempt/admission lease is process-local, never serialized, and never
 persisted. Process death destroys the lease. A surviving deny-only marker

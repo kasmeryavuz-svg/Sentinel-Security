@@ -60,26 +60,148 @@ internal enum class DestructiveExecutionState {
 }
 
 /**
+ * Immutable snapshot of collection-valued admin identity. The constructor
+ * is private; every factory copies the caller set and wraps it as
+ * unmodifiable. A caller-owned mutable collection can never mutate an
+ * already-created snapshot.
+ */
+internal class FrozenAdminSet private constructor(
+    private val snapshot: Set<String>,
+) : Set<String> by snapshot {
+    override fun equals(other: Any?): Boolean {
+        return when (other) {
+            is FrozenAdminSet -> snapshot == other.snapshot
+            is Set<*> -> snapshot == other
+            else -> false
+        }
+    }
+
+    override fun hashCode(): Int = snapshot.hashCode()
+
+    override fun toString(): String = snapshot.toString()
+
+    companion object {
+        fun snapshot(values: Set<String>): FrozenAdminSet {
+            return FrozenAdminSet(Collections.unmodifiableSet(LinkedHashSet(values)))
+        }
+    }
+}
+
+/**
  * Exact target context available to Sentinel today. Does not invent hardware
  * identifiers. Signing-certificate binding is intentionally absent.
  *
- * Trusted creation ([DestructiveTargetRules.bindingFromAssessedFacts] /
- * [snapshot]) defensively copies collection-valued security fields so the
- * binding never retains a caller-mutable set reference.
+ * Not a data class: the constructor is private and every factory / wither
+ * re-snapshots collection fields. There is no copy path that can retain a
+ * caller-mutable collection reference.
  */
-internal data class DestructiveTargetBinding(
+internal class DestructiveTargetBinding private constructor(
     val actionType: DestructiveActionType,
     val runningPackage: String,
     val expectedAdminComponent: String,
-    val registeredSentinelAdminSet: Set<String>,
+    val registeredSentinelAdminSet: FrozenAdminSet,
     val deviceOwnerExpected: Boolean,
     val profileOwnerMustBeFalse: Boolean,
     val activeAdminExpected: Boolean,
-    val activeAdminComponentSet: Set<String>,
+    val activeAdminComponentSet: FrozenAdminSet,
     val managementValidationState: DestructiveManagementValidation,
     val scope: DestructiveScope,
     val correlationId: DestructiveCorrelationId,
 ) {
+    fun withScope(scope: DestructiveScope): DestructiveTargetBinding {
+        return snapshot(
+            actionType = actionType,
+            runningPackage = runningPackage,
+            expectedAdminComponent = expectedAdminComponent,
+            registeredSentinelAdminSet = registeredSentinelAdminSet,
+            deviceOwnerExpected = deviceOwnerExpected,
+            profileOwnerMustBeFalse = profileOwnerMustBeFalse,
+            activeAdminExpected = activeAdminExpected,
+            activeAdminComponentSet = activeAdminComponentSet,
+            managementValidationState = managementValidationState,
+            scope = scope,
+            correlationId = correlationId,
+        )
+    }
+
+    fun withRunningPackage(runningPackage: String): DestructiveTargetBinding {
+        return snapshot(
+            actionType = actionType,
+            runningPackage = runningPackage,
+            expectedAdminComponent = expectedAdminComponent,
+            registeredSentinelAdminSet = registeredSentinelAdminSet,
+            deviceOwnerExpected = deviceOwnerExpected,
+            profileOwnerMustBeFalse = profileOwnerMustBeFalse,
+            activeAdminExpected = activeAdminExpected,
+            activeAdminComponentSet = activeAdminComponentSet,
+            managementValidationState = managementValidationState,
+            scope = scope,
+            correlationId = correlationId,
+        )
+    }
+
+    fun withRegisteredSentinelAdminSet(values: Set<String>): DestructiveTargetBinding {
+        return snapshot(
+            actionType = actionType,
+            runningPackage = runningPackage,
+            expectedAdminComponent = expectedAdminComponent,
+            registeredSentinelAdminSet = values,
+            deviceOwnerExpected = deviceOwnerExpected,
+            profileOwnerMustBeFalse = profileOwnerMustBeFalse,
+            activeAdminExpected = activeAdminExpected,
+            activeAdminComponentSet = activeAdminComponentSet,
+            managementValidationState = managementValidationState,
+            scope = scope,
+            correlationId = correlationId,
+        )
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is DestructiveTargetBinding) return false
+        return actionType == other.actionType &&
+            runningPackage == other.runningPackage &&
+            expectedAdminComponent == other.expectedAdminComponent &&
+            registeredSentinelAdminSet == other.registeredSentinelAdminSet &&
+            deviceOwnerExpected == other.deviceOwnerExpected &&
+            profileOwnerMustBeFalse == other.profileOwnerMustBeFalse &&
+            activeAdminExpected == other.activeAdminExpected &&
+            activeAdminComponentSet == other.activeAdminComponentSet &&
+            managementValidationState == other.managementValidationState &&
+            scope == other.scope &&
+            correlationId == other.correlationId
+    }
+
+    override fun hashCode(): Int {
+        var result = actionType.hashCode()
+        result = 31 * result + runningPackage.hashCode()
+        result = 31 * result + expectedAdminComponent.hashCode()
+        result = 31 * result + registeredSentinelAdminSet.hashCode()
+        result = 31 * result + deviceOwnerExpected.hashCode()
+        result = 31 * result + profileOwnerMustBeFalse.hashCode()
+        result = 31 * result + activeAdminExpected.hashCode()
+        result = 31 * result + activeAdminComponentSet.hashCode()
+        result = 31 * result + managementValidationState.hashCode()
+        result = 31 * result + scope.hashCode()
+        result = 31 * result + correlationId.hashCode()
+        return result
+    }
+
+    override fun toString(): String {
+        return "DestructiveTargetBinding(" +
+            "actionType=$actionType, " +
+            "runningPackage=$runningPackage, " +
+            "expectedAdminComponent=$expectedAdminComponent, " +
+            "registeredSentinelAdminSet=$registeredSentinelAdminSet, " +
+            "deviceOwnerExpected=$deviceOwnerExpected, " +
+            "profileOwnerMustBeFalse=$profileOwnerMustBeFalse, " +
+            "activeAdminExpected=$activeAdminExpected, " +
+            "activeAdminComponentSet=$activeAdminComponentSet, " +
+            "managementValidationState=$managementValidationState, " +
+            "scope=$scope, " +
+            "correlationId=$correlationId)"
+    }
+
     companion object {
         fun snapshot(
             actionType: DestructiveActionType,
@@ -98,11 +220,11 @@ internal data class DestructiveTargetBinding(
                 actionType = actionType,
                 runningPackage = runningPackage,
                 expectedAdminComponent = expectedAdminComponent,
-                registeredSentinelAdminSet = snapshotSecuritySet(registeredSentinelAdminSet),
+                registeredSentinelAdminSet = FrozenAdminSet.snapshot(registeredSentinelAdminSet),
                 deviceOwnerExpected = deviceOwnerExpected,
                 profileOwnerMustBeFalse = profileOwnerMustBeFalse,
                 activeAdminExpected = activeAdminExpected,
-                activeAdminComponentSet = snapshotSecuritySet(activeAdminComponentSet),
+                activeAdminComponentSet = FrozenAdminSet.snapshot(activeAdminComponentSet),
                 managementValidationState = managementValidationState,
                 scope = scope,
                 correlationId = correlationId,
@@ -208,10 +330,6 @@ internal object DestructiveTargetRules {
             correlationId = correlationId,
         )
     }
-}
-
-internal fun snapshotSecuritySet(values: Set<String>): Set<String> {
-    return Collections.unmodifiableSet(LinkedHashSet(values))
 }
 
 internal object DestructiveSimulationActionNames {

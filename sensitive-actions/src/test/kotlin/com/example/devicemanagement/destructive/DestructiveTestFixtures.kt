@@ -72,9 +72,10 @@ internal class DestructiveAuthorityBundle(
     store: DenyOnlyCooldownMarkerStore = InMemoryDenyOnlyCooldownMarkerStore(),
 ) {
     val cooldown = DestructiveDenyOnlyCooldown(store, clock)
-    val admission = DestructiveAttemptAdmissionAuthority(cooldown)
+    val admission = DestructiveAttemptAdmissionAuthority(cooldown, clock)
     val arming = DestructiveArmingAuthority(clock, admission)
     val authorization = DestructiveAuthorizationAuthority(arming, clock, admission)
+    val cleanup = DestructiveTerminalCleanup(admission, arming, authorization)
 
     fun admitAndBind(binding: DestructiveTargetBinding): DestructiveAttemptLease {
         val admitted = admission.admit(binding.correlationId, binding.scope)
@@ -118,7 +119,9 @@ internal class DestructiveSimulationComposition(
     val liveFacts: MutableDestructiveLiveFactsSource,
     val clock: MutableMonotonicClock,
     val executor: SimulatedDestructiveExecutor,
-    val permitAuthority: FinalExecutionPermitAuthority,
+    val gate: DestructiveFinalExecutionGate,
+    val cleanup: DestructiveTerminalCleanup,
+    val markerStore: InMemoryDenyOnlyCooldownMarkerStore?,
 ) {
     fun admitBindAuthorize(
         binding: DestructiveTargetBinding,
@@ -157,7 +160,7 @@ internal class DestructiveSimulationComposition(
                 store = store,
                 monotonicTimeSource = clock,
             )
-            val admissionAuthority = DestructiveAttemptAdmissionAuthority(cooldown)
+            val admissionAuthority = DestructiveAttemptAdmissionAuthority(cooldown, clock)
             val armingAuthority = DestructiveArmingAuthority(
                 monotonicTimeSource = clock,
                 admissionAuthority = admissionAuthority,
@@ -167,21 +170,26 @@ internal class DestructiveSimulationComposition(
                 monotonicTimeSource = clock,
                 admissionAuthority = admissionAuthority,
             )
-            val permitAuthority = FinalExecutionPermitAuthority(clock)
-            val sink = Checkpoint17ASimulationSink(permitAuthority)
-            val validator = DestructiveFinalValidator(
+            val cleanup = DestructiveTerminalCleanup(
+                admissionAuthority = admissionAuthority,
+                armingAuthority = armingAuthority,
+                authorizationAuthority = authorizationAuthority,
+            )
+            val gate = DestructiveFinalExecutionGate(
                 liveFactsSource = liveFacts,
                 armingAuthority = armingAuthority,
                 authorizationAuthority = authorizationAuthority,
                 admissionAuthority = admissionAuthority,
                 cooldown = cooldown,
+                monotonicTimeSource = clock,
             )
+            val sink = Checkpoint17ASimulationSink(gate)
             val executor = SimulatedDestructiveExecutor(
                 authorizationAuthority = authorizationAuthority,
-                validator = validator,
+                gate = gate,
                 evidenceWriter = evidenceWriter,
-                permitAuthority = permitAuthority,
                 sink = sink,
+                cleanup = cleanup,
                 monotonicTimeSource = clock,
                 logger = logger,
             )
@@ -193,6 +201,7 @@ internal class DestructiveSimulationComposition(
                 cooldown = cooldown,
                 executor = executor,
                 evidenceWriter = evidenceWriter,
+                cleanup = cleanup,
                 logger = logger,
             )
             return DestructiveSimulationComposition(
@@ -206,7 +215,9 @@ internal class DestructiveSimulationComposition(
                 liveFacts = liveFacts,
                 clock = clock,
                 executor = executor,
-                permitAuthority = permitAuthority,
+                gate = gate,
+                cleanup = cleanup,
+                markerStore = store as? InMemoryDenyOnlyCooldownMarkerStore,
             )
         }
     }

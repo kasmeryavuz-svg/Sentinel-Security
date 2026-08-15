@@ -94,6 +94,10 @@ internal class InMemoryDenyOnlyCooldownMarkerStore(
         val current = state.bytes ?: return MarkerReadResult.Absent
         return MarkerReadResult.Bytes(current.copyOf())
     }
+
+    fun loseMarker() {
+        state.bytes = null
+    }
 }
 
 internal class DestructiveDenyOnlyCooldown(
@@ -184,6 +188,29 @@ internal class DestructiveDenyOnlyCooldown(
             is DecodedMarker.Absent,
             is DecodedMarker.Present,
             -> CooldownUsable.Usable
+        }
+    }
+
+    /**
+     * Current-attempt check used after a live admission. Startup may treat
+     * an absent marker as "no prior cooldown". Once this process wrote and
+     * read back a marker for the live attempt, anything except Present is
+     * fail-closed for that attempt.
+     */
+    fun assertCurrentAttemptMarkerPresent(): CooldownUsable {
+        if (failClosed) {
+            return CooldownUsable.Unusable("cooldown_state_unusable")
+        }
+        return when (readDecoded()) {
+            is DecodedMarker.Present -> CooldownUsable.Usable
+            is DecodedMarker.Absent -> {
+                failClosed = true
+                CooldownUsable.Unusable("cooldown_marker_missing_for_current_attempt")
+            }
+            is DecodedMarker.Unusable -> {
+                failClosed = true
+                CooldownUsable.Unusable("cooldown_state_unusable")
+            }
         }
     }
 

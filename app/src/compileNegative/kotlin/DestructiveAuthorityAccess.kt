@@ -9,6 +9,7 @@ import com.example.devicemanagement.destructive.DestructiveAuthorizationAuthorit
 import com.example.devicemanagement.destructive.DestructiveCapability
 import com.example.devicemanagement.destructive.DestructiveDenyOnlyCooldown
 import com.example.devicemanagement.destructive.DenyOnlyCooldownMarkerStore
+import com.example.devicemanagement.destructive.DestructiveFinalExecutionGate
 import com.example.devicemanagement.destructive.FinalExecutionPermit
 import com.example.devicemanagement.destructive.SimulatedDestructiveExecutor
 
@@ -20,6 +21,7 @@ class DestructiveAuthorityAccess(
     val attemptLease: DestructiveAttemptLease,
     val consumedProof: ConsumedDestructiveAuthorizationProof,
     val permit: FinalExecutionPermit,
+    val gate: DestructiveFinalExecutionGate,
     val executor: SimulatedDestructiveExecutor,
     val cooldown: DestructiveDenyOnlyCooldown,
     val store: DenyOnlyCooldownMarkerStore,

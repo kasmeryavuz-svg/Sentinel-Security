@@ -6,7 +6,7 @@ package com.example.devicemanagement.destructive
  * dependency and is not the fail-safe mock action.
  */
 internal class Checkpoint17ASimulationSink(
-    private val permitAuthority: FinalExecutionPermitAuthority,
+    private val permits: FinalExecutionPermitConsumer,
 ) {
     private val invocations = mutableListOf<String>()
 
@@ -14,7 +14,7 @@ internal class Checkpoint17ASimulationSink(
         permit: FinalExecutionPermit,
         expectedBinding: DestructiveTargetBinding,
     ): SimulationSinkResult {
-        return when (val consumption = permitAuthority.consume(permit, expectedBinding)) {
+        return when (val consumption = permits.consume(permit, expectedBinding)) {
             is PermitConsumption.Rejected -> SimulationSinkResult.Denied(consumption.reason)
             is PermitConsumption.Accepted -> {
                 invocations += MESSAGE

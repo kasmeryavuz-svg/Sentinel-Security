@@ -127,6 +127,19 @@ internal class DestructiveAuthorizationAuthority(
     }
 
     @Synchronized
+    fun invalidateProof(proof: ConsumedDestructiveAuthorizationProof) {
+        pendingConsumption.remove(proof)
+    }
+
+    @Synchronized
+    fun invalidateForLease(lease: DestructiveAttemptLease) {
+        val staleCapabilities = issued.entries.filter { it.value.attemptLease === lease }.map { it.key }
+        staleCapabilities.forEach { issued.remove(it) }
+        val staleProofs = pendingConsumption.entries.filter { it.value.attemptLease === lease }.map { it.key }
+        staleProofs.forEach { pendingConsumption.remove(it) }
+    }
+
+    @Synchronized
     fun requireConsumedFresh(
         proof: ConsumedDestructiveAuthorizationProof,
         expectedBinding: DestructiveTargetBinding,

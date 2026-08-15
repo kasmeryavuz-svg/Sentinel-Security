@@ -97,6 +97,53 @@ class DestructiveAttemptAdmissionAuthorityTest {
     }
 
     @Test
+    fun `expired lease cannot later create a fresh arm`() {
+        val bundle = DestructiveAuthorityBundle()
+        val binding = verifiedBinding()
+        val lease = bundle.admitAndBind(binding)
+        bundle.clock.now = 1_000L + DestructiveAttemptAdmissionAuthority.MAX_LEASE_AGE_MILLIS + 1L
+        val armed = bundle.arming.arm(binding, lease)
+        assertEquals("attempt_lease_stale", (armed as ArmingIssueResult.Rejected).reason)
+    }
+
+    @Test
+    fun `negative monotonic delta on a live lease is rejected`() {
+        val bundle = DestructiveAuthorityBundle()
+        val binding = verifiedBinding()
+        val lease = bundle.admitAndBind(binding)
+        bundle.clock.now = 999L
+        assertEquals(
+            "attempt_lease_negative_monotonic_delta",
+            (bundle.admission.requireLive(lease, binding) as AttemptLeaseCheck.Dead).reason,
+        )
+        assertEquals(
+            "attempt_lease_negative_monotonic_delta",
+            (bundle.admission.bindTarget(lease, binding) as AttemptBindResult.Rejected).reason,
+        )
+        assertEquals(
+            "attempt_lease_negative_monotonic_delta",
+            (bundle.arming.arm(binding, lease) as ArmingIssueResult.Rejected).reason,
+        )
+    }
+
+    @Test
+    fun `second admit is rejected while a non-terminal lease is live`() {
+        val bundle = DestructiveAuthorityBundle()
+        val binding = verifiedBinding()
+        val first = bundle.admission.admit(binding.correlationId, binding.scope)
+        assertTrue(first is AttemptAdmissionResult.Admitted)
+        val second = bundle.admission.admit(
+            DestructiveCorrelationId.generate { "second-lease" },
+            binding.scope,
+        )
+        assertEquals(
+            "attempt_lease_already_live",
+            (second as AttemptAdmissionResult.Rejected).reason,
+        )
+        assertTrue(bundle.admission.hasNonTerminalLease())
+    }
+
+    @Test
     fun `persisted marker is never treated as a lease`() {
         val source = java.io.File(
             "src/main/kotlin/com/example/devicemanagement/destructive/DestructiveDenyOnlyCooldown.kt",

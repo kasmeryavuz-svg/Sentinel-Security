@@ -3,6 +3,7 @@ package com.example.devicemanagement.destructive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DestructiveTargetBindingTest {
@@ -67,18 +68,23 @@ class DestructiveTargetBindingTest {
         assertEquals(
             "unsupported_scope",
             DestructiveTargetRules.denyReason(
-                binding.copy(scope = DestructiveScope.USER_SCOPED_WIPE),
+                binding.withScope(DestructiveScope.USER_SCOPED_WIPE),
                 facts,
             ),
         )
         assertEquals(
             "blank_package",
-            DestructiveTargetRules.denyReason(binding.copy(runningPackage = " "), facts.copy(runningPackage = " ")),
+            DestructiveTargetRules.denyReason(
+                binding.withRunningPackage(" "),
+                facts.copy(runningPackage = " "),
+            ),
         )
         assertEquals(
             "registered_admin_set_inconsistent",
             DestructiveTargetRules.denyReason(
-                binding.copy(registeredSentinelAdminSet = setOf(binding.expectedAdminComponent, "dup/dup")),
+                binding.withRegisteredSentinelAdminSet(
+                    setOf(binding.expectedAdminComponent, "dup/dup"),
+                ),
                 facts.copy(registeredSentinelAdminSet = setOf(binding.expectedAdminComponent, "dup/dup")),
             ),
         )
@@ -121,6 +127,33 @@ class DestructiveTargetBindingTest {
         assertEquals(
             "registered_admin_set_mismatch",
             DestructiveTargetRules.denyReason(binding, facts),
+        )
+    }
+
+    @Test
+    fun `wither and snapshot factories cannot reintroduce a mutable collection reference`() {
+        val admin =
+            "com.example.devicemanagement/com.example.devicemanagement.management.SentinelDeviceAdminReceiver"
+        val mutable = mutableSetOf(admin)
+        val binding = verifiedBinding()
+        val rebound = binding.withRegisteredSentinelAdminSet(mutable)
+        val original = rebound.registeredSentinelAdminSet.toSet()
+        mutable.add("attacker/admin")
+        assertEquals(original, rebound.registeredSentinelAdminSet)
+        assertEquals(1, rebound.registeredSentinelAdminSet.size)
+        assertTrue(
+            DestructiveTargetBinding::class.java.methods.none { method -> method.name == "copy" },
+        )
+        assertTrue(
+            DestructiveTargetBinding::class.java.declaredConstructors.none { constructor ->
+                constructor.parameterTypes.any { it == Set::class.java }
+            },
+        )
+        assertTrue(
+            FrozenAdminSet::class.java.declaredConstructors.none { constructor ->
+                java.lang.reflect.Modifier.isPublic(constructor.modifiers) &&
+                    constructor.parameterTypes.contentEquals(arrayOf(Set::class.java))
+            },
         )
     }
 

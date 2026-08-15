@@ -38,6 +38,7 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("DestructiveArmingAuthority"))
         assertFalse(sources.contains("DestructiveAuthorizationAuthority"))
         assertFalse(sources.contains("DestructiveAttemptAdmissionAuthority"))
+        assertFalse(sources.contains("DestructiveFinalExecutionGate"))
         assertFalse(sources.contains("DestructiveCapability"))
         assertFalse(sources.contains("DestructiveAttemptLease"))
         assertFalse(sources.contains("FinalExecutionPermit"))

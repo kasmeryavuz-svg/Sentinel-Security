@@ -90,6 +90,7 @@ class DestructiveLifecycleRestartTest {
         assertTrue(!source.contains("DestructiveArmingAuthority"))
         assertTrue(!source.contains("DestructiveAuthorizationAuthority"))
         assertTrue(!source.contains("DestructiveAttemptAdmissionAuthority"))
+        assertTrue(!source.contains("DestructiveFinalExecutionGate"))
         assertTrue(!source.contains("DestructiveCapability"))
         assertTrue(!source.contains("DestructiveAttemptLease"))
         assertTrue(!source.contains("ConsumedDestructiveAuthorizationProof"))

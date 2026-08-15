@@ -197,10 +197,171 @@ class SimulatedDestructiveExecutorTest {
     @Test
     fun `foreign permit cannot invoke the sink`() {
         val composition = DestructiveSimulationComposition.create()
-        val foreign = FinalExecutionPermitAuthority(composition.clock).issue(verifiedBinding())
-        val denied = composition.sink.invoke(foreign, verifiedBinding())
+        val denied = composition.sink.invoke(FinalExecutionPermit.create(), verifiedBinding())
         assertTrue(denied is SimulationSinkResult.Denied)
         assertEquals(0, composition.sink.invocationCount())
+    }
+
+    @Test
+    fun `raw issue then sink invoke path does not exist`() {
+        val composition = DestructiveSimulationComposition.create()
+        assertTrue(
+            composition.gate.javaClass.methods.none { method ->
+                method.name == "issue"
+            },
+        )
+        val denied = composition.sink.invoke(FinalExecutionPermit.create(), verifiedBinding())
+        assertTrue(denied is SimulationSinkResult.Denied)
+        assertEquals(0, composition.sink.invocationCount())
+        assertTrue(
+            composition.pipeline.submit(validRequest()).outcome ==
+                DestructiveSimulationOutcome.SIMULATED_WOULD_EXECUTE,
+        )
+        assertEquals(1, composition.sink.invocationCount())
+    }
+
+    @Test
+    fun `marker disappearance after admission fails closed at the final gate`() {
+        val store = InMemoryDenyOnlyCooldownMarkerStore()
+        val evidence = InMemoryDestructiveSimulationEvidenceWriter()
+        val composition = DestructiveSimulationComposition.create(
+            store = store,
+            evidenceWriter = evidence,
+        )
+        evidence.appendHook = { ev ->
+            if (ev.phase == DestructiveEvidencePhase.PRE_EXECUTION_COMMITTED) {
+                store.loseMarker()
+            }
+        }
+
+        val result = composition.pipeline.submit(validRequest())
+
+        assertEquals(DestructiveSimulationOutcome.FAILED_PRE_EXECUTION, result.outcome)
+        assertEquals("cooldown_marker_missing_for_current_attempt", result.reason)
+        assertEquals(0, composition.sink.invocationCount())
+    }
+
+    @Test
+    fun `terminal simulated success closes lease and arm`() {
+        val composition = DestructiveSimulationComposition.create()
+        val result = composition.pipeline.submit(validRequest())
+        assertEquals(DestructiveSimulationOutcome.SIMULATED_WOULD_EXECUTE, result.outcome)
+        assertTrue(!composition.admissionAuthority.hasNonTerminalLease())
+        val leftover = composition.armingAuthority.arm(
+            verifiedBinding(),
+            DestructiveAttemptLease.create(),
+        )
+        assertTrue(leftover is ArmingIssueResult.Rejected)
+    }
+
+    @Test
+    fun `terminal pre-execution failure closes lease arm and proof`() {
+        val evidence = InMemoryDestructiveSimulationEvidenceWriter()
+        val composition = DestructiveSimulationComposition.create(evidenceWriter = evidence)
+        val binding = verifiedBinding()
+        val authorized = composition.admitBindAuthorize(binding)
+        evidence.appendHook = { ev ->
+            if (ev.phase == DestructiveEvidencePhase.PRE_EXECUTION_COMMITTED) {
+                evidence.failNext = true
+            }
+        }
+
+        val result = composition.executor.execute(
+            authorized.capability,
+            binding,
+            authorized.attemptLease,
+        )
+
+        assertEquals(DestructiveSimulationOutcome.FAILED_PRE_EXECUTION, result.outcome)
+        assertTrue(!composition.admissionAuthority.hasNonTerminalLease())
+        assertEquals(
+            "attempt_lease_not_issued_or_already_consumed",
+            (
+                composition.admissionAuthority.requireLive(authorized.attemptLease, binding)
+                    as AttemptLeaseCheck.Dead
+                ).reason,
+        )
+        assertEquals(
+            "arm_not_issued_or_already_consumed",
+            (
+                composition.armingAuthority.requireLive(
+                    authorized.armToken,
+                    binding,
+                    authorized.attemptLease,
+                ) as ArmingCheck.Dead
+                ).reason,
+        )
+        assertEquals(0, composition.sink.invocationCount())
+    }
+
+    @Test
+    fun `after terminal close and cooldown expiry a new request may proceed`() {
+        val composition = DestructiveSimulationComposition.create()
+        val first = composition.pipeline.submit(validRequest())
+        assertEquals(DestructiveSimulationOutcome.SIMULATED_WOULD_EXECUTE, first.outcome)
+        composition.clock.now = 1_000L + DestructiveDenyOnlyCooldown.DEFAULT_COOLDOWN_MILLIS
+        val second = composition.pipeline.submit(validRequest())
+        assertEquals(DestructiveSimulationOutcome.SIMULATED_WOULD_EXECUTE, second.outcome)
+        assertEquals(2, composition.sink.invocationCount())
+    }
+
+    @Test
+    fun `old lease cannot be reused after terminal close`() {
+        val composition = DestructiveSimulationComposition.create()
+        val binding = verifiedBinding()
+        val authorized = composition.admitBindAuthorize(binding)
+        val executed = composition.executor.execute(
+            authorized.capability,
+            binding,
+            authorized.attemptLease,
+        )
+        assertEquals(DestructiveSimulationOutcome.SIMULATED_WOULD_EXECUTE, executed.outcome)
+        val reused = composition.armingAuthority.arm(binding, authorized.attemptLease)
+        assertEquals(
+            "attempt_lease_not_issued_or_already_consumed",
+            (reused as ArmingIssueResult.Rejected).reason,
+        )
+        val replayed = composition.executor.execute(
+            authorized.capability,
+            binding,
+            authorized.attemptLease,
+        )
+        assertTrue(replayed.outcome != DestructiveSimulationOutcome.SIMULATED_WOULD_EXECUTE)
+        assertEquals(1, composition.sink.invocationCount())
+    }
+
+    @Test
+    fun `malformed scope counts as a T19 attempt and never issues a lease`() {
+        val composition = DestructiveSimulationComposition.create()
+        val first = composition.pipeline.submit(
+            DestructiveSimulationRequest(requestedScope = null),
+        )
+        assertEquals("unspecified_scope", first.reason)
+        assertTrue(!composition.admissionAuthority.hasNonTerminalLease())
+        val second = composition.pipeline.submit(
+            DestructiveSimulationRequest(requestedScope = DestructiveScope.USER_SCOPED_WIPE),
+        )
+        assertEquals("cooldown_active", second.reason)
+        assertTrue(!composition.admissionAuthority.hasNonTerminalLease())
+        val valid = composition.pipeline.submit(validRequest())
+        assertEquals("cooldown_active", valid.reason)
+        assertEquals(0, composition.sink.invocationCount())
+    }
+
+    @Test
+    fun `valid request issues exactly one lease after successful cooldown accounting`() {
+        val composition = DestructiveSimulationComposition.create()
+        val result = composition.pipeline.submit(validRequest())
+        assertEquals(DestructiveSimulationOutcome.SIMULATED_WOULD_EXECUTE, result.outcome)
+        assertTrue(!composition.admissionAuthority.hasNonTerminalLease())
+        val secondAdmit = composition.admissionAuthority.admit(
+            DestructiveCorrelationId.generate { "second" },
+            DestructiveScope.DEVICE_FACTORY_RESET,
+        )
+        assertEquals(
+            "cooldown_active",
+            (secondAdmit as AttemptAdmissionResult.Rejected).reason,
+        )
     }
 
     @Test

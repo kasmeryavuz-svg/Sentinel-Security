@@ -13,6 +13,8 @@ internal object Checkpoint17BHardBlock {
     const val DESTRUCTIVE_POLICY_WRAPPER_PRESENT = false
     const val DESTRUCTIVE_METADATA_PRESENT = false
     const val PRODUCTION_REACHABLE_SIMULATION = false
+    const val TRUSTED_RUNTIME_COOLDOWN_PERSISTENCE_ADAPTER_PRESENT = false
+    const val REAL_DURABLE_DESTRUCTIVE_PRE_EXECUTION_AUDIT_PRESENT = false
 
     val gatesRequiringExplicitModification = listOf(
         "buildSrc/src/main/kotlin/ProductionBytecodePolicyVerifier.kt:checkpoint17BForbiddenDpmMethodNames",

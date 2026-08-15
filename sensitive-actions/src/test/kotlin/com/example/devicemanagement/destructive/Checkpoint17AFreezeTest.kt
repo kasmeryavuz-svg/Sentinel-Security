@@ -44,6 +44,8 @@ class Checkpoint17AFreezeTest {
         assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_POLICY_WRAPPER_PRESENT.not())
         assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_METADATA_PRESENT.not())
         assertTrue(Checkpoint17BHardBlock.PRODUCTION_REACHABLE_SIMULATION.not())
+        assertTrue(Checkpoint17BHardBlock.TRUSTED_RUNTIME_COOLDOWN_PERSISTENCE_ADAPTER_PRESENT.not())
+        assertTrue(Checkpoint17BHardBlock.REAL_DURABLE_DESTRUCTIVE_PRE_EXECUTION_AUDIT_PRESENT.not())
     }
 
     @Test
