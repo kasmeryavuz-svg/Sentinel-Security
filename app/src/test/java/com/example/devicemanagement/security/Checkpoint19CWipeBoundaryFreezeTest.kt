@@ -73,8 +73,8 @@ class Checkpoint19CWipeBoundaryFreezeTest {
             requireNotNull(System.getProperty("repoRoot")),
             "app/src/test/java/com/example/devicemanagement/security/Checkpoint19CWipeBoundaryFreezeTest.kt",
         ).readText()
-        assertFalse(thisFile.contains("manager.wipeDevice"))
-        assertFalse(thisFile.contains("import android.app.admin.DevicePolicyManager"))
+        assertFalse(thisFile.contains("manager." + "wipeDevice"))
+        assertFalse(thisFile.contains("import android.app.admin." + "DevicePolicyManager"))
     }
 
     private companion object {

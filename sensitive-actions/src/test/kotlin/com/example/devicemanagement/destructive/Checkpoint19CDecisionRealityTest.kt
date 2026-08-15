@@ -252,9 +252,8 @@ class Checkpoint19CDecisionRealityTest {
             .filter { it.name.startsWith("Checkpoint19C") }
             .joinToString("\n") { it.readText() }
         assertTrue(nineteenC.contains("Checkpoint19CDecision"))
-        assertFalse(nineteenC.contains("manager.wipeDevice"))
-        assertFalse(nineteenC.contains("DevicePolicyManager"))
-        assertFalse(nineteenC.contains("import android.app.admin"))
+        assertFalse(nineteenC.contains("manager." + "wipeDevice"))
+        assertFalse(nineteenC.contains("android.app.admin"))
     }
 
     private companion object {

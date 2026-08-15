@@ -83,8 +83,8 @@ class Checkpoint19CWipeBoundaryFreezeTest {
             moduleRoot,
             "src/test/java/com/example/devicemanagement/management/Checkpoint19CWipeBoundaryFreezeTest.kt",
         ).readText()
-        assertFalse(thisFile.contains("manager.wipeDevice"))
-        assertFalse(thisFile.contains("import android.app.admin.DevicePolicyManager"))
+        assertFalse(thisFile.contains("manager." + "wipeDevice"))
+        assertFalse(thisFile.contains("import android.app.admin." + "DevicePolicyManager"))
     }
 
     private fun org.w3c.dom.NodeList.asElements(): List<Element> {
