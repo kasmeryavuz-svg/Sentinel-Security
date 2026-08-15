@@ -65,6 +65,7 @@ class Checkpoint19AWipeBoundaryFreezeTest {
         assertFalse(appSources.contains("SimulatedDestructiveExecutor"))
         assertFalse(appSources.contains("Checkpoint19ADecision"))
         assertFalse(appSources.contains("Checkpoint19BDecision"))
+        assertFalse(appSources.contains("Checkpoint19CDecision"))
         assertFalse(appSources.contains("AndroidFutureDestructiveExecutor"))
         assertFalse(appSources.contains("AndroidDevicePolicyFactoryResetService"))
         assertFalse(appSources.contains("AuthorizedFactoryResetPort"))

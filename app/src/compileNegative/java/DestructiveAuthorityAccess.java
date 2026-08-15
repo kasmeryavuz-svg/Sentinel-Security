@@ -48,6 +48,7 @@ import com.example.devicemanagement.destructive.RealChainFinalLiveValidationPerm
 import com.example.devicemanagement.destructive.Checkpoint18Decision;
 import com.example.devicemanagement.destructive.Checkpoint19ADecision;
 import com.example.devicemanagement.destructive.Checkpoint19BDecision;
+import com.example.devicemanagement.destructive.Checkpoint19CDecision;
 import com.example.devicemanagement.destructive.UnwiredFutureDestructiveExecutor;
 import com.example.devicemanagement.destructive.AuthorizedFactoryResetPort;
 import com.example.devicemanagement.destructive.AndroidFutureDestructiveExecutor;
@@ -103,6 +104,7 @@ final class DestructiveAuthorityAccess {
     Checkpoint18Decision checkpoint18Decision;
     Checkpoint19ADecision checkpoint19ADecision;
     Checkpoint19BDecision checkpoint19BDecision;
+    Checkpoint19CDecision checkpoint19CDecision;
     UnwiredFutureDestructiveExecutor unwiredFutureExecutor;
     AuthorizedFactoryResetPort authorizedFactoryResetPort;
     AndroidFutureDestructiveExecutor androidFutureDestructiveExecutor;

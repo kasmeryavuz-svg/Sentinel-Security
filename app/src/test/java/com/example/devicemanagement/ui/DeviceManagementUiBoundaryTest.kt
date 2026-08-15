@@ -126,6 +126,7 @@ class DeviceManagementUiBoundaryTest {
         assertFalse(appSources.contains("DefaultStatusBarPolicy"))
         assertFalse(appSources.contains("Checkpoint19ADecision"))
         assertFalse(appSources.contains("Checkpoint19BDecision"))
+        assertFalse(appSources.contains("Checkpoint19CDecision"))
         assertFalse(appSources.contains("AndroidFutureDestructiveExecutor"))
         assertFalse(appSources.contains("wipeData"))
         assertFalse(appSources.contains("wipeDevice"))

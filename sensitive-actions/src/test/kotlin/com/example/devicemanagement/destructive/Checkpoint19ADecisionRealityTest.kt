@@ -156,6 +156,7 @@ class Checkpoint19ADecisionRealityTest {
         assertTrue(sources.contains("Checkpoint19ADecision"))
         assertTrue(sources.contains("REQUIRED_APPROVAL_SENTENCE"))
         assertTrue(sources.contains("Checkpoint19BDecision"))
+        assertTrue(sources.contains("Checkpoint19CDecision"))
         assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("wipeData"))
         listOf(
@@ -171,6 +172,7 @@ class Checkpoint19ADecisionRealityTest {
             assertFalse(root.path, extra.contains("<wipe-data>"))
             assertFalse(root.path, extra.contains("assembleAndHandoff"))
             assertFalse(root.path, extra.contains("Checkpoint19ADecision"))
+            assertFalse(root.path, extra.contains("Checkpoint19CDecision"))
             assertFalse(root.path, extra.contains("AndroidFutureDestructiveExecutor"))
             assertFalse(root.path, extra.contains("AndroidDevicePolicyFactoryResetService"))
         }
@@ -187,6 +189,7 @@ class Checkpoint19ADecisionRealityTest {
                     assertFalse(file.path, extra.contains("wipeData"))
                     assertFalse(file.path, extra.contains("assembleAndHandoff"))
                     assertFalse(file.path, extra.contains("Checkpoint19ADecision"))
+                    assertFalse(file.path, extra.contains("Checkpoint19CDecision"))
                 }
             }
         val metadata = File("../device-management/src/main/res/xml/device_admin_receiver.xml").readText()

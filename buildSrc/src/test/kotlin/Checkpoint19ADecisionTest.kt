@@ -15,6 +15,7 @@ class Checkpoint19ADecisionTest {
         assertTrue(source.contains("Checkpoint 17B-blocked"))
         assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19ADecision"))
         assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19BDecision"))
+        assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19CDecision"))
     }
 
     @Test

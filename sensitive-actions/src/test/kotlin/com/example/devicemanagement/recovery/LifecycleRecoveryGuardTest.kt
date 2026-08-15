@@ -76,6 +76,7 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("Checkpoint18Decision"))
         assertFalse(sources.contains("Checkpoint19ADecision"))
         assertFalse(sources.contains("Checkpoint19BDecision"))
+        assertFalse(sources.contains("Checkpoint19CDecision"))
         assertFalse(sources.contains("AndroidFutureDestructiveExecutor"))
         assertFalse(sources.contains("AuthorizedFactoryResetPort"))
         assertFalse(sources.contains("ProductionDestructiveRealChain"))

@@ -116,6 +116,7 @@ class Checkpoint17BAuthorityGraphTest {
             "RealChainFinalLiveValidationPermit",
             "DestructiveWipeOptionPolicyProof",
             "Checkpoint19BDecision",
+            "Checkpoint19CDecision",
             "AuthorizedFactoryResetPort",
             "ProductionDestructiveRealChain",
             "AndroidFutureDestructiveExecutor",

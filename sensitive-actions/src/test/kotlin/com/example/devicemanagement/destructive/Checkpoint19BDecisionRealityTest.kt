@@ -99,6 +99,7 @@ class Checkpoint19BDecisionRealityTest {
         assertTrue(sources.contains("AuthorizedFactoryResetPort"))
         assertTrue(sources.contains("ProductionDestructiveRealChain"))
         assertTrue(sources.contains("Checkpoint19BDecision"))
+        assertTrue(sources.contains("Checkpoint19CDecision"))
     }
 
     private companion object {
