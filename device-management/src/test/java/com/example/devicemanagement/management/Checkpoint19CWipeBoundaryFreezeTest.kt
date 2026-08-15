@@ -78,11 +78,10 @@ class Checkpoint19CWipeBoundaryFreezeTest {
 
     @Test
     fun `19C freeze tests do not invoke the platform whole-device call`() {
-        val moduleRoot = File(requireNotNull(System.getProperty("deviceManagementSourceDir"))).parentFile
         val thisFile = File(
-            moduleRoot,
-            "src/test/java/com/example/devicemanagement/management/Checkpoint19CWipeBoundaryFreezeTest.kt",
-        ).readText()
+            File(requireNotNull(System.getProperty("deviceManagementSourceDir"))),
+            "../test/java/com/example/devicemanagement/management/Checkpoint19CWipeBoundaryFreezeTest.kt",
+        ).canonicalFile.readText()
         assertFalse(thisFile.contains("manager." + "wipeDevice"))
         assertFalse(thisFile.contains("import android.app.admin." + "DevicePolicyManager"))
     }
