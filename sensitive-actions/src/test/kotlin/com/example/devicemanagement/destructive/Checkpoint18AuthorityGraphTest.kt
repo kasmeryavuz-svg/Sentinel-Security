@@ -63,6 +63,8 @@ class Checkpoint18AuthorityGraphTest {
             "Checkpoint18Decision",
             "UnwiredFutureDestructiveExecutor",
             "UnwiredRuntimeDurablePreExecutionCommitSource",
+            "RealChainHandoffRegistry",
+            "HandoffRegistry",
         ).forEach { token ->
             assertFalse(recovery.contains(token))
             assertFalse(controller.contains(token))

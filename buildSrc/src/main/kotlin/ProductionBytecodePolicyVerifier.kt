@@ -385,6 +385,8 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$FutureDestructiveExecutionBundle\$ExecutionBundleMint",
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$RealChainFinalLiveValidationPermit\$LiveValidationMint",
+        "com/example/devicemanagement/destructive/RealChainHandoffRegistry",
+        "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$HandoffRegistry",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitProof",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority\$RuntimeDurablePreExecutionCommitProof",
@@ -533,6 +535,12 @@ internal object ProductionBytecodePolicyVerifier {
         "$realChainBoundaryOwner\$FutureDestructiveExecutorContract",
     )
 
+    private val realChainHandoffRegistryOwner =
+        "com/example/devicemanagement/destructive/RealChainHandoffRegistry"
+
+    private val realChainNestedHandoffRegistryOwner =
+        "$realChainBoundaryOwner\$HandoffRegistry"
+
     private val realChainHandoffMaterialOwners = setOf(
         "com/example/devicemanagement/destructive/FutureDestructiveExecutionBundle",
         "com/example/devicemanagement/destructive/RealChainFinalLiveValidationPermit",
@@ -546,6 +554,8 @@ internal object ProductionBytecodePolicyVerifier {
     private val realChainHandoffConstructorOwners = setOf(
         realChainBoundaryOwner,
         "$realChainBoundaryOwner\$Companion",
+        realChainHandoffRegistryOwner,
+        realChainNestedHandoffRegistryOwner,
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority\$Companion",
     )
@@ -560,8 +570,7 @@ internal object ProductionBytecodePolicyVerifier {
     private val trustedRealChainHandoffOrigin = InvocationOrigin(
         realChainBoundaryOwner,
         "assembleAndHandoff",
-        "(Lcom/example/devicemanagement/destructive/" +
-            "FutureDestructiveRealChainBoundary\$FutureDestructiveExecutorContract;" +
+        "(Lcom/example/devicemanagement/destructive/FutureDestructiveExecutorContract;" +
             "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
             "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;" +
             "Lcom/example/devicemanagement/destructive/DestructiveCapability;" +
@@ -1244,6 +1253,8 @@ internal object ProductionBytecodePolicyVerifier {
                     callerMethod == "mintFinalLiveValidationPermit" &&
                         (
                             className == realChainBoundaryOwner ||
+                                className == realChainHandoffRegistryOwner ||
+                                className == realChainNestedHandoffRegistryOwner ||
                                 className.endsWith("\$LiveValidationMint")
                             )
                 }
@@ -1253,6 +1264,8 @@ internal object ProductionBytecodePolicyVerifier {
                     callerMethod == "assembleBundleFromPermit" &&
                         (
                             className == realChainBoundaryOwner ||
+                                className == realChainHandoffRegistryOwner ||
+                                className == realChainNestedHandoffRegistryOwner ||
                                 className.endsWith("\$ExecutionBundleMint")
                             )
                 }

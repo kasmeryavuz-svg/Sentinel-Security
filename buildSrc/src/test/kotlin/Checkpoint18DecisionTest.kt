@@ -18,6 +18,9 @@ class Checkpoint18DecisionTest {
         assertTrue(source.contains("assembleBundleFromPermit"))
         assertTrue(source.contains("commitAfterConsumedAuthorization"))
         assertTrue(source.contains("onAuthorizedHandoff"))
+        assertTrue(source.contains("RealChainHandoffRegistry"))
+        assertTrue(source.contains("registerIssuedPermit"))
+        assertTrue(source.contains("consumeIssuedBundle"))
     }
 
     @Test

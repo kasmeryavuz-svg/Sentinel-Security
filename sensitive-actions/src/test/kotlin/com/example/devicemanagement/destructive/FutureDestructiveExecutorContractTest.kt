@@ -283,8 +283,8 @@ class FutureDestructiveExecutorContractTest {
         val runtimeCommit = source.indexOf("runtimePreExecutionAuthority.commitAfterConsumedAuthorization")
         val runtimeProof = source.indexOf("val runtime = runtimePreExecutionAuthority.consume")
         val liveFacts = source.indexOf("liveFactsSource.currentFacts")
-        val permit = source.indexOf("val permit = RealChainFinalLiveValidationPermit.LiveValidationMint")
-        val assembleBundle = source.indexOf("val bundle = FutureDestructiveExecutionBundle.ExecutionBundleMint")
+        val permit = source.indexOf("val permit = mintFinalLiveValidationPermit()")
+        val assembleBundle = source.indexOf("val bundle = assembleBundleFromPermit(permit)")
         val execute = source.indexOf("executor.execute(bundle)")
         assertTrue(consumeCapability in 0 until runtimeCommit)
         assertTrue(runtimeCommit in 0 until runtimeProof)
@@ -294,6 +294,9 @@ class FutureDestructiveExecutorContractTest {
         assertTrue(assembleBundle in 0 until execute)
         assertFalse(source.contains("runtimePreExecutionProof"))
         assertFalse(source.contains("fun create()"))
+        assertFalse(source.contains("object LiveValidationMint"))
+        assertFalse(source.contains("object ExecutionBundleMint"))
+        assertFalse(source.contains("companion object"))
         assertFalse(
             FutureDestructiveRealChainBoundary::class.java.methods.any { method ->
                 method.returnType == FutureDestructiveExecutionBundle::class.java ||
@@ -332,6 +335,68 @@ class FutureDestructiveExecutorContractTest {
     }
 
     @Test
+    fun `same-module code cannot mint a valid permit or bundle`() {
+        assertTrue(
+            FutureDestructiveRealChainBoundary::class.java.methods.none { method ->
+                method.name == "mintFinalLiveValidationPermit" ||
+                    method.name == "assembleBundleFromPermit" ||
+                    method.name == "create" ||
+                    method.name == "registerIssuedPermit" ||
+                    method.name == "registerIssuedBundle"
+            },
+        )
+        val mint = FutureDestructiveRealChainBoundary::class.java.declaredMethods
+            .single { it.name == "mintFinalLiveValidationPermit" }
+        val assemble = FutureDestructiveRealChainBoundary::class.java.declaredMethods
+            .single { it.name == "assembleBundleFromPermit" }
+        assertTrue(Modifier.isPrivate(mint.modifiers))
+        assertTrue(Modifier.isPrivate(assemble.modifiers))
+        assertTrue(
+            FutureDestructiveExecutionBundle::class.java.declaredMethods.none { method ->
+                method.name == "create" ||
+                    method.name == "assembleBundleFromPermit" ||
+                    method.name.startsWith("mint")
+            },
+        )
+        assertTrue(
+            RealChainFinalLiveValidationPermit::class.java.declaredMethods.none { method ->
+                method.name == "create" || method.name.startsWith("mint")
+            },
+        )
+        assertTrue(
+            FutureDestructiveExecutionBundle::class.java.declaredClasses.none { nested ->
+                nested.simpleName == "Companion" || nested.simpleName == "ExecutionBundleMint"
+            },
+        )
+        assertTrue(
+            RealChainFinalLiveValidationPermit::class.java.declaredClasses.none { nested ->
+                nested.simpleName == "Companion" || nested.simpleName == "LiveValidationMint"
+            },
+        )
+        assertTrue(
+            runCatching {
+                Class.forName(
+                    "com.example.devicemanagement.destructive." +
+                        "FutureDestructiveRealChainBoundary\$RealChainFinalLiveValidationPermit" +
+                        "\$LiveValidationMint",
+                )
+            }.isFailure,
+        )
+        assertTrue(
+            runCatching {
+                Class.forName(
+                    "com.example.devicemanagement.destructive." +
+                        "FutureDestructiveRealChainBoundary\$FutureDestructiveExecutionBundle" +
+                        "\$ExecutionBundleMint",
+                )
+            }.isFailure,
+        )
+        val registry = FutureDestructiveRealChainBoundary::class.java.declaredClasses
+            .single { it.simpleName == "HandoffRegistry" }
+        assertTrue(Modifier.isPrivate(registry.modifiers))
+    }
+
+    @Test
     fun `forged bundle and permit cannot mint or invoke the executor`() {
         val recorder = RecordingFutureExecutor()
         val forgedBundle = reflectConstruct(FutureDestructiveExecutionBundle::class.java)
@@ -342,18 +407,16 @@ class FutureDestructiveExecutorContractTest {
             (acknowledgement as FutureDestructiveHandoffAcknowledgement.Refused).reason,
         )
         assertEquals(0, recorder.authorizedInvocations)
+        val fixture = RealChainBoundaryFixture.create()
         val forgedPermit = reflectConstruct(RealChainFinalLiveValidationPermit::class.java)
-        assertNull(
-            FutureDestructiveRealChainBoundary.FutureDestructiveExecutionBundle.ExecutionBundleMint
-                .assembleBundleFromPermit(forgedPermit),
-        )
+        val assemble = FutureDestructiveRealChainBoundary::class.java.declaredMethods
+            .single { it.name == "assembleBundleFromPermit" }
+        assemble.isAccessible = true
+        assertNull(assemble.invoke(fixture.boundary, forgedPermit))
         assertEquals(0, recorder.authorizedInvocations)
-        assertTrue(
-            FutureDestructiveExecutionBundle::class.java.declaredClasses.none { it.simpleName == "Companion" },
-        )
-        assertTrue(
-            RealChainFinalLiveValidationPermit::class.java.declaredClasses.none { it.simpleName == "Companion" },
-        )
+        val second = recorder.execute(forgedBundle)
+        assertTrue(second is FutureDestructiveHandoffAcknowledgement.Refused)
+        assertEquals(0, recorder.authorizedInvocations)
     }
 
     @Test

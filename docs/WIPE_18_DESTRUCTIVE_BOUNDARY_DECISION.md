@@ -146,10 +146,10 @@ New types (no Android DevicePolicyManager calls):
 | Type | Role |
 | --- | --- |
 | `FutureDestructiveExecutorContract` | abstract contract; `execute(bundle)` consumes a registered bundle then calls `onAuthorizedHandoff` |
-| `FutureDestructiveExecutionBundle` | nested private-constructor bundle; no companion `create()` |
+| `FutureDestructiveExecutionBundle` | file-local private-constructor bundle; no companion `create()` and no public mint object |
 | `FutureDestructiveRealChainBoundary` | sole mint of permit/bundle and sole production origin of `execute` |
 | `RuntimeDurablePreExecutionCommitProof` | nested private-constructor proof; issued only after consumed authorization |
-| `RealChainFinalLiveValidationPermit` | nested private-constructor permit; no companion `create()` |
+| `RealChainFinalLiveValidationPermit` | file-local private-constructor permit; no companion `create()` and no public mint object |
 | `DestructiveWipeOptionPolicyProof` | default-deny option-policy proof |
 
 The bundle can only be assembled after:
@@ -184,12 +184,17 @@ is not an executor. DeviceManagement does not construct the boundary.
 wipe executor exists.
 
 The handoff bundle and final permit have **no** general `create()` /
-companion mint. They are nested private-constructor types of
-`FutureDestructiveRealChainBoundary`. The boundary mints a permit only
-after live validation, assembles the bundle only from that exact live
-permit, and production bytecode allows `execute` only from
-`assembleAndHandoff`. A reflected or caller-constructed bundle is not
-registered and cannot reach `onAuthorizedHandoff`.
+companion mint and **no** public nested mint object. They are file-local
+private-constructor types in the same file as
+`FutureDestructiveRealChainBoundary`. Only that boundary can construct
+them. Same-module code in any other file cannot mint a valid permit or
+bundle. Issued instances are registered in a private nested
+`HandoffRegistry` (`IdentityHashMap`, single-use). That registry is not
+nameable from other JVM classes. The boundary mints a permit only after
+live validation, assembles the bundle only from that exact live permit,
+and production bytecode allows `execute` only from `assembleAndHandoff`.
+A reflected or caller-constructed bundle is not registered and cannot
+reach `onAuthorizedHandoff`.
 
 ```text
 REAL_CHAIN_UNFORGEABLE_HANDOFF_PRESENT = true
