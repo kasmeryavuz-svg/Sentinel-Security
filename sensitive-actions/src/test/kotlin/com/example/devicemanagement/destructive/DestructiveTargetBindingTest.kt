@@ -85,6 +85,46 @@ class DestructiveTargetBindingTest {
     }
 
     @Test
+    fun `trusted binding creation snapshots mutable collection references`() {
+        val admin =
+            "com.example.devicemanagement/com.example.devicemanagement.management.SentinelDeviceAdminReceiver"
+        val registered = mutableSetOf(admin)
+        val active = mutableSetOf(admin)
+        val facts = DestructiveLiveFacts(
+            runningPackage = "com.example.devicemanagement",
+            expectedAdminComponent = admin,
+            registeredSentinelAdminSet = registered,
+            isDeviceOwner = true,
+            isProfileOwner = false,
+            isExpectedAdminActive = true,
+            activeAdminComponentSet = active,
+            managementValidationState = DestructiveManagementValidation.VERIFIED_DEVICE_OWNER,
+            policyServiceAvailable = true,
+        )
+        val binding = DestructiveTargetRules.bindingFromAssessedFacts(
+            facts = facts,
+            scope = DestructiveScope.DEVICE_FACTORY_RESET,
+            correlationId = DestructiveCorrelationId.generate { "snapshot-correlation" },
+        )
+        val originalRegistered = binding.registeredSentinelAdminSet.toSet()
+        val originalActive = binding.activeAdminComponentSet.toSet()
+
+        assertEquals(null, DestructiveTargetRules.denyReason(binding, facts))
+
+        registered.add("attacker/admin")
+        active.add("attacker/admin")
+
+        assertEquals(originalRegistered, binding.registeredSentinelAdminSet)
+        assertEquals(originalActive, binding.activeAdminComponentSet)
+        assertEquals(1, binding.registeredSentinelAdminSet.size)
+        assertEquals(1, binding.activeAdminComponentSet.size)
+        assertEquals(
+            "registered_admin_set_mismatch",
+            DestructiveTargetRules.denyReason(binding, facts),
+        )
+    }
+
+    @Test
     fun `caller request id is never part of the binding`() {
         val binding = verifiedBinding()
         val fields = binding.toString()

@@ -65,6 +65,77 @@ class SimulatedDestructiveExecutorTest {
     }
 
     @Test
+    fun `capability freshness is revalidated after pre-execution evidence append`() {
+        val evidence = InMemoryDestructiveSimulationEvidenceWriter()
+        val composition = DestructiveSimulationComposition.create(
+            evidenceWriter = evidence,
+            nowMonotonicMillis = 1_000L,
+        )
+        evidence.appendHook = { ev ->
+            if (ev.phase == DestructiveEvidencePhase.PRE_EXECUTION_COMMITTED) {
+                val advanced = 1_000L + DestructiveAuthorizationAuthority.MAX_CAPABILITY_AGE_MILLIS + 1L
+                assertTrue(advanced - 1_000L > DestructiveAuthorizationAuthority.MAX_CAPABILITY_AGE_MILLIS)
+                assertTrue(advanced - 1_000L < DestructiveArmingAuthority.MAX_ARM_AGE_MILLIS)
+                composition.clock.now = advanced
+            }
+        }
+
+        val result = composition.pipeline.submit(validRequest())
+
+        assertEquals(DestructiveSimulationOutcome.FAILED_PRE_EXECUTION, result.outcome)
+        assertEquals("capability_stale", result.reason)
+        assertEquals(0, composition.sink.invocationCount())
+        assertTrue(
+            evidence.records().any { it.phase == DestructiveEvidencePhase.PRE_EXECUTION_COMMITTED },
+        )
+    }
+
+    @Test
+    fun `negative monotonic delta after evidence append fails closed`() {
+        val evidence = InMemoryDestructiveSimulationEvidenceWriter()
+        val composition = DestructiveSimulationComposition.create(
+            evidenceWriter = evidence,
+            nowMonotonicMillis = 1_000L,
+        )
+        evidence.appendHook = { ev ->
+            if (ev.phase == DestructiveEvidencePhase.PRE_EXECUTION_COMMITTED) {
+                composition.clock.now = 999L
+            }
+        }
+
+        val result = composition.pipeline.submit(validRequest())
+
+        assertEquals(DestructiveSimulationOutcome.FAILED_PRE_EXECUTION, result.outcome)
+        assertEquals("capability_negative_monotonic_delta", result.reason)
+        assertEquals(0, composition.sink.invocationCount())
+    }
+
+    @Test
+    fun `direct arm authorize execute without attempt admission cannot reach the sink`() {
+        val composition = DestructiveSimulationComposition.create()
+        val binding = verifiedBinding()
+        val forgedLease = DestructiveAttemptLease.create()
+
+        val armed = composition.armingAuthority.arm(binding, forgedLease)
+        assertTrue(armed is ArmingIssueResult.Rejected)
+
+        val authorized = composition.authorizationAuthority.authorize(
+            DestructiveArmingToken.create(),
+            binding,
+            forgedLease,
+        )
+        assertTrue(authorized is DestructiveAuthorizationResult.Rejected)
+
+        val executed = composition.executor.execute(
+            DestructiveCapability.create(),
+            binding,
+            forgedLease,
+        )
+        assertTrue(executed.outcome != DestructiveSimulationOutcome.SIMULATED_WOULD_EXECUTE)
+        assertEquals(0, composition.sink.invocationCount())
+    }
+
+    @Test
     fun `wrong device owner admin target scope freshness or cooldown denies`() {
         assertDenied(facts = verifiedFacts().copy(isDeviceOwner = false), reason = "device_owner_not_verified")
         assertDenied(facts = verifiedFacts().copy(isProfileOwner = true), reason = "profile_owner_present")
@@ -106,11 +177,17 @@ class SimulatedDestructiveExecutorTest {
     fun `replayed capability cannot reach the sink`() {
         val composition = DestructiveSimulationComposition.create()
         val binding = verifiedBinding()
-        val armed = composition.armingAuthority.arm(binding) as ArmingIssueResult.Armed
-        val authorized = composition.authorizationAuthority.authorize(armed.token, binding)
-            as DestructiveAuthorizationResult.Authorized
-        val first = composition.executor.execute(authorized.capability, binding)
-        val replay = composition.executor.execute(authorized.capability, binding)
+        val authorized = composition.admitBindAuthorize(binding)
+        val first = composition.executor.execute(
+            authorized.capability,
+            binding,
+            authorized.attemptLease,
+        )
+        val replay = composition.executor.execute(
+            authorized.capability,
+            binding,
+            authorized.attemptLease,
+        )
 
         assertEquals(DestructiveSimulationOutcome.SIMULATED_WOULD_EXECUTE, first.outcome)
         assertEquals(DestructiveSimulationOutcome.REJECTED, replay.outcome)

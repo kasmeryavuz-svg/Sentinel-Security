@@ -87,10 +87,13 @@ used for authorization, freshness, cooldowns, or replay protection.
 
 Checkpoint 17A does **not** change this schema and does not overload
 `APPLIED` for destruction. Simulated destructive evidence lives in a
-separate in-process store (`DestructiveEvidencePhase`). A later 17B
-additive schema review may introduce evidence-only phases such as
-`EXECUTION_COMMITTED` and `EXECUTION_INITIATED`; those must not decode
-as `APPLIED`. See `docs/WIPE_17A_PREFLIGHT.md`.
+separate in-process store (`DestructiveEvidencePhase`) and proves
+ordering / fail-closed behavior only. That writer is not durable and is
+not a production audit adapter. Real durable destructive pre-execution
+evidence remains a 17B blocker. A later 17B additive schema review may
+introduce evidence-only phases such as `EXECUTION_COMMITTED` and
+`EXECUTION_INITIATED`; those must not decode as `APPLIED`. See
+`docs/WIPE_17A_PREFLIGHT.md`.
 
 ## Schema
 

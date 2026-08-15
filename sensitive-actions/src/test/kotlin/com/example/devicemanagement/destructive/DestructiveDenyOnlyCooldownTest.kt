@@ -64,7 +64,7 @@ class DestructiveDenyOnlyCooldownTest {
     fun `reboot-equivalent reconstruction uses a fresh full window`() {
         val file = File.createTempFile("deny-only-cooldown", ".marker")
         file.writeBytes(DenyOnlyCooldownMarker.encode())
-        val store = FileDenyOnlyCooldownMarkerStore(file)
+        val store = TestOnlyDenyOnlyCooldownReconstructionAdapter(file)
         val clock = MutableMonotonicClock(2_000L)
         val cooldown = DestructiveDenyOnlyCooldown(store, clock)
         assertEquals(CooldownDecision.Deny("cooldown_active"), cooldown.canAcceptNewRequest())
@@ -171,7 +171,13 @@ class DestructiveDenyOnlyCooldownTest {
     }
 }
 
-internal class FileDenyOnlyCooldownMarkerStore(
+/**
+ * Test-only reconstruction adapter. Exercises deny-only marker
+ * TESTED PERSISTENCE SEMANTICS (write / readback / reboot-equivalent
+ * reconstruction). This is not a trusted RUNTIME PERSISTENCE
+ * IMPLEMENTATION and must not be moved into main sources.
+ */
+internal class TestOnlyDenyOnlyCooldownReconstructionAdapter(
     private val file: File,
 ) : DenyOnlyCooldownMarkerStore {
     override fun writeMarker(bytes: ByteArray): MarkerWriteResult {

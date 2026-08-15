@@ -1,5 +1,7 @@
 package com.example.devicemanagement.destructive
 
+import java.util.Collections
+import java.util.LinkedHashSet
 import java.util.UUID
 
 /**
@@ -60,6 +62,10 @@ internal enum class DestructiveExecutionState {
 /**
  * Exact target context available to Sentinel today. Does not invent hardware
  * identifiers. Signing-certificate binding is intentionally absent.
+ *
+ * Trusted creation ([DestructiveTargetRules.bindingFromAssessedFacts] /
+ * [snapshot]) defensively copies collection-valued security fields so the
+ * binding never retains a caller-mutable set reference.
  */
 internal data class DestructiveTargetBinding(
     val actionType: DestructiveActionType,
@@ -73,7 +79,37 @@ internal data class DestructiveTargetBinding(
     val managementValidationState: DestructiveManagementValidation,
     val scope: DestructiveScope,
     val correlationId: DestructiveCorrelationId,
-)
+) {
+    companion object {
+        fun snapshot(
+            actionType: DestructiveActionType,
+            runningPackage: String,
+            expectedAdminComponent: String,
+            registeredSentinelAdminSet: Set<String>,
+            deviceOwnerExpected: Boolean,
+            profileOwnerMustBeFalse: Boolean,
+            activeAdminExpected: Boolean,
+            activeAdminComponentSet: Set<String>,
+            managementValidationState: DestructiveManagementValidation,
+            scope: DestructiveScope,
+            correlationId: DestructiveCorrelationId,
+        ): DestructiveTargetBinding {
+            return DestructiveTargetBinding(
+                actionType = actionType,
+                runningPackage = runningPackage,
+                expectedAdminComponent = expectedAdminComponent,
+                registeredSentinelAdminSet = snapshotSecuritySet(registeredSentinelAdminSet),
+                deviceOwnerExpected = deviceOwnerExpected,
+                profileOwnerMustBeFalse = profileOwnerMustBeFalse,
+                activeAdminExpected = activeAdminExpected,
+                activeAdminComponentSet = snapshotSecuritySet(activeAdminComponentSet),
+                managementValidationState = managementValidationState,
+                scope = scope,
+                correlationId = correlationId,
+            )
+        }
+    }
+}
 
 internal data class DestructiveLiveFacts(
     val runningPackage: String,
@@ -158,7 +194,7 @@ internal object DestructiveTargetRules {
         scope: DestructiveScope,
         correlationId: DestructiveCorrelationId,
     ): DestructiveTargetBinding {
-        return DestructiveTargetBinding(
+        return DestructiveTargetBinding.snapshot(
             actionType = DestructiveActionType.FACTORY_RESET_SIMULATION,
             runningPackage = facts.runningPackage,
             expectedAdminComponent = facts.expectedAdminComponent,
@@ -172,6 +208,10 @@ internal object DestructiveTargetRules {
             correlationId = correlationId,
         )
     }
+}
+
+internal fun snapshotSecuritySet(values: Set<String>): Set<String> {
+    return Collections.unmodifiableSet(LinkedHashSet(values))
 }
 
 internal object DestructiveSimulationActionNames {

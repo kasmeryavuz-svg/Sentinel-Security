@@ -67,8 +67,49 @@ internal fun verifiedBinding(
     return DestructiveTargetRules.bindingFromAssessedFacts(facts, scope, correlationId)
 }
 
+internal class DestructiveAuthorityBundle(
+    val clock: MutableMonotonicClock = MutableMonotonicClock(1_000L),
+    store: DenyOnlyCooldownMarkerStore = InMemoryDenyOnlyCooldownMarkerStore(),
+) {
+    val cooldown = DestructiveDenyOnlyCooldown(store, clock)
+    val admission = DestructiveAttemptAdmissionAuthority(cooldown)
+    val arming = DestructiveArmingAuthority(clock, admission)
+    val authorization = DestructiveAuthorizationAuthority(arming, clock, admission)
+
+    fun admitAndBind(binding: DestructiveTargetBinding): DestructiveAttemptLease {
+        val admitted = admission.admit(binding.correlationId, binding.scope)
+        check(admitted is AttemptAdmissionResult.Admitted) {
+            (admitted as AttemptAdmissionResult.Rejected).reason
+        }
+        val bound = admission.bindTarget(admitted.lease, binding)
+        check(bound is AttemptBindResult.Bound) {
+            (bound as AttemptBindResult.Rejected).reason
+        }
+        return admitted.lease
+    }
+
+    fun arm(binding: DestructiveTargetBinding): Pair<DestructiveAttemptLease, DestructiveArmingToken> {
+        val lease = admitAndBind(binding)
+        val armed = arming.arm(binding, lease)
+        check(armed is ArmingIssueResult.Armed) {
+            (armed as ArmingIssueResult.Rejected).reason
+        }
+        return lease to armed.token
+    }
+
+    fun authorize(binding: DestructiveTargetBinding): DestructiveAuthorizationResult.Authorized {
+        val (lease, token) = arm(binding)
+        val authorized = authorization.authorize(token, binding, lease)
+        check(authorized is DestructiveAuthorizationResult.Authorized) {
+            (authorized as DestructiveAuthorizationResult.Rejected).reason
+        }
+        return authorized
+    }
+}
+
 internal class DestructiveSimulationComposition(
     val pipeline: DestructiveSimulationPipeline,
+    val admissionAuthority: DestructiveAttemptAdmissionAuthority,
     val armingAuthority: DestructiveArmingAuthority,
     val authorizationAuthority: DestructiveAuthorizationAuthority,
     val cooldown: DestructiveDenyOnlyCooldown,
@@ -79,6 +120,28 @@ internal class DestructiveSimulationComposition(
     val executor: SimulatedDestructiveExecutor,
     val permitAuthority: FinalExecutionPermitAuthority,
 ) {
+    fun admitBindAuthorize(
+        binding: DestructiveTargetBinding,
+    ): DestructiveAuthorizationResult.Authorized {
+        val admitted = admissionAuthority.admit(binding.correlationId, binding.scope)
+        check(admitted is AttemptAdmissionResult.Admitted) {
+            (admitted as AttemptAdmissionResult.Rejected).reason
+        }
+        val bound = admissionAuthority.bindTarget(admitted.lease, binding)
+        check(bound is AttemptBindResult.Bound) {
+            (bound as AttemptBindResult.Rejected).reason
+        }
+        val armed = armingAuthority.arm(binding, admitted.lease)
+        check(armed is ArmingIssueResult.Armed) {
+            (armed as ArmingIssueResult.Rejected).reason
+        }
+        val authorized = authorizationAuthority.authorize(armed.token, binding, admitted.lease)
+        check(authorized is DestructiveAuthorizationResult.Authorized) {
+            (authorized as DestructiveAuthorizationResult.Rejected).reason
+        }
+        return authorized
+    }
+
     companion object {
         fun create(
             store: DenyOnlyCooldownMarkerStore = InMemoryDenyOnlyCooldownMarkerStore(),
@@ -90,20 +153,27 @@ internal class DestructiveSimulationComposition(
         ): DestructiveSimulationComposition {
             val clock = MutableMonotonicClock(nowMonotonicMillis)
             val liveFacts = MutableDestructiveLiveFactsSource(facts)
-            val armingAuthority = DestructiveArmingAuthority(clock)
-            val authorizationAuthority = DestructiveAuthorizationAuthority(
-                armingAuthority = armingAuthority,
-                monotonicTimeSource = clock,
-            )
             val cooldown = DestructiveDenyOnlyCooldown(
                 store = store,
                 monotonicTimeSource = clock,
+            )
+            val admissionAuthority = DestructiveAttemptAdmissionAuthority(cooldown)
+            val armingAuthority = DestructiveArmingAuthority(
+                monotonicTimeSource = clock,
+                admissionAuthority = admissionAuthority,
+            )
+            val authorizationAuthority = DestructiveAuthorizationAuthority(
+                armingAuthority = armingAuthority,
+                monotonicTimeSource = clock,
+                admissionAuthority = admissionAuthority,
             )
             val permitAuthority = FinalExecutionPermitAuthority(clock)
             val sink = Checkpoint17ASimulationSink(permitAuthority)
             val validator = DestructiveFinalValidator(
                 liveFactsSource = liveFacts,
                 armingAuthority = armingAuthority,
+                authorizationAuthority = authorizationAuthority,
+                admissionAuthority = admissionAuthority,
                 cooldown = cooldown,
             )
             val executor = SimulatedDestructiveExecutor(
@@ -117,6 +187,7 @@ internal class DestructiveSimulationComposition(
             )
             val pipeline = DestructiveSimulationPipeline(
                 liveFactsSource = liveFacts,
+                admissionAuthority = admissionAuthority,
                 armingAuthority = armingAuthority,
                 authorizationAuthority = authorizationAuthority,
                 cooldown = cooldown,
@@ -126,6 +197,7 @@ internal class DestructiveSimulationComposition(
             )
             return DestructiveSimulationComposition(
                 pipeline = pipeline,
+                admissionAuthority = admissionAuthority,
                 armingAuthority = armingAuthority,
                 authorizationAuthority = authorizationAuthority,
                 cooldown = cooldown,

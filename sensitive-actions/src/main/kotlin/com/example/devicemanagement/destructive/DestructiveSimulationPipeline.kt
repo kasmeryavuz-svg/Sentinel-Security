@@ -5,13 +5,14 @@ import java.util.UUID
 
 /**
  * Trusted Checkpoint 17A request acceptor. Creates the authoritative
- * correlation ID, walks assessment → arming → authorization → simulated
- * executor, and never reaches an Android policy service.
+ * correlation ID, walks admission → assessment → arming → authorization →
+ * simulated executor, and never reaches an Android policy service.
  *
  * Not wired into production DeviceManagement composition.
  */
 internal class DestructiveSimulationPipeline(
     private val liveFactsSource: DestructiveLiveFactsSource,
+    private val admissionAuthority: DestructiveAttemptAdmissionAuthority,
     private val armingAuthority: DestructiveArmingAuthority,
     private val authorizationAuthority: DestructiveAuthorizationAuthority,
     private val cooldown: DestructiveDenyOnlyCooldown,
@@ -81,18 +82,13 @@ internal class DestructiveSimulationPipeline(
             )
         }
 
-        when (val recorded = cooldown.recordAttempt()) {
-            is CooldownRecordResult.Failed -> {
-                return reject(
-                    correlationId = correlationId.value,
-                    reason = recorded.reason,
-                )
-            }
-            CooldownRecordResult.Recorded -> Unit
-        }
-
         val scope = request.requestedScope
             ?: return reject(correlationId.value, "unspecified_scope")
+        val admitted = when (val admission = admissionAuthority.admit(correlationId, scope)) {
+            is AttemptAdmissionResult.Rejected -> return reject(correlationId.value, admission.reason)
+            is AttemptAdmissionResult.Admitted -> admission
+        }
+
         val facts = try {
             liveFactsSource.currentFacts()
         } catch (_: Throwable) {
@@ -106,13 +102,21 @@ internal class DestructiveSimulationPipeline(
         DestructiveTargetRules.denyReason(binding, facts)?.let { reason ->
             return reject(correlationId.value, reason)
         }
+        when (val bound = admissionAuthority.bindTarget(admitted.lease, binding)) {
+            is AttemptBindResult.Rejected -> return reject(correlationId.value, bound.reason)
+            is AttemptBindResult.Bound -> Unit
+        }
 
-        val armed = when (val arm = armingAuthority.arm(binding)) {
+        val armed = when (val arm = armingAuthority.arm(binding, admitted.lease)) {
             is ArmingIssueResult.Rejected -> return reject(correlationId.value, arm.reason)
             is ArmingIssueResult.Armed -> arm
         }
         val authorized = when (
-            val authorization = authorizationAuthority.authorize(armed.token, binding)
+            val authorization = authorizationAuthority.authorize(
+                armToken = armed.token,
+                binding = binding,
+                attemptLease = admitted.lease,
+            )
         ) {
             is DestructiveAuthorizationResult.Rejected -> {
                 armingAuthority.disarm(armed.token)
@@ -123,6 +127,7 @@ internal class DestructiveSimulationPipeline(
         return executor.execute(
             capability = authorized.capability,
             expectedBinding = binding,
+            attemptLease = authorized.attemptLease,
         )
     }
 

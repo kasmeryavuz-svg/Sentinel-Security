@@ -4,8 +4,9 @@ import com.example.devicemanagement.integration.MonotonicTimeSource
 import java.util.IdentityHashMap
 
 /**
- * Opaque in-chain hand-off issued only after durable pre-execution evidence
- * and live final validation. Consumable once, only by the paired sink.
+ * Opaque in-chain hand-off issued only after pre-execution simulation
+ * evidence and live final validation. Consumable once, only by the paired
+ * sink.
  */
 internal class FinalExecutionPermit private constructor() {
     companion object {

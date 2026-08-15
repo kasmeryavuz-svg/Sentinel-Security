@@ -42,6 +42,7 @@ class Checkpoint17AWipeBoundaryFreezeTest {
         assertFalse(appSources.contains("wipeDevice"))
         assertFalse(appSources.contains("DevicePolicyManager"))
         assertFalse(appSources.contains("DestructiveArmingAuthority"))
+        assertFalse(appSources.contains("DestructiveAttemptAdmissionAuthority"))
         assertFalse(appSources.contains("SimulatedDestructiveExecutor"))
         assertFalse(appSources.contains("FinalExecutionPermit"))
     }

@@ -3,10 +3,16 @@ package com.example.devicemanagement.destructive
 import com.example.devicemanagement.integration.MonotonicTimeSource
 
 /**
- * Tiny deny-only circuit breaker. Persisted bytes may only deny. They never
- * authorize, arm, resume, or execute. After process start, a well-formed
- * marker starts a fresh full monotonic cooldown. Same-UID arbitrary code
- * remains application compromise and is out of scope.
+ * Tiny deny-only circuit breaker. The codec and in-process state machine
+ * are implemented here. Persisted bytes may only deny. They never
+ * authorize, arm, resume, execute, or become an attempt lease. After
+ * process start, a well-formed marker starts a fresh full monotonic
+ * cooldown. Same-UID arbitrary code remains application compromise and is
+ * out of scope.
+ *
+ * TESTED PERSISTENCE SEMANTICS are exercised by a test-only reconstruction
+ * adapter. A purpose-specific trusted RUNTIME PERSISTENCE IMPLEMENTATION
+ * remains a Checkpoint 17B blocker.
  */
 internal object DenyOnlyCooldownMarker {
     const val MAGIC = "SENTINEL_DENY_ONLY_COOLDOWN_REQUIRED_V1"

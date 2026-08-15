@@ -9,13 +9,24 @@ class DestructiveLifecycleRestartTest {
     fun `reconstructed services cannot resume an armed request`() {
         val first = DestructiveSimulationComposition.create()
         val binding = verifiedBinding()
-        val armed = first.armingAuthority.arm(binding) as ArmingIssueResult.Armed
+        val authorized = first.admitBindAuthorize(binding)
         val reconstructed = DestructiveSimulationComposition.create()
 
-        val check = reconstructed.armingAuthority.requireLive(armed.token, binding)
+        val check = reconstructed.armingAuthority.requireLive(
+            authorized.armToken,
+            binding,
+            authorized.attemptLease,
+        )
         assertEquals(
             "arm_not_issued_or_already_consumed",
             (check as ArmingCheck.Dead).reason,
+        )
+        assertEquals(
+            "attempt_lease_not_issued_or_already_consumed",
+            (
+                reconstructed.admissionAuthority.requireLive(authorized.attemptLease, binding)
+                    as AttemptLeaseCheck.Dead
+                ).reason,
         )
         assertEquals(0, reconstructed.sink.invocationCount())
     }
@@ -24,17 +35,23 @@ class DestructiveLifecycleRestartTest {
     fun `reconstructed services cannot consume a pre-restart capability`() {
         val first = DestructiveSimulationComposition.create()
         val binding = verifiedBinding()
-        val armed = first.armingAuthority.arm(binding) as ArmingIssueResult.Armed
-        val authorized = first.authorizationAuthority.authorize(armed.token, binding)
-            as DestructiveAuthorizationResult.Authorized
+        val authorized = first.admitBindAuthorize(binding)
         val reconstructed = DestructiveSimulationComposition.create()
 
-        val consume = reconstructed.authorizationAuthority.consume(authorized.capability, binding)
+        val consume = reconstructed.authorizationAuthority.consume(
+            authorized.capability,
+            binding,
+            authorized.attemptLease,
+        )
         assertEquals(
             "capability_not_issued_or_already_consumed",
             (consume as DestructiveCapabilityConsumption.Rejected).reason,
         )
-        val executed = reconstructed.executor.execute(authorized.capability, binding)
+        val executed = reconstructed.executor.execute(
+            authorized.capability,
+            binding,
+            authorized.attemptLease,
+        )
         assertEquals(DestructiveSimulationOutcome.REJECTED, executed.outcome)
         assertEquals(0, reconstructed.sink.invocationCount())
     }
@@ -57,6 +74,7 @@ class DestructiveLifecycleRestartTest {
                 reconstructed.authorizationAuthority.consume(
                     DestructiveCapability.create(),
                     verifiedBinding(),
+                    DestructiveAttemptLease.create(),
                 ) as DestructiveCapabilityConsumption.Rejected
                 ).reason,
         )
@@ -71,7 +89,10 @@ class DestructiveLifecycleRestartTest {
             .joinToString("\n") { it.readText() }
         assertTrue(!source.contains("DestructiveArmingAuthority"))
         assertTrue(!source.contains("DestructiveAuthorizationAuthority"))
+        assertTrue(!source.contains("DestructiveAttemptAdmissionAuthority"))
         assertTrue(!source.contains("DestructiveCapability"))
+        assertTrue(!source.contains("DestructiveAttemptLease"))
+        assertTrue(!source.contains("ConsumedDestructiveAuthorizationProof"))
         assertTrue(!source.contains("FinalExecutionPermit"))
         assertTrue(!source.contains("SimulatedDestructiveExecutor"))
         assertTrue(!source.contains("Checkpoint17ASimulationSink"))

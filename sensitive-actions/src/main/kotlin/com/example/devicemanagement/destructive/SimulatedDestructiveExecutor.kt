@@ -5,10 +5,12 @@ import com.example.devicemanagement.logging.StructuredLogger
 
 /**
  * Synchronous Checkpoint 17A executor chain:
- * consume capability → durable pre-execution evidence → live final
+ * consume capability → pre-execution simulation evidence → live final
  * validation → immediate non-destructive simulation sink.
  *
- * There is no Android policy-service call and no reusable Boolean allow.
+ * Simulation evidence proves ordering and fail-closed behavior only. It is
+ * not a durable production audit. There is no Android policy-service call
+ * and no reusable Boolean allow.
  */
 internal class SimulatedDestructiveExecutor(
     private val authorizationAuthority: DestructiveAuthorizationAuthority,
@@ -23,12 +25,14 @@ internal class SimulatedDestructiveExecutor(
     fun execute(
         capability: DestructiveCapability,
         expectedBinding: DestructiveTargetBinding,
+        attemptLease: DestructiveAttemptLease,
     ): DestructiveSimulationStatus {
         val correlationId = expectedBinding.correlationId.value
         val consumed = when (
             val consumption = authorizationAuthority.consume(
                 capability = capability,
                 expectedBinding = expectedBinding,
+                expectedLease = attemptLease,
             )
         ) {
             is DestructiveCapabilityConsumption.Rejected -> {
@@ -67,6 +71,8 @@ internal class SimulatedDestructiveExecutor(
             validator.validate(
                 binding = consumed.binding,
                 armToken = consumed.armToken,
+                attemptLease = consumed.attemptLease,
+                consumptionProof = consumed.proof,
                 nowMonotonicMillis = monotonicTimeSource.nowMillis(),
             )
         } catch (_: Throwable) {

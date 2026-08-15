@@ -37,8 +37,14 @@ class Checkpoint17AEntryCriteriaTest {
         }
         assertTrue(preflight.contains("What remains blocked for 17B"))
         assertTrue(preflight.contains("Do **not** treat destructive API, metadata, or hardware-test rows as complete"))
+        assertTrue(preflight.contains("TESTED PERSISTENCE SEMANTICS"))
+        assertTrue(preflight.contains("RUNTIME PERSISTENCE IMPLEMENTATION"))
+        assertTrue(preflight.contains("test-only reconstruction adapter"))
+        assertTrue(!preflight.contains("production durable destructive audit is implemented"))
         assertTrue(design.contains("## 14. Checkpoint 17A status"))
         assertTrue(design.contains("NO REAL WIPE IS IMPLEMENTED"))
+        assertTrue(design.contains("TESTED PERSISTENCE SEMANTICS"))
+        assertTrue(design.contains("RUNTIME PERSISTENCE IMPLEMENTATION"))
     }
 
     @Test

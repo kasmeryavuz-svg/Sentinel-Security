@@ -16,9 +16,12 @@ class DestructiveDomainIsolationTest {
         val types = listOf(
             DestructiveArmingToken::class.java,
             DestructiveCapability::class.java,
+            DestructiveAttemptLease::class.java,
+            ConsumedDestructiveAuthorizationProof::class.java,
             FinalExecutionPermit::class.java,
             DestructiveArmingAuthority::class.java,
             DestructiveAuthorizationAuthority::class.java,
+            DestructiveAttemptAdmissionAuthority::class.java,
             SimulatedDestructiveExecutor::class.java,
         )
         types.forEach { type ->
@@ -72,6 +75,8 @@ class DestructiveDomainIsolationTest {
         assertFalse(sources.contains("BOOT_COMPLETED"))
         assertFalse(sources.contains("Parcelable"))
         assertFalse(sources.contains("Serializable"))
+        assertFalse(sources.contains("java.io.File"))
+        assertFalse(sources.contains("FileOutputStream"))
         assertTrue(sources.contains("DESTRUCTIVE ACTION WOULD EXECUTE"))
         assertTrue(sources.contains("checkpoint_17a_simulation_only"))
     }
@@ -99,6 +104,7 @@ class DestructiveDomainIsolationTest {
         ).readText()
         assertFalse(controller.contains("DestructiveSimulationPipeline"))
         assertFalse(controller.contains("DestructiveArmingAuthority"))
+        assertFalse(controller.contains("DestructiveAttemptAdmissionAuthority"))
         assertFalse(controller.contains("SimulatedDestructiveExecutor"))
         assertFalse(controller.contains("Checkpoint17ASimulationSink"))
     }

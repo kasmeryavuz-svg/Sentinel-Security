@@ -7,12 +7,16 @@ import java.util.UUID
  * durable audit schema and must never authorize, arm, create a capability
  * or permit, replay, or invoke the simulation sink.
  *
+ * 17A evidence proves ordering and fail-closed behavior only. It is not a
+ * runtime persistence implementation. Real durable destructive
+ * pre-execution evidence remains a Checkpoint 17B blocker.
+ *
  * Production [com.example.devicemanagement.audit.AuditEventPhase.APPLIED]
  * is never used here. A later 17B schema change is reserved in
  * docs/WIPE_17A_PREFLIGHT.md.
  */
 internal sealed interface DestructiveEvidenceAppendResult {
-    data class Persisted(val eventId: String) : DestructiveEvidenceAppendResult
+    data class Recorded(val eventId: String) : DestructiveEvidenceAppendResult
 
     data object Failed : DestructiveEvidenceAppendResult
 }
@@ -23,6 +27,11 @@ internal interface DestructiveSimulationEvidenceWriter {
     fun records(): List<DestructiveSimulationEvidence>
 }
 
+/**
+ * Process-local simulation evidence writer. Not durable. Not a production
+ * audit adapter. Used only to prove append ordering and fail-closed
+ * rejection.
+ */
 internal class InMemoryDestructiveSimulationEvidenceWriter(
     private val eventIdGenerator: () -> String = { UUID.randomUUID().toString() },
 ) : DestructiveSimulationEvidenceWriter {
@@ -37,13 +46,13 @@ internal class InMemoryDestructiveSimulationEvidenceWriter(
             failNext = false
             return DestructiveEvidenceAppendResult.Failed
         }
-        val persisted = if (evidence.eventId.isBlank()) {
+        val recorded = if (evidence.eventId.isBlank()) {
             evidence.copy(eventId = eventIdGenerator())
         } else {
             evidence
         }
-        stored += persisted
-        return DestructiveEvidenceAppendResult.Persisted(persisted.eventId)
+        stored += recorded
+        return DestructiveEvidenceAppendResult.Recorded(recorded.eventId)
     }
 
     override fun records(): List<DestructiveSimulationEvidence> = stored.toList()

@@ -1,7 +1,10 @@
 package attack
 
 import com.example.devicemanagement.destructive.Checkpoint17ASimulationSink
+import com.example.devicemanagement.destructive.ConsumedDestructiveAuthorizationProof
 import com.example.devicemanagement.destructive.DestructiveArmingAuthority
+import com.example.devicemanagement.destructive.DestructiveAttemptAdmissionAuthority
+import com.example.devicemanagement.destructive.DestructiveAttemptLease
 import com.example.devicemanagement.destructive.DestructiveAuthorizationAuthority
 import com.example.devicemanagement.destructive.DestructiveCapability
 import com.example.devicemanagement.destructive.DestructiveDenyOnlyCooldown
@@ -12,7 +15,10 @@ import com.example.devicemanagement.destructive.SimulatedDestructiveExecutor
 class DestructiveAuthorityAccess(
     val arming: DestructiveArmingAuthority,
     val authorization: DestructiveAuthorizationAuthority,
+    val admission: DestructiveAttemptAdmissionAuthority,
     val capability: DestructiveCapability,
+    val attemptLease: DestructiveAttemptLease,
+    val consumedProof: ConsumedDestructiveAuthorizationProof,
     val permit: FinalExecutionPermit,
     val executor: SimulatedDestructiveExecutor,
     val cooldown: DestructiveDenyOnlyCooldown,
