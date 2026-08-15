@@ -332,6 +332,12 @@ val checkAppApiCompileNegative by tasks.registering {
             "com/example/devicemanagement/recovery/RecoveryInspectionProvider",
             "com/example/devicemanagement/trigger/SensitiveActionCommands",
             "com/example/devicemanagement/trigger/Trigger",
+            "com/example/devicemanagement/destructive/DestructiveSimulationRequest",
+            "com/example/devicemanagement/destructive/DestructiveScope",
+            "com/example/devicemanagement/destructive/DestructiveSimulationOutcome",
+            "com/example/devicemanagement/destructive/DestructiveSimulationStatus",
+            "com/example/devicemanagement/destructive/DestructiveEvidencePhase",
+            "com/example/devicemanagement/destructive/DestructiveSimulationEvidence",
             "com/example/devicemanagement/management/DeviceManagement",
             "com/example/devicemanagement/management/DeviceManagementServices",
             "com/example/devicemanagement/management/ManagementMode",
@@ -635,6 +641,7 @@ androidComponents {
                 val androidNamespace =
                     "http://schemas.android.com/apk/res/android"
                 val approvedPolicies = setOf("disable-camera")
+                val checkpoint17BForbiddenPolicies = setOf("wipe-data")
                 val expectedReceiver =
                     "com.example.devicemanagement.management." +
                         "SentinelDeviceAdminReceiver"
@@ -792,6 +799,10 @@ androidComponents {
                     .drop(usesPoliciesIndex + 1)
                     .takeWhile { it.first > usesPoliciesIndent }
                     .map { it.second }
+                check(policyElements.intersect(checkpoint17BForbiddenPolicies).isEmpty()) {
+                    "Checkpoint 17B hard block: wipe-data remains forbidden " +
+                        "until explicit 17B review; found $policyElements"
+                }
                 check(
                     policyElements.toSet() == approvedPolicies &&
                         policyElements.size == approvedPolicies.size,

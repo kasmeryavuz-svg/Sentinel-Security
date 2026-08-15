@@ -35,6 +35,15 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("ActionRequest"))
         assertFalse(sources.contains("SharedPreferences"))
         assertFalse(sources.contains("BOOT_COMPLETED"))
+        assertFalse(sources.contains("DestructiveArmingAuthority"))
+        assertFalse(sources.contains("DestructiveAuthorizationAuthority"))
+        assertFalse(sources.contains("DestructiveAttemptAdmissionAuthority"))
+        assertFalse(sources.contains("DestructiveFinalExecutionGate"))
+        assertFalse(sources.contains("DestructiveCapability"))
+        assertFalse(sources.contains("DestructiveAttemptLease"))
+        assertFalse(sources.contains("FinalExecutionPermit"))
+        assertFalse(sources.contains("SimulatedDestructiveExecutor"))
+        assertFalse(sources.contains("Checkpoint17ASimulationSink"))
     }
 
     @Test
@@ -52,6 +61,7 @@ class LifecycleRecoveryGuardTest {
         assertFalse(approval.contains("SharedPreferences"))
         assertFalse(approval.contains("SQLite"))
         assertFalse(approval.contains("FileOutputStream"))
+        assertFalse(approval.contains("DestructiveAttemptLease"))
         assertFalse(approval.contains("Serializable"))
         assertTrue(repository.contains("does not cache or persist authorization"))
         assertTrue(repository.contains("backend.currentAuthorization()"))

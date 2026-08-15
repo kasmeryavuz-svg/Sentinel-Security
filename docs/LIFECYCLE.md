@@ -89,3 +89,16 @@ interrupted sets. It does not execute anything and does not fabricate
 terminal audit events.
 
 Audit remains evidence, never authorization. See `docs/AUDIT.md`.
+
+## Checkpoint 17A destructive simulation
+
+Arming tokens, destructive capabilities, attempt/admission leases,
+consumed-authorization proofs, and `FinalExecutionPermit` objects are
+process-local and die with the process. Reconstruction cannot resume an
+armed or authorized simulation request. The only persisted
+destructive-adjacent state is a deny-only cooldown marker, which can
+never authorize, arm, resume, execute, or become a lease. 17A tests
+those persistence semantics with a test-only reconstruction adapter; a
+trusted runtime persistence adapter remains a 17B blocker. There is
+still no `BOOT_COMPLETED` path and no recovery execution. See
+`docs/WIPE_17A_PREFLIGHT.md`.
