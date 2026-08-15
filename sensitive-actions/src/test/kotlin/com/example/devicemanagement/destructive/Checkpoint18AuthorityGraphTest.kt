@@ -66,6 +66,7 @@ class Checkpoint18AuthorityGraphTest {
             "Checkpoint19CDecision",
             "Checkpoint19DDecision",
             "Checkpoint19EDecision",
+            "Checkpoint19FDecision",
             "ProductionDestructiveRealChainOrchestrator",
             "assembleAlreadyBoundDeviceFactoryReset",
             "UnwiredFutureDestructiveExecutor",

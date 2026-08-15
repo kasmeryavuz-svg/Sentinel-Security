@@ -53,6 +53,7 @@ class Checkpoint19EWipeBoundaryFreezeTest {
         assertFalse(appSources.contains("assembleAndHandoff"))
         assertFalse(appSources.contains("assembleAlreadyBoundDeviceFactoryReset"))
         assertFalse(appSources.contains("Checkpoint19EDecision"))
+        assertFalse(appSources.contains("Checkpoint19FDecision"))
         assertFalse(appSources.contains("Checkpoint19DDecision"))
         assertFalse(appSources.contains("ProductionDestructiveRealChainOrchestrator"))
         assertFalse(appSources.contains("ProductionDestructiveHumanConfirmationSource"))

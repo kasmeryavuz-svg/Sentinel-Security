@@ -123,6 +123,7 @@ jobs:
             :app:checkReleaseProductionBytecodePolicy \
             assembleDebug \
             assembleRelease \
+            :app:checkUnsignedDestructiveValidationCandidateEvidence \
             bundleRelease \
             checkReleaseProductionSecurity \
             checkReleaseBundleProductionSecurity \
@@ -140,3 +141,16 @@ jobs:
           grep -qx 'signing=UNSIGNED' "${aab_report}"
           grep -F 'This artifact is unsigned and is not a production distribution.' "${apk_report}"
           grep -F 'This artifact is unsigned and is not a production distribution.' "${aab_report}"
+
+      - name: Prove the unsigned candidate remains ineligible and untrusted
+        run: |
+          set -eu
+          candidate_report=app/build/reports/destructive-validation-candidate.txt
+          test -f "${candidate_report}"
+          grep -qx 'authority=UNTRUSTED_CANDIDATE_ONLY' "${candidate_report}"
+          grep -qx 'candidate_status=INELIGIBLE' "${candidate_report}"
+          grep -qx 'signing=UNSIGNED' "${candidate_report}"
+          grep -qx 'runtime_authorization=false' "${candidate_report}"
+          grep -qx 'trusted_expectation_minted=false' "${candidate_report}"
+          grep -qx 'production_signing_enabled=false' "${candidate_report}"
+          grep -qx 'hardware_validation_approved=false' "${candidate_report}"

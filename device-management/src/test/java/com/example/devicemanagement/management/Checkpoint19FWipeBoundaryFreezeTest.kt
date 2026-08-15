@@ -9,9 +9,9 @@ import java.io.File
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
 
-class Checkpoint19CWipeBoundaryFreezeTest {
+class Checkpoint19FWipeBoundaryFreezeTest {
     @Test
-    fun `DeviceAdmin metadata remains exactly disable-camera and wipe-data after 19C`() {
+    fun `DeviceAdmin metadata remains exactly disable-camera and wipe-data after 19F`() {
         val metadataFile = File(requireNotNull(System.getProperty("deviceAdminMetadataFile")))
         val factory = DocumentBuilderFactory.newInstance().apply {
             setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
@@ -39,7 +39,7 @@ class Checkpoint19CWipeBoundaryFreezeTest {
     }
 
     @Test
-    fun `implementation sources still have no assembled chain confirmation or 19C wiring`() {
+    fun `implementation sources retain production chain without a 19F trigger`() {
         val sourceRoot = File(
             requireNotNull(System.getProperty("deviceManagementSourceDir")),
             "java",
@@ -65,14 +65,17 @@ class Checkpoint19CWipeBoundaryFreezeTest {
             .joinToString("\n") { it.readText() }
 
         assertFalse(sources.contains("assembleAndHandoff"))
-        assertFalse(sources.contains("Checkpoint19CDecision"))
-        assertFalse(sources.contains("Checkpoint19DDecision"))
-        assertFalse(sources.contains("Checkpoint19EDecision"))
-        assertFalse(sources.contains("Checkpoint19FDecision"))
         assertFalse(sources.contains("assembleAlreadyBoundDeviceFactoryReset"))
+        assertFalse(sources.contains("Checkpoint19FDecision"))
+        assertFalse(sources.contains("Checkpoint19EDecision"))
+        assertFalse(sources.contains("Checkpoint19DDecision"))
+        assertFalse(sources.contains("ProductionDestructiveRealChainOrchestrator"))
+        assertFalse(sources.contains("ProductionDestructiveHumanConfirmationSource"))
         assertFalse(sources.contains("issueFromTrustedConfirmationSource"))
         assertFalse(sources.contains("issueFromTrustedValidationSource"))
         assertFalse(sources.contains("FutureDestructiveRealChainBoundary"))
+        assertFalse(sources.contains("destructive-validation-candidate.txt"))
+        assertFalse(sources.contains("DestructiveValidationCandidateEvidence"))
         assertTrue(sources.contains("ProductionDestructiveRealChain.retainForProduction"))
         assertTrue(sources.contains("AndroidDestructiveSafetyPersistence.issueRuntimeDurability"))
         assertTrue(sources.contains("setScreenCaptureDisabled"))
@@ -81,10 +84,10 @@ class Checkpoint19CWipeBoundaryFreezeTest {
     }
 
     @Test
-    fun `19C freeze tests do not invoke the platform whole-device call`() {
+    fun `19F freeze tests do not invoke the platform whole-device call`() {
         val thisFile = File(
             File(requireNotNull(System.getProperty("deviceManagementSourceDir"))),
-            "../test/java/com/example/devicemanagement/management/Checkpoint19CWipeBoundaryFreezeTest.kt",
+            "../test/java/com/example/devicemanagement/management/Checkpoint19FWipeBoundaryFreezeTest.kt",
         ).canonicalFile.readText()
         assertFalse(thisFile.contains("manager." + "wipeDevice"))
         assertFalse(thisFile.contains("import android.app.admin." + "DevicePolicyManager"))

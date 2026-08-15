@@ -159,6 +159,7 @@ class Checkpoint19ADecisionRealityTest {
         assertTrue(sources.contains("Checkpoint19CDecision"))
         assertTrue(sources.contains("Checkpoint19DDecision"))
         assertTrue(sources.contains("Checkpoint19EDecision"))
+        assertTrue(sources.contains("Checkpoint19FDecision"))
         assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("wipeData"))
         listOf(
@@ -177,6 +178,7 @@ class Checkpoint19ADecisionRealityTest {
             assertFalse(root.path, extra.contains("Checkpoint19CDecision"))
             assertFalse(root.path, extra.contains("Checkpoint19DDecision"))
             assertFalse(root.path, extra.contains("Checkpoint19EDecision"))
+            assertFalse(root.path, extra.contains("Checkpoint19FDecision"))
             assertFalse(root.path, extra.contains("assembleAlreadyBoundDeviceFactoryReset"))
             assertFalse(root.path, extra.contains("AndroidFutureDestructiveExecutor"))
             assertFalse(root.path, extra.contains("AndroidDevicePolicyFactoryResetService"))
@@ -197,6 +199,7 @@ class Checkpoint19ADecisionRealityTest {
                     assertFalse(file.path, extra.contains("Checkpoint19CDecision"))
                     assertFalse(file.path, extra.contains("Checkpoint19DDecision"))
                     assertFalse(file.path, extra.contains("Checkpoint19EDecision"))
+                    assertFalse(file.path, extra.contains("Checkpoint19FDecision"))
                     assertFalse(file.path, extra.contains("assembleAlreadyBoundDeviceFactoryReset"))
                 }
             }
