@@ -821,6 +821,25 @@ is allowed. Partial completion is not permission to add
 Until that checklist is complete, the application must remain
 **incapable** of performing a real wipe.
 
+## 14. Checkpoint 17A status
+
+Checkpoint 17A implements the non-destructive machinery above and a
+simulated executor whose final sink records
+`DESTRUCTIVE ACTION WOULD EXECUTE`. It does **not** complete the
+destructive-API, metadata, or hardware-test rows.
+
+17A implements the deny-only cooldown **state machine/codec** and
+**TESTED PERSISTENCE SEMANTICS** via a test-only reconstruction adapter.
+It does **not** ship a trusted **RUNTIME PERSISTENCE IMPLEMENTATION**.
+17A simulation evidence proves ordering and fail-closed behavior only.
+Real durable destructive pre-execution evidence remains a 17B blocker.
+
+See `docs/WIPE_17A_PREFLIGHT.md` and `docs/WIPE_PLATFORM_PREFLIGHT.md`.
+
+**NO REAL WIPE IS IMPLEMENTED.** A later Checkpoint 17B would still have
+to change the explicit 17B hard-block gates before any real DPM wipe
+wrapper or `<wipe-data>` metadata may exist.
+
 ## 13. Checkpoint 16 freeze
 
 After this checkpoint the production security boundary is unchanged:

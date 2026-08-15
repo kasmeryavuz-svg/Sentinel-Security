@@ -255,3 +255,5 @@ DeviceAdmin metadata remains exactly:
 - backup/export functionality
 
 Future destructive-operation work remains **explicitly deferred**.
+Checkpoint 17A adds only non-destructive simulation machinery and keeps
+this release boundary frozen. See `docs/WIPE_17A_PREFLIGHT.md`.

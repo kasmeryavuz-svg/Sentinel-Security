@@ -253,3 +253,11 @@ approved, Sentinel must remain incapable of performing a real wipe. A
 trigger must never call a wipe executor. The reversible
 `ApprovalAuthority` / `VerifiedPolicyMutation` path must not gain
 destructive authority.
+
+Checkpoint 17A adds a **separate**, non-production-wired destructive
+simulation domain (`DestructiveAttemptAdmissionAuthority`,
+`DestructiveArmingAuthority`, `DestructiveAuthorizationAuthority`,
+deny-only cooldown, `SimulatedDestructiveExecutor`). App/UI may see only
+request/status/evidence types. Simulation evidence is in-process and not
+durable. The production DPM allowlist, DeviceAdmin metadata, and
+controlled registry are unchanged. See `docs/WIPE_17A_PREFLIGHT.md`.
