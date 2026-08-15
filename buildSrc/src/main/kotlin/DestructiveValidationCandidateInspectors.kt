@@ -14,7 +14,6 @@ import java.io.IOException
 object DestructiveValidationCandidateInspectors {
     private val debugMarkers = listOf("CN=Android Debug", "Android Debug")
     private val testMarkers = listOf("androidtest", "Android Test", "CN=Android Test")
-    private val signerHeader = Regex("""Signer\s+#(\d+)""", RegexOption.IGNORE_CASE)
     private val packageName = Regex("""package:\s+name='([^']+)'""")
     private val versionCode = Regex("""versionCode='([^']+)'""")
     private val versionName = Regex("""versionName='([^']+)'""")
@@ -22,6 +21,7 @@ object DestructiveValidationCandidateInspectors {
     private val targetSdk = Regex("""targetSdkVersion:'([^']+)'""")
     private val xmlName = Regex("""android:name[^=]*="([^"]+)"""")
     private val xmlElement = Regex("""^(\s*)E:\s+([A-Za-z0-9_.-]+)\b""")
+    private const val BUILD_PURPOSE_ENTRY = "META-INF/sentinel-destructive-build-purpose"
 
     fun inspectSigning(
         apk: File,
@@ -67,31 +67,24 @@ object DestructiveValidationCandidateInspectors {
                 detail = "apksigner could not be executed",
             )
         }
-        val fingerprints = ReleaseArtifactSecurityVerifier.extractSha256Fingerprints(result.output)
-            .distinct()
-        val signerIndexes = signerHeader.findAll(result.output)
-            .map { it.groupValues[1] }
-            .distinct()
-            .count()
-        val signerCount = when {
-            fingerprints.size > 1 -> fingerprints.size
-            signerIndexes > 1 && fingerprints.size > 1 -> fingerprints.size
-            fingerprints.isNotEmpty() -> fingerprints.size
-            else -> 0
-        }
+        val parsed = DestructiveValidationApksignerSignerParser.parse(result.output)
         val classification = classifyApksigner(
             exitCode = result.exitCode,
             output = result.output,
-            fingerprints = fingerprints,
+            parsed = parsed,
             archiveKind = archiveKind,
         )
+        val signerCount = parsed.currentSignerCount ?: -1
         return DestructiveValidationCandidateEvidence.CandidateSigningInspection(
             classification = classification,
-            certificateSha256 = fingerprints.singleOrNull(),
+            certificateSha256 = parsed.currentCertificateSha256,
             signerCount = signerCount,
+            signerCountReliable = parsed.reliable && parsed.currentSignerCount != null,
+            lineagePresent = parsed.lineagePresent,
             apksignerAvailable = true,
             apksignerExecuted = true,
-            detail = "apksigner_exit=${result.exitCode}",
+            detail = "apksigner_exit=${result.exitCode};" +
+                (parsed.unreliabilityReason ?: "signer_parse_reliable"),
         )
     }
 
@@ -147,9 +140,44 @@ object DestructiveValidationCandidateInspectors {
             versionName = observedVersionName,
             minSdk = observedMinSdk,
             targetSdk = observedTargetSdk,
+            buildPurposeObserved = inspectObservedBuildPurpose(apk),
             aapt2Available = true,
             detail = "aapt2 inspected",
         )
+    }
+
+    fun classifyOfficialApksignerOutput(
+        exitCode: Int,
+        output: String,
+        archiveSigned: Boolean = true,
+    ): DestructiveValidationCandidateEvidence.Signing {
+        val parsed = DestructiveValidationApksignerSignerParser.parse(output)
+        return classifyApksigner(
+            exitCode = exitCode,
+            output = output,
+            parsed = parsed,
+            archiveKind = if (archiveSigned) ArchiveKind.SIGNED else ArchiveKind.UNSIGNED,
+        )
+    }
+
+    fun inspectObservedBuildPurpose(apk: File): String? {
+        return try {
+            java.util.jar.JarFile(apk, false).use { jar ->
+                val entry = jar.getEntry(BUILD_PURPOSE_ENTRY) ?: return null
+                if (entry.isDirectory) {
+                    return null
+                }
+                jar.getInputStream(entry).bufferedReader().use { it.readText() }
+                    .trim()
+                    .takeIf { candidate ->
+                        candidate.isNotEmpty() &&
+                            '\n' !in candidate &&
+                            candidate.length <= 128
+                    }
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun captureGit(projectRoot: File?): DestructiveValidationCandidateEvidence.GitProvenance {
@@ -221,11 +249,22 @@ object DestructiveValidationCandidateInspectors {
     private fun classifyApksigner(
         exitCode: Int,
         output: String,
-        fingerprints: List<String>,
+        parsed: DestructiveValidationApksignerSignerParser.Parse,
         archiveKind: ArchiveKind,
     ): DestructiveValidationCandidateEvidence.Signing {
-        if (fingerprints.size > 1) {
+        if (parsed.reliable && (parsed.currentSignerCount ?: 0) >= 2) {
             return DestructiveValidationCandidateEvidence.Signing.MULTIPLE_SIGNERS
+        }
+        if (!parsed.reliable) {
+            return when {
+                exitCode != 0 &&
+                    (archiveKind == ArchiveKind.UNSIGNED || looksUnsigned(output)) ->
+                    DestructiveValidationCandidateEvidence.Signing.UNSIGNED
+                exitCode != 0 &&
+                    (archiveKind == ArchiveKind.MALFORMED || looksMalformed(output)) ->
+                    DestructiveValidationCandidateEvidence.Signing.MALFORMED
+                else -> DestructiveValidationCandidateEvidence.Signing.UNVERIFIABLE
+            }
         }
         if (exitCode != 0) {
             return when {
@@ -238,12 +277,15 @@ object DestructiveValidationCandidateInspectors {
                 else -> DestructiveValidationCandidateEvidence.Signing.UNVERIFIABLE
             }
         }
-        if (fingerprints.isEmpty()) {
+        if ((parsed.currentSignerCount ?: 0) == 0) {
             return if (archiveKind == ArchiveKind.UNSIGNED || looksUnsigned(output)) {
                 DestructiveValidationCandidateEvidence.Signing.UNSIGNED
             } else {
                 DestructiveValidationCandidateEvidence.Signing.MALFORMED
             }
+        }
+        if (parsed.currentSignerCount != 1 || parsed.currentCertificateSha256 == null) {
+            return DestructiveValidationCandidateEvidence.Signing.UNVERIFIABLE
         }
         if (debugMarkers.any { marker -> marker in output }) {
             return DestructiveValidationCandidateEvidence.Signing.DEBUG_SIGNED
@@ -254,7 +296,7 @@ object DestructiveValidationCandidateInspectors {
         ) {
             return DestructiveValidationCandidateEvidence.Signing.TEST_SIGNED
         }
-        return DestructiveValidationCandidateEvidence.Signing.UNKNOWN
+        return DestructiveValidationCandidateEvidence.Signing.SIGNED_UNCLASSIFIED
     }
 
     private fun looksUnsigned(output: String): Boolean {
@@ -416,6 +458,7 @@ object DestructiveValidationCandidateInspectors {
             versionName = null,
             minSdk = null,
             targetSdk = null,
+            buildPurposeObserved = null,
             aapt2Available = aapt2Available,
             detail = detail,
         )

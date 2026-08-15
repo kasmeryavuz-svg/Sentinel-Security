@@ -236,6 +236,7 @@ post_reset_grapheneos_observations = UNRECORDED
 19F_ARTIFACT_CANDIDATE_EVIDENCE_TOOLING_PRESENT = true
 19F_DISPOSABLE_DEVICE_CONTRACT_TEMPLATE_PRESENT = true
 19F_UNSIGNED_CANDIDATE_PROOF_PASSED = true
+CHECKPOINT_19F_EVIDENCE_CORRECTNESS_REPAIRED = YES
 19F_CANDIDATE_ARTIFACT_ELIGIBLE = false
 19F_REAL_DEVICE_IDENTITY_RECORDED = false
 19F_HARDWARE_VALIDATION_PREPARATION_READY = false
@@ -262,17 +263,53 @@ runtime authorization.
 - Input is supplied only through `sentinel.destructiveValidationCandidateApk`.
 - The generator never auto-selects or trusts an arbitrary build output.
 - APK files only. AAB, ZIP, directory, missing, unreadable, symlink,
-  non-regular, and changing files are rejected.
+  parent-directory symlink, non-regular, and changing files are rejected.
 - The input is read-only. The tooling never generates, signs, re-signs,
   aligns, or modifies an APK.
-- SHA-256 is computed from the exact immutable APK bytes before and
-  after external inspection.
+- The accepted file is opened with no-follow behavior. Exact accepted
+  bytes are copied into a task-private snapshot under the build
+  directory. Official `apksigner` and `aapt2` inspect only that
+  snapshot. The reported APK SHA-256 is computed from the snapshot.
+  Source identity and snapshot bytes are re-checked after inspection.
+  The snapshot is deleted afterwards and is never uploaded or retained
+  as an artifact.
 - Signature verification uses official Android SDK `apksigner`.
+- Current signer count comes from official apksigner signer indexes,
+  never from distinct certificate fingerprint count. One current
+  signer with signing-certificate lineage is not `MULTIPLE_SIGNERS`.
+  Two or more current signer indexes are `MULTIPLE_SIGNERS` even when
+  certificate fingerprints match. If the current-signer count cannot
+  be determined reliably, classification is `UNVERIFIABLE`. All
+  multi-signer candidates stay ineligible.
+- A verified non-debug/non-test single current signer is recorded as
+  `SIGNED_UNCLASSIFIED`. That is observed signature state, not
+  production trust. Only the build-only evaluator may compare an
+  independently supplied expected certificate. A match still does not
+  mint runtime trust. The current repository contract keeps
+  `expectedCertificateSha256 = null`.
 - Expected package, DeviceAdmin component, and policies are the
   repository contract. Observed identity is never copied into expected
   identity.
 - Declared DeviceAdmin policies must remain exactly `disable-camera`
   and `wipe-data`.
+- Report fields separate `build_purpose_expected`,
+  `build_purpose_observed`, and `build_purpose_matches`. The expected
+  value is never labeled as observed evidence. If the APK does not
+  contain an independently inspectable build-purpose marker, the
+  report writes `build_purpose_observed=UNAVAILABLE` and the
+  candidate is ineligible.
+- Current production APKs do not embed
+  `META-INF/sentinel-destructive-build-purpose`. Adding that marker
+  would be a broader production packaging change. It is left
+  unavailable and remains a future preparation blocker. This
+  checkpoint does not add a runtime permission, trigger, or trust
+  path merely to expose the field.
+- Inspection git revision and worktree are
+  inspection/build-environment provenance. They do not prove which
+  source produced an arbitrary external APK. A future embedded
+  artifact revision, if any, is reported separately. Invalid or
+  unavailable inspection revision, and dirty or unavailable worktree
+  state, make the candidate ineligible.
 - The tooling never mints a trusted artifact expectation, never writes
   a digest into production source, and never uses signing passwords or
   keystore paths.
@@ -323,6 +360,7 @@ commit or upload that digest.
 
 ```text
 CHECKPOINT_19F_VALIDATION_EVIDENCE_PREPARATION = YES
+CHECKPOINT_19F_EVIDENCE_CORRECTNESS_REPAIRED = YES
 19F_CANDIDATE_ARTIFACT_ELIGIBLE = false
 19F_REAL_DEVICE_IDENTITY_RECORDED = false
 19F_HARDWARE_VALIDATION_PREPARATION_READY = false

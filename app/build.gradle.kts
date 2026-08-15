@@ -612,6 +612,9 @@ tasks.register<GenerateDestructiveValidationCandidateEvidenceTask>(
     reportFile.set(
         layout.buildDirectory.file("reports/destructive-validation-candidate.txt"),
     )
+    snapshotDirectory.set(
+        layout.buildDirectory.dir("tmp/destructive-validation-candidate-snapshot"),
+    )
 }
 
 androidComponents {
@@ -947,6 +950,11 @@ androidComponents {
                 reportFile.set(
                     layout.buildDirectory.file(
                         "reports/destructive-validation-candidate.txt",
+                    ),
+                )
+                snapshotDirectory.set(
+                    layout.buildDirectory.dir(
+                        "tmp/destructive-validation-candidate-snapshot",
                     ),
                 )
             }

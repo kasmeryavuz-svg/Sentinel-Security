@@ -2,6 +2,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 /**
@@ -17,6 +18,7 @@ object DestructiveValidationCandidateEvidence {
     const val CANDIDATE_APK_PROPERTY = "sentinel.destructiveValidationCandidateApk"
     const val GENERATE_TASK_PATH = ":app:generateDestructiveValidationCandidateEvidence"
     const val UNSIGNED_PROOF_TASK_PATH = ":app:checkUnsignedDestructiveValidationCandidateEvidence"
+    const val SNAPSHOT_FILE_NAME = "immutable-candidate-snapshot.apk"
 
     enum class Signing {
         UNSIGNED,
@@ -26,13 +28,15 @@ object DestructiveValidationCandidateEvidence {
         MULTIPLE_SIGNERS,
         MALFORMED,
         UNVERIFIABLE,
-        PRODUCTION_SIGNED,
+        SIGNED_UNCLASSIFIED,
     }
 
     data class CandidateSigningInspection(
         val classification: Signing,
         val certificateSha256: String?,
         val signerCount: Int,
+        val signerCountReliable: Boolean = signerCount >= 0,
+        val lineagePresent: Boolean = false,
         val apksignerAvailable: Boolean,
         val apksignerExecuted: Boolean,
         val detail: String,
@@ -46,6 +50,7 @@ object DestructiveValidationCandidateEvidence {
         val versionName: String?,
         val minSdk: String?,
         val targetSdk: String?,
+        val buildPurposeObserved: String? = null,
         val aapt2Available: Boolean,
         val detail: String,
     )
@@ -53,6 +58,16 @@ object DestructiveValidationCandidateEvidence {
     data class GitProvenance(
         val revision: String,
         val worktree: String,
+        val revisionSource: String = "CHECKOUT",
+        val artifactEmbeddedRevision: String = "UNAVAILABLE",
+        val revisionProvesApkOrigin: Boolean = false,
+    )
+
+    data class SourceFileIdentity(
+        val fileKey: String,
+        val size: Long,
+        val lastModifiedMillis: Long,
+        val creationMillis: Long,
     )
 
     data class CandidateEvidenceReport(
@@ -79,11 +94,17 @@ object DestructiveValidationCandidateEvidence {
         val targetSdk: String?,
         val expectedMinSdk: Int,
         val expectedTargetSdk: Int,
-        val gitRevision: String,
-        val worktree: String,
-        val buildPurpose: String,
+        val inspectionGitRevision: String,
+        val inspectionWorktree: String,
+        val inspectionRevisionSource: String,
+        val inspectionRevisionProvesApkOrigin: Boolean,
+        val artifactEmbeddedRevision: String,
+        val buildPurposeExpected: String,
+        val buildPurposeObserved: String?,
         val expectedCertificateConfigured: Boolean,
         val signerCount: Int,
+        val signerCountReliable: Boolean,
+        val lineagePresent: Boolean,
         val apksignerAvailable: Boolean,
         val aapt2Available: Boolean,
         val ineligibilityReasons: List<String>,
@@ -122,11 +143,20 @@ object DestructiveValidationCandidateEvidence {
                 appendLine("target_sdk=${targetSdk ?: "UNAVAILABLE"}")
                 appendLine("expected_min_sdk=$expectedMinSdk")
                 appendLine("expected_target_sdk=$expectedTargetSdk")
-                appendLine("git_revision=$gitRevision")
-                appendLine("worktree=$worktree")
-                appendLine("build_purpose=$buildPurpose")
+                appendLine("inspection_git_revision=$inspectionGitRevision")
+                appendLine("inspection_worktree=$inspectionWorktree")
+                appendLine("inspection_revision_source=$inspectionRevisionSource")
+                appendLine("inspection_revision_proves_apk_origin=$inspectionRevisionProvesApkOrigin")
+                appendLine("artifact_embedded_revision=$artifactEmbeddedRevision")
+                appendLine("build_purpose_expected=$buildPurposeExpected")
+                appendLine("build_purpose_observed=${buildPurposeObserved ?: "UNAVAILABLE"}")
+                appendLine(
+                    "build_purpose_matches=${buildPurposeObserved != null && buildPurposeObserved == buildPurposeExpected}",
+                )
                 appendLine("expected_certificate_configured=$expectedCertificateConfigured")
                 appendLine("signer_count=$signerCount")
+                appendLine("signer_count_reliable=$signerCountReliable")
+                appendLine("lineage_present=$lineagePresent")
                 appendLine("apksigner_available=$apksignerAvailable")
                 appendLine("aapt2_available=$aapt2Available")
                 appendLine(
@@ -156,35 +186,59 @@ object DestructiveValidationCandidateEvidence {
             DestructiveValidationExpectedIdentity.repositoryContract(),
         androidSdkDir: File? = null,
         projectRoot: File? = null,
+        snapshotDirectory: File? = null,
         afterInitialDigest: (() -> Unit)? = null,
+        afterSnapshotCreated: ((File) -> Unit)? = null,
         signingInspector: ((File) -> CandidateSigningInspection)? = null,
         identityInspector: ((File) -> CandidateApkIdentity)? = null,
         gitProvenance: GitProvenance? = null,
     ): CandidateEvidenceReport {
         acceptCandidateFile(apk)
-        val firstDigest = sha256OfExactBytes(apk)
-        afterInitialDigest?.invoke()
-        val signing = (signingInspector ?: { file ->
-            DestructiveValidationCandidateInspectors.inspectSigning(file, androidSdkDir)
-        }).invoke(apk)
-        val identity = (identityInspector ?: { file ->
-            DestructiveValidationCandidateInspectors.inspectIdentity(file, androidSdkDir)
-        }).invoke(apk)
-        val secondDigest = sha256OfExactBytes(apk)
-        if (firstDigest != secondDigest) {
-            throw RejectedException(
-                "APK bytes changed during inspection; refusing the candidate",
+        rejectSymlinkPath(apk)
+        val sourceIdentity = captureSourceIdentity(apk)
+        val sourceDigestBefore = sha256OfExactBytes(apk)
+        val createdSnapshotDir = snapshotDirectory == null
+        val snapshotDir = snapshotDirectory ?: Files.createTempDirectory(
+            "sentinel-19f-candidate-snapshot-",
+        ).toFile()
+        snapshotDir.mkdirs()
+        val snapshot = File(snapshotDir, SNAPSHOT_FILE_NAME)
+        try {
+            copyImmutableSnapshot(apk, snapshot)
+            val snapshotDigestBefore = sha256OfExactBytes(snapshot)
+            if (snapshotDigestBefore != sourceDigestBefore) {
+                throw RejectedException(
+                    "Snapshot bytes do not match the accepted APK; refusing the candidate",
+                )
+            }
+            assertSourceUnchanged(apk, sourceIdentity, sourceDigestBefore, "snapshot creation")
+            afterSnapshotCreated?.invoke(snapshot)
+            afterInitialDigest?.invoke()
+            val signing = (signingInspector ?: { file ->
+                DestructiveValidationCandidateInspectors.inspectSigning(file, androidSdkDir)
+            }).invoke(snapshot)
+            val identity = (identityInspector ?: { file ->
+                DestructiveValidationCandidateInspectors.inspectIdentity(file, androidSdkDir)
+            }).invoke(snapshot)
+            val snapshotDigestAfter = sha256OfExactBytes(snapshot)
+            if (snapshotDigestBefore != snapshotDigestAfter) {
+                throw RejectedException(
+                    "Snapshot bytes changed during inspection; refusing the candidate",
+                )
+            }
+            assertSourceUnchanged(apk, sourceIdentity, sourceDigestBefore, "inspection")
+            val git = gitProvenance
+                ?: DestructiveValidationCandidateInspectors.captureGit(projectRoot)
+            return evaluate(
+                apkSha256 = snapshotDigestBefore,
+                signing = signing,
+                identity = identity,
+                git = git,
+                expected = expected,
             )
+        } finally {
+            deleteSnapshotQuietly(snapshot, snapshotDir, createdSnapshotDir)
         }
-        val git = gitProvenance
-            ?: DestructiveValidationCandidateInspectors.captureGit(projectRoot)
-        return evaluate(
-            apkSha256 = firstDigest,
-            signing = signing,
-            identity = identity,
-            git = git,
-            expected = expected,
-        )
     }
 
     fun acceptCandidateFile(apk: File) {
@@ -233,6 +287,34 @@ object DestructiveValidationCandidateEvidence {
         }
     }
 
+    fun rejectSymlinkPath(apk: File) {
+        val absolute = apk.toPath().toAbsolutePath().normalize()
+        val root = absolute.root ?: throw RejectedException("Candidate path is invalid")
+        var cursor = root
+        for (index in 0 until absolute.nameCount) {
+            cursor = cursor.resolve(absolute.getName(index))
+            if (Files.isSymbolicLink(cursor)) {
+                throw RejectedException(
+                    "Candidate path resolves through a symbolic link; APK files only",
+                )
+            }
+        }
+    }
+
+    fun captureSourceIdentity(file: File): SourceFileIdentity {
+        val attributes = Files.readAttributes(
+            file.toPath(),
+            java.nio.file.attribute.BasicFileAttributes::class.java,
+            LinkOption.NOFOLLOW_LINKS,
+        )
+        return SourceFileIdentity(
+            fileKey = attributes.fileKey()?.toString() ?: "UNAVAILABLE",
+            size = attributes.size(),
+            lastModifiedMillis = attributes.lastModifiedTime().toMillis(),
+            creationMillis = attributes.creationTime().toMillis(),
+        )
+    }
+
     fun sha256OfExactBytes(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         Files.newInputStream(file.toPath(), LinkOption.NOFOLLOW_LINKS).use { input ->
@@ -262,10 +344,13 @@ object DestructiveValidationCandidateEvidence {
         if (!signing.apksignerAvailable || !signing.apksignerExecuted) {
             reasons += "apksigner_unavailable"
         }
-        if (signing.classification != Signing.PRODUCTION_SIGNED) {
+        if (!signing.signerCountReliable) {
+            reasons += "signer_count_unreliable"
+        }
+        if (signing.classification != Signing.SIGNED_UNCLASSIFIED) {
             reasons += "signing=${signing.classification}"
         }
-        if (signing.signerCount != 1) {
+        if (!signing.signerCountReliable || signing.signerCount != 1) {
             reasons += "signer_count=${signing.signerCount}"
         }
         if (signing.certificateSha256.isNullOrBlank()) {
@@ -310,8 +395,23 @@ object DestructiveValidationCandidateEvidence {
         } else if (identity.targetSdk != expected.targetSdk.toString()) {
             reasons += "target_sdk_mismatch"
         }
+        if (identity.buildPurposeObserved.isNullOrBlank()) {
+            reasons += "build_purpose_unavailable"
+        } else if (identity.buildPurposeObserved != expected.buildPurpose) {
+            reasons += "build_purpose_mismatch"
+        }
         if (!identity.aapt2Available) {
             reasons += "aapt2_unavailable"
+        }
+        if (!git.revision.matches(GIT_REVISION)) {
+            reasons += "inspection_revision_unavailable"
+        }
+        if (git.worktree != "CLEAN") {
+            reasons += if (git.worktree == "DIRTY") {
+                "inspection_worktree_dirty"
+            } else {
+                "inspection_worktree_unavailable"
+            }
         }
         val eligible = reasons.isEmpty()
         return CandidateEvidenceReport(
@@ -333,11 +433,17 @@ object DestructiveValidationCandidateEvidence {
             targetSdk = identity.targetSdk,
             expectedMinSdk = expected.minSdk,
             expectedTargetSdk = expected.targetSdk,
-            gitRevision = git.revision,
-            worktree = git.worktree,
-            buildPurpose = expected.buildPurpose,
+            inspectionGitRevision = git.revision,
+            inspectionWorktree = git.worktree,
+            inspectionRevisionSource = git.revisionSource,
+            inspectionRevisionProvesApkOrigin = false,
+            artifactEmbeddedRevision = git.artifactEmbeddedRevision,
+            buildPurposeExpected = expected.buildPurpose,
+            buildPurposeObserved = identity.buildPurposeObserved,
             expectedCertificateConfigured = !expected.expectedCertificateSha256.isNullOrBlank(),
             signerCount = signing.signerCount,
+            signerCountReliable = signing.signerCountReliable,
+            lineagePresent = signing.lineagePresent,
             apksignerAvailable = signing.apksignerAvailable,
             aapt2Available = identity.aapt2Available,
             ineligibilityReasons = reasons,
@@ -369,6 +475,12 @@ object DestructiveValidationCandidateEvidence {
         check(!report.expectedCertificateConfigured) {
             "candidate inspection must not configure an expected production certificate"
         }
+        check(report.buildPurposeObserved == null) {
+            "current unsigned candidate must not invent an observed build purpose"
+        }
+        check(!report.inspectionRevisionProvesApkOrigin) {
+            "inspection checkout revision must not be claimed as APK origin"
+        }
     }
 
     fun findUnsignedReleaseApk(directory: File): File {
@@ -382,8 +494,63 @@ object DestructiveValidationCandidateEvidence {
         }
         val apk = unsigned.single()
         acceptCandidateFile(apk)
+        rejectSymlinkPath(apk)
         return apk
     }
 
+    fun snapshotStillPresent(snapshotDirectory: File): Boolean {
+        return File(snapshotDirectory, SNAPSHOT_FILE_NAME).exists()
+    }
+
+    private fun copyImmutableSnapshot(source: File, snapshot: File) {
+        snapshot.parentFile.mkdirs()
+        Files.copy(
+            source.toPath(),
+            snapshot.toPath(),
+            LinkOption.NOFOLLOW_LINKS,
+            StandardCopyOption.REPLACE_EXISTING,
+        )
+        snapshot.setReadOnly()
+    }
+
+    private fun assertSourceUnchanged(
+        source: File,
+        expectedIdentity: SourceFileIdentity,
+        expectedDigest: String,
+        phase: String,
+    ) {
+        if (Files.isSymbolicLink(source.toPath())) {
+            throw RejectedException("Source path became a symlink during $phase")
+        }
+        val identity = captureSourceIdentity(source)
+        val digest = sha256OfExactBytes(source)
+        if (identity != expectedIdentity || digest != expectedDigest) {
+            throw RejectedException(
+                "APK bytes changed during $phase; refusing the candidate",
+            )
+        }
+    }
+
+    private fun deleteSnapshotQuietly(
+        snapshot: File,
+        snapshotDir: File,
+        createdSnapshotDir: Boolean,
+    ) {
+        try {
+            if (snapshot.exists()) {
+                snapshot.setWritable(true)
+                Files.deleteIfExists(snapshot.toPath())
+            }
+            if (createdSnapshotDir) {
+                snapshotDir.deleteRecursively()
+            } else if (snapshotDir.isDirectory && snapshotDir.listFiles().isNullOrEmpty()) {
+                snapshotDir.delete()
+            }
+        } catch (_: Exception) {
+            // Snapshot retention is never required; inspection already finished.
+        }
+    }
+
     private val SHA256_HEX = Regex("^[0-9a-f]{64}$")
+    private val GIT_REVISION = Regex("^[0-9a-f]{40}$")
 }

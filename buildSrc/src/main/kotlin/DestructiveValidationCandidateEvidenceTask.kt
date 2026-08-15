@@ -4,6 +4,7 @@ import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
@@ -30,6 +31,10 @@ abstract class GenerateDestructiveValidationCandidateEvidenceTask : DefaultTask(
     @get:OutputFile
     abstract val reportFile: RegularFileProperty
 
+    @get:Internal
+    @get:Optional
+    abstract val snapshotDirectory: DirectoryProperty
+
     @TaskAction
     fun generate() {
         val supplied = candidateApkPath.orNull?.trim().orEmpty()
@@ -42,6 +47,7 @@ abstract class GenerateDestructiveValidationCandidateEvidenceTask : DefaultTask(
             apk = apk,
             androidSdkDir = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File),
             projectRoot = projectRootPath.orNull?.takeIf { it.isNotBlank() }?.let(::File),
+            snapshotDirectory = snapshotDirectory.orNull?.asFile,
         )
         writeUntrustedReport(report)
     }
@@ -76,6 +82,10 @@ abstract class CheckUnsignedDestructiveValidationCandidateEvidenceTask : Default
     @get:OutputFile
     abstract val reportFile: RegularFileProperty
 
+    @get:Internal
+    @get:Optional
+    abstract val snapshotDirectory: DirectoryProperty
+
     @TaskAction
     fun proveUnsignedIneligible() {
         val apk = DestructiveValidationCandidateEvidence.findUnsignedReleaseApk(
@@ -85,6 +95,7 @@ abstract class CheckUnsignedDestructiveValidationCandidateEvidenceTask : Default
             apk = apk,
             androidSdkDir = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File),
             projectRoot = projectRootPath.orNull?.takeIf { it.isNotBlank() }?.let(::File),
+            snapshotDirectory = snapshotDirectory.orNull?.asFile,
         )
         val out = reportFile.get().asFile
         out.parentFile.mkdirs()

@@ -6,6 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DestructiveValidationCandidateEvidenceTest {
@@ -37,6 +38,8 @@ class DestructiveValidationCandidateEvidenceTest {
         assertFalse(report.productionSigningEnabled)
         assertFalse(report.hardwareValidationApproved)
         assertFalse(report.expectedCertificateConfigured)
+        assertNull(report.buildPurposeObserved)
+        assertFalse(report.inspectionRevisionProvesApkOrigin)
         val rendered = report.render()
         assertTrue(rendered.contains("authority=UNTRUSTED_CANDIDATE_ONLY"))
         assertTrue(rendered.contains("runtime_authorization=false"))
@@ -45,12 +48,21 @@ class DestructiveValidationCandidateEvidenceTest {
         assertTrue(rendered.contains("hardware_validation_approved=false"))
         assertTrue(rendered.contains("candidate_status=INELIGIBLE"))
         assertTrue(rendered.contains("signing=UNSIGNED"))
-        assertTrue(rendered.contains("build_purpose=DISPOSABLE_DEVICE_VALIDATION"))
+        assertTrue(rendered.contains("build_purpose_expected=DISPOSABLE_DEVICE_VALIDATION"))
+        assertTrue(rendered.contains("build_purpose_observed=UNAVAILABLE"))
+        assertTrue(rendered.contains("build_purpose_matches=false"))
+        assertFalse(rendered.contains("\nbuild_purpose=DISPOSABLE_DEVICE_VALIDATION"))
+        assertTrue(rendered.contains("inspection_git_revision=UNAVAILABLE"))
+        assertTrue(rendered.contains("inspection_worktree=UNAVAILABLE"))
+        assertTrue(rendered.contains("inspection_revision_proves_apk_origin=false"))
+        assertTrue(report.ineligibilityReasons.contains("build_purpose_unavailable"))
+        assertTrue(report.ineligibilityReasons.contains("inspection_revision_unavailable"))
+        assertTrue(report.ineligibilityReasons.contains("inspection_worktree_unavailable"))
         DestructiveValidationCandidateEvidence.assertUnsignedIneligibleProof(report)
     }
 
     @Test
-    fun `debug test unknown malformed and multi-signer artifacts stay ineligible`() {
+    fun `debug test unknown malformed unverifiable and multi-signer artifacts stay ineligible`() {
         listOf(
             DestructiveValidationCandidateEvidence.Signing.DEBUG_SIGNED,
             DestructiveValidationCandidateEvidence.Signing.TEST_SIGNED,
@@ -84,6 +96,47 @@ class DestructiveValidationCandidateEvidenceTest {
     }
 
     @Test
+    fun `two current signers with the same certificate digest stay ineligible`() {
+        val report = inspect(
+            signing = DestructiveValidationCandidateEvidence.CandidateSigningInspection(
+                classification = DestructiveValidationCandidateEvidence.Signing.MULTIPLE_SIGNERS,
+                certificateSha256 = null,
+                signerCount = 2,
+                signerCountReliable = true,
+                lineagePresent = false,
+                apksignerAvailable = true,
+                apksignerExecuted = true,
+                detail = "two current signer indexes share one digest",
+            ),
+            identity = matchingIdentity(),
+        )
+        assertEquals("INELIGIBLE", report.candidateStatus)
+        assertEquals(DestructiveValidationCandidateEvidence.Signing.MULTIPLE_SIGNERS, report.signing)
+        assertTrue(report.ineligibilityReasons.contains("signing=MULTIPLE_SIGNERS"))
+        assertFalse(report.trustedExpectationMinted)
+    }
+
+    @Test
+    fun `unreliable signer count is never treated as one signer`() {
+        val report = inspect(
+            signing = DestructiveValidationCandidateEvidence.CandidateSigningInspection(
+                classification = DestructiveValidationCandidateEvidence.Signing.UNVERIFIABLE,
+                certificateSha256 = "ab".repeat(32),
+                signerCount = -1,
+                signerCountReliable = false,
+                apksignerAvailable = true,
+                apksignerExecuted = true,
+                detail = "unreliable",
+            ),
+            identity = matchingIdentity(),
+        )
+        assertEquals("INELIGIBLE", report.candidateStatus)
+        assertEquals(DestructiveValidationCandidateEvidence.Signing.UNVERIFIABLE, report.signing)
+        assertTrue(report.ineligibilityReasons.contains("signer_count_unreliable"))
+        assertFalse(report.trustedExpectationMinted)
+    }
+
+    @Test
     fun `wrong package admin and policies fail closed`() {
         val wrongPackage = inspect(
             signing = unknownSigned(),
@@ -112,22 +165,118 @@ class DestructiveValidationCandidateEvidenceTest {
     }
 
     @Test
-    fun `production-looking signature without a configured expected certificate stays ineligible`() {
+    fun `verified unclassified signature without a configured expected certificate stays ineligible`() {
         val report = inspect(
-            signing = DestructiveValidationCandidateEvidence.CandidateSigningInspection(
-                classification = DestructiveValidationCandidateEvidence.Signing.PRODUCTION_SIGNED,
-                certificateSha256 = "cd".repeat(32),
-                signerCount = 1,
-                apksignerAvailable = true,
-                apksignerExecuted = true,
-                detail = "fixture",
-            ),
+            signing = signedUnclassified(),
             identity = matchingIdentity(),
         )
         assertEquals("INELIGIBLE", report.candidateStatus)
+        assertEquals(
+            DestructiveValidationCandidateEvidence.Signing.SIGNED_UNCLASSIFIED,
+            report.signing,
+        )
         assertTrue(report.ineligibilityReasons.contains("expected_certificate_unconfigured"))
+        assertTrue(report.ineligibilityReasons.contains("build_purpose_unavailable"))
         assertFalse(report.trustedExpectationMinted)
         assertFalse(report.expectedCertificateConfigured)
+        assertFalse(report.runtimeAuthorization)
+    }
+
+    @Test
+    fun `dirty or unavailable inspection provenance makes the candidate ineligible`() {
+        val dirty = evaluateFullyMatchingFixture(
+            git = DestructiveValidationCandidateEvidence.GitProvenance(
+                revision = "a".repeat(40),
+                worktree = "DIRTY",
+            ),
+        )
+        assertEquals("INELIGIBLE", dirty.candidateStatus)
+        assertTrue(dirty.ineligibilityReasons.contains("inspection_worktree_dirty"))
+
+        val unavailableRevision = evaluateFullyMatchingFixture(
+            git = DestructiveValidationCandidateEvidence.GitProvenance(
+                revision = "UNAVAILABLE",
+                worktree = "CLEAN",
+            ),
+        )
+        assertEquals("INELIGIBLE", unavailableRevision.candidateStatus)
+        assertTrue(unavailableRevision.ineligibilityReasons.contains("inspection_revision_unavailable"))
+
+        val unavailableWorktree = evaluateFullyMatchingFixture(
+            git = DestructiveValidationCandidateEvidence.GitProvenance(
+                revision = "a".repeat(40),
+                worktree = "UNAVAILABLE",
+            ),
+        )
+        assertEquals("INELIGIBLE", unavailableWorktree.candidateStatus)
+        assertTrue(unavailableWorktree.ineligibilityReasons.contains("inspection_worktree_unavailable"))
+    }
+
+    @Test
+    fun `missing or mismatched observed build purpose makes the candidate ineligible`() {
+        val missing = evaluateFullyMatchingFixture(
+            identity = matchingIdentity().copy(buildPurposeObserved = null),
+        )
+        assertEquals("INELIGIBLE", missing.candidateStatus)
+        assertTrue(missing.ineligibilityReasons.contains("build_purpose_unavailable"))
+        assertEquals("UNAVAILABLE", missing.render().lineSequence().first { it.startsWith("build_purpose_observed=") }.substringAfter("="))
+
+        val mismatched = evaluateFullyMatchingFixture(
+            identity = matchingIdentity().copy(buildPurposeObserved = "SOMETHING_ELSE"),
+        )
+        assertEquals("INELIGIBLE", mismatched.candidateStatus)
+        assertTrue(mismatched.ineligibilityReasons.contains("build_purpose_mismatch"))
+        assertTrue(mismatched.render().contains("build_purpose_matches=false"))
+    }
+
+    @Test
+    fun `test-only fully matching fixture can reach build-only eligible without minting trust`() {
+        val report = evaluateFullyMatchingFixture()
+        assertEquals("ELIGIBLE", report.candidateStatus)
+        assertEquals(
+            DestructiveValidationCandidateEvidence.Signing.SIGNED_UNCLASSIFIED,
+            report.signing,
+        )
+        assertEquals(DestructiveValidationCandidateEvidence.AUTHORITY, report.authority)
+        assertFalse(report.runtimeAuthorization)
+        assertFalse(report.trustedExpectationMinted)
+        assertFalse(report.productionSigningEnabled)
+        assertFalse(report.hardwareValidationApproved)
+        assertTrue(report.expectedCertificateConfigured)
+        assertTrue(report.lineagePresent)
+        assertTrue(report.signerCountReliable)
+        assertEquals(1, report.signerCount)
+        assertEquals("DISPOSABLE_DEVICE_VALIDATION", report.buildPurposeObserved)
+        assertTrue(report.render().contains("build_purpose_matches=true"))
+        assertFalse(report.inspectionRevisionProvesApkOrigin)
+        assertEquals("CHECKOUT", report.inspectionRevisionSource)
+        assertEquals("UNAVAILABLE", report.artifactEmbeddedRevision)
+        assertTrue(report.ineligibilityReasons.isEmpty())
+        val rendered = report.render()
+        assertTrue(rendered.contains("authority=UNTRUSTED_CANDIDATE_ONLY"))
+        assertTrue(rendered.contains("runtime_authorization=false"))
+        assertTrue(rendered.contains("trusted_expectation_minted=false"))
+        assertTrue(rendered.contains("inspection_revision_proves_apk_origin=false"))
+        assertFalse(rendered.contains("signing=PRODUCTION_SIGNED"))
+        assertFailsWith<IllegalStateException> {
+            DestructiveValidationCandidateEvidence.assertUnsignedIneligibleProof(report)
+        }
+    }
+
+    @Test
+    fun `inspection checkout revision is never claimed as apk origin even when a fixture says so`() {
+        val report = evaluateFullyMatchingFixture(
+            git = DestructiveValidationCandidateEvidence.GitProvenance(
+                revision = "a".repeat(40),
+                worktree = "CLEAN",
+                revisionSource = "CHECKOUT",
+                artifactEmbeddedRevision = "UNAVAILABLE",
+                revisionProvesApkOrigin = true,
+            ),
+        )
+        assertEquals("ELIGIBLE", report.candidateStatus)
+        assertFalse(report.inspectionRevisionProvesApkOrigin)
+        assertTrue(report.render().contains("inspection_revision_proves_apk_origin=false"))
     }
 
     @Test
@@ -167,23 +316,185 @@ class DestructiveValidationCandidateEvidenceTest {
     }
 
     @Test
-    fun `bytes that change during inspection are rejected`() {
+    fun `persistent source mutation during inspection is rejected and snapshot is deleted`() {
         val root = Files.createTempDirectory("candidate-changed").toFile()
+        val snapshotDir = File(root, "snapshot")
         try {
             val apk = writeZipApk(File(root, "app-release-unsigned.apk"))
             val thrown = assertFailsWith<DestructiveValidationCandidateEvidence.RejectedException> {
                 DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
                     apk = apk,
+                    snapshotDirectory = snapshotDir,
                     afterInitialDigest = { apk.appendBytes(byteArrayOf(0x01)) },
                     signingInspector = { unsignedSigning() },
                     identityInspector = { matchingIdentity() },
-                    gitProvenance = DestructiveValidationCandidateEvidence.GitProvenance(
-                        revision = "UNAVAILABLE",
-                        worktree = "UNAVAILABLE",
-                    ),
+                    gitProvenance = unavailableGit(),
                 )
             }
-            assertTrue(thrown.message.orEmpty().contains("changed during inspection"))
+            assertTrue(thrown.message.orEmpty().contains("changed during"))
+            assertFalse(DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDir))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `swap-and-restore of the source during inspection is rejected`() {
+        val root = Files.createTempDirectory("candidate-swap").toFile()
+        val snapshotDir = File(root, "snapshot")
+        try {
+            val apk = writeZipApk(File(root, "app-release-unsigned.apk"))
+            val thrown = assertFailsWith<DestructiveValidationCandidateEvidence.RejectedException> {
+                DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                    apk = apk,
+                    snapshotDirectory = snapshotDir,
+                    afterInitialDigest = {
+                        val bytes = apk.readBytes()
+                        check(apk.delete())
+                        apk.writeBytes(bytes)
+                        apk.setLastModified(apk.lastModified() + 5_000L)
+                    },
+                    signingInspector = { unsignedSigning() },
+                    identityInspector = { matchingIdentity() },
+                    gitProvenance = unavailableGit(),
+                )
+            }
+            assertTrue(thrown.message.orEmpty().contains("changed during"))
+            assertFalse(DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDir))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `parent-directory symlink is rejected`() {
+        val root = Files.createTempDirectory("candidate-parent-link").toFile()
+        try {
+            val realDir = File(root, "real").apply { mkdirs() }
+            writeZipApk(File(realDir, "app-release-unsigned.apk"))
+            val linkDir = File(root, "link")
+            Files.createSymbolicLink(linkDir.toPath(), realDir.toPath())
+            val viaLink = File(linkDir, "app-release-unsigned.apk")
+            val thrown = assertFailsWith<DestructiveValidationCandidateEvidence.RejectedException> {
+                DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                    apk = viaLink,
+                    signingInspector = { unsignedSigning() },
+                    identityInspector = { matchingIdentity() },
+                    gitProvenance = unavailableGit(),
+                )
+            }
+            assertTrue(thrown.message.orEmpty().contains("symbolic link"))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `source replacement during inspection is rejected`() {
+        val root = Files.createTempDirectory("candidate-replaced").toFile()
+        val snapshotDir = File(root, "snapshot")
+        try {
+            val apk = writeZipApk(File(root, "app-release-unsigned.apk"))
+            val thrown = assertFailsWith<DestructiveValidationCandidateEvidence.RejectedException> {
+                DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                    apk = apk,
+                    snapshotDirectory = snapshotDir,
+                    afterInitialDigest = {
+                        apk.delete()
+                        writeZipApk(apk, extraEntry = "replaced" to "different-bytes")
+                    },
+                    signingInspector = { unsignedSigning() },
+                    identityInspector = { matchingIdentity() },
+                    gitProvenance = unavailableGit(),
+                )
+            }
+            assertTrue(thrown.message.orEmpty().contains("changed during"))
+            assertFalse(DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDir))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `stable snapshot is inspected then deleted after success`() {
+        val root = Files.createTempDirectory("candidate-stable").toFile()
+        val snapshotDir = File(root, "snapshot")
+        try {
+            val apk = writeZipApk(File(root, "app-release-unsigned.apk"))
+            val originalDigest = DestructiveValidationCandidateEvidence.sha256OfExactBytes(apk)
+            var inspectedSigning: File? = null
+            var inspectedIdentity: File? = null
+            var snapshotDuringInspect: File? = null
+            val report = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                apk = apk,
+                snapshotDirectory = snapshotDir,
+                afterSnapshotCreated = { snapshot ->
+                    snapshotDuringInspect = snapshot
+                    assertTrue(snapshot.isFile)
+                    assertEquals(
+                        DestructiveValidationCandidateEvidence.SNAPSHOT_FILE_NAME,
+                        snapshot.name,
+                    )
+                    assertEquals(
+                        originalDigest,
+                        DestructiveValidationCandidateEvidence.sha256OfExactBytes(snapshot),
+                    )
+                },
+                signingInspector = { file ->
+                    inspectedSigning = file
+                    unsignedSigning()
+                },
+                identityInspector = { file ->
+                    inspectedIdentity = file
+                    matchingIdentity()
+                },
+                gitProvenance = unavailableGit(),
+            )
+            assertEquals(originalDigest, report.apkSha256)
+            assertEquals(
+                DestructiveValidationCandidateEvidence.SNAPSHOT_FILE_NAME,
+                inspectedSigning?.name,
+            )
+            assertEquals(
+                DestructiveValidationCandidateEvidence.SNAPSHOT_FILE_NAME,
+                inspectedIdentity?.name,
+            )
+            assertTrue(inspectedSigning!!.absolutePath.contains("snapshot"))
+            assertFalse(inspectedSigning!!.absolutePath == apk.absolutePath)
+            assertEquals(snapshotDuringInspect!!.absolutePath, inspectedSigning!!.absolutePath)
+            assertEquals("INELIGIBLE", report.candidateStatus)
+            assertEquals(
+                originalDigest,
+                DestructiveValidationCandidateEvidence.sha256OfExactBytes(apk),
+            )
+            assertFalse(DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDir))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `snapshot mutation during inspection is rejected and cleaned up`() {
+        val root = Files.createTempDirectory("candidate-snapshot-mutated").toFile()
+        val snapshotDir = File(root, "snapshot")
+        try {
+            val apk = writeZipApk(File(root, "app-release-unsigned.apk"))
+            val thrown = assertFailsWith<DestructiveValidationCandidateEvidence.RejectedException> {
+                DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                    apk = apk,
+                    snapshotDirectory = snapshotDir,
+                    afterSnapshotCreated = { snapshot ->
+                        snapshot.setWritable(true)
+                        snapshot.appendBytes(byteArrayOf(0x02))
+                    },
+                    signingInspector = { unsignedSigning() },
+                    identityInspector = { matchingIdentity() },
+                    gitProvenance = unavailableGit(),
+                )
+            }
+            assertTrue(thrown.message.orEmpty().contains("Snapshot bytes changed"))
+            assertFalse(DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDir))
+            assertTrue(apk.isFile)
         } finally {
             root.deleteRecursively()
         }
@@ -197,10 +508,7 @@ class DestructiveValidationCandidateEvidenceTest {
             val report = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
                 apk = apk,
                 androidSdkDir = File(root, "no-sdk"),
-                gitProvenance = DestructiveValidationCandidateEvidence.GitProvenance(
-                    revision = "UNAVAILABLE",
-                    worktree = "UNAVAILABLE",
-                ),
+                gitProvenance = unavailableGit(),
             )
             assertEquals("INELIGIBLE", report.candidateStatus)
             assertEquals(DestructiveValidationCandidateEvidence.Signing.MALFORMED, report.signing)
@@ -219,10 +527,7 @@ class DestructiveValidationCandidateEvidenceTest {
             val report = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
                 apk = apk,
                 androidSdkDir = File(root, "no-sdk"),
-                gitProvenance = DestructiveValidationCandidateEvidence.GitProvenance(
-                    revision = "UNAVAILABLE",
-                    worktree = "UNAVAILABLE",
-                ),
+                gitProvenance = unavailableGit(),
             )
             assertEquals("INELIGIBLE", report.candidateStatus)
             assertTrue(
@@ -231,6 +536,27 @@ class DestructiveValidationCandidateEvidenceTest {
             )
             assertFalse(report.trustedExpectationMinted)
             assertTrue(report.render().contains("authority=UNTRUSTED_CANDIDATE_ONLY"))
+            assertTrue(report.render().contains("build_purpose_observed=UNAVAILABLE"))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `observed build purpose is read only from an inspectable apk marker`() {
+        val root = Files.createTempDirectory("candidate-purpose").toFile()
+        try {
+            val unmarked = writeZipApk(File(root, "unmarked.apk"))
+            assertNull(DestructiveValidationCandidateInspectors.inspectObservedBuildPurpose(unmarked))
+            val marked = writeZipApk(
+                File(root, "marked.apk"),
+                extraEntry = "META-INF/sentinel-destructive-build-purpose" to
+                    "DISPOSABLE_DEVICE_VALIDATION",
+            )
+            assertEquals(
+                "DISPOSABLE_DEVICE_VALIDATION",
+                DestructiveValidationCandidateInspectors.inspectObservedBuildPurpose(marked),
+            )
         } finally {
             root.deleteRecursively()
         }
@@ -288,14 +614,35 @@ class DestructiveValidationCandidateEvidenceTest {
                 apk = apk,
                 signingInspector = { signing },
                 identityInspector = { identity },
-                gitProvenance = DestructiveValidationCandidateEvidence.GitProvenance(
-                    revision = "UNAVAILABLE",
-                    worktree = "UNAVAILABLE",
-                ),
+                gitProvenance = unavailableGit(),
             )
         } finally {
             root.deleteRecursively()
         }
+    }
+
+    private fun evaluateFullyMatchingFixture(
+        identity: DestructiveValidationCandidateEvidence.CandidateApkIdentity =
+            matchingIdentity().copy(
+                buildPurposeObserved = "DISPOSABLE_DEVICE_VALIDATION",
+            ),
+        git: DestructiveValidationCandidateEvidence.GitProvenance =
+            DestructiveValidationCandidateEvidence.GitProvenance(
+                revision = "a".repeat(40),
+                worktree = "CLEAN",
+            ),
+    ): DestructiveValidationCandidateEvidence.CandidateEvidenceReport {
+        val independentlySuppliedExpected =
+            DestructiveValidationExpectedIdentity.repositoryContract().copy(
+                expectedCertificateSha256 = TEST_ONLY_CERT,
+            )
+        return DestructiveValidationCandidateEvidence.evaluate(
+            apkSha256 = "cd".repeat(32),
+            signing = signedUnclassified().copy(lineagePresent = true),
+            identity = identity,
+            git = git,
+            expected = independentlySuppliedExpected,
+        )
     }
 
     private fun unsignedSigning(): DestructiveValidationCandidateEvidence.CandidateSigningInspection {
@@ -320,6 +667,19 @@ class DestructiveValidationCandidateEvidenceTest {
         )
     }
 
+    private fun signedUnclassified(): DestructiveValidationCandidateEvidence.CandidateSigningInspection {
+        return DestructiveValidationCandidateEvidence.CandidateSigningInspection(
+            classification = DestructiveValidationCandidateEvidence.Signing.SIGNED_UNCLASSIFIED,
+            certificateSha256 = TEST_ONLY_CERT,
+            signerCount = 1,
+            signerCountReliable = true,
+            lineagePresent = false,
+            apksignerAvailable = true,
+            apksignerExecuted = true,
+            detail = "fixture",
+        )
+    }
+
     private fun matchingIdentity(): DestructiveValidationCandidateEvidence.CandidateApkIdentity {
         val expected = DestructiveValidationExpectedIdentity.repositoryContract()
         return DestructiveValidationCandidateEvidence.CandidateApkIdentity(
@@ -330,12 +690,23 @@ class DestructiveValidationCandidateEvidenceTest {
             versionName = "1.0",
             minSdk = expected.minSdk.toString(),
             targetSdk = expected.targetSdk.toString(),
+            buildPurposeObserved = null,
             aapt2Available = true,
             detail = "fixture",
         )
     }
 
-    private fun writeZipApk(file: File): File {
+    private fun unavailableGit(): DestructiveValidationCandidateEvidence.GitProvenance {
+        return DestructiveValidationCandidateEvidence.GitProvenance(
+            revision = "UNAVAILABLE",
+            worktree = "UNAVAILABLE",
+        )
+    }
+
+    private fun writeZipApk(
+        file: File,
+        extraEntry: Pair<String, String>? = null,
+    ): File {
         ZipOutputStream(file.outputStream()).use { zip ->
             zip.putNextEntry(ZipEntry("META-INF/MANIFEST.MF"))
             zip.write("Manifest-Version: 1.0\n".toByteArray())
@@ -343,7 +714,17 @@ class DestructiveValidationCandidateEvidenceTest {
             zip.putNextEntry(ZipEntry("AndroidManifest.xml"))
             zip.write("not-a-real-manifest".toByteArray())
             zip.closeEntry()
+            if (extraEntry != null) {
+                zip.putNextEntry(ZipEntry(extraEntry.first))
+                zip.write(extraEntry.second.toByteArray())
+                zip.closeEntry()
+            }
         }
         return file
+    }
+
+    private companion object {
+        const val TEST_ONLY_CERT =
+            "abababababababababababababababababababababababababababababababab"
     }
 }
