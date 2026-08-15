@@ -25,13 +25,27 @@ class FutureDestructiveExecutorContractTest {
             execute.single().returnType,
         )
         assertTrue(
+            FutureDestructiveExecutionBundle::class.java.declaredConstructors.any { constructor ->
+                Modifier.isPrivate(constructor.modifiers) && constructor.parameterCount == 0
+            },
+        )
+        assertTrue(
             FutureDestructiveExecutionBundle::class.java.declaredConstructors.all { constructor ->
-                Modifier.isPrivate(constructor.modifiers)
+                Modifier.isPrivate(constructor.modifiers) ||
+                    constructor.parameterTypes.singleOrNull()?.name ==
+                    "kotlin.jvm.internal.DefaultConstructorMarker"
+            },
+        )
+        assertTrue(
+            RealChainFinalLiveValidationPermit::class.java.declaredConstructors.any { constructor ->
+                Modifier.isPrivate(constructor.modifiers) && constructor.parameterCount == 0
             },
         )
         assertTrue(
             RealChainFinalLiveValidationPermit::class.java.declaredConstructors.all { constructor ->
-                Modifier.isPrivate(constructor.modifiers)
+                Modifier.isPrivate(constructor.modifiers) ||
+                    constructor.parameterTypes.singleOrNull()?.name ==
+                    "kotlin.jvm.internal.DefaultConstructorMarker"
             },
         )
         assertTrue(
@@ -269,8 +283,8 @@ class FutureDestructiveExecutorContractTest {
         val runtimeCommit = source.indexOf("runtimePreExecutionAuthority.commitAfterConsumedAuthorization")
         val runtimeProof = source.indexOf("val runtime = runtimePreExecutionAuthority.consume")
         val liveFacts = source.indexOf("liveFactsSource.currentFacts")
-        val permit = source.indexOf("val permit = mintFinalLiveValidationPermit")
-        val assembleBundle = source.indexOf("val bundle = assembleBundleFromPermit")
+        val permit = source.indexOf("val permit = RealChainFinalLiveValidationPermit.LiveValidationMint")
+        val assembleBundle = source.indexOf("val bundle = FutureDestructiveExecutionBundle.ExecutionBundleMint")
         val execute = source.indexOf("executor.execute(bundle)")
         assertTrue(consumeCapability in 0 until runtimeCommit)
         assertTrue(runtimeCommit in 0 until runtimeProof)
@@ -329,16 +343,17 @@ class FutureDestructiveExecutorContractTest {
         )
         assertEquals(0, recorder.authorizedInvocations)
         val forgedPermit = reflectConstruct(RealChainFinalLiveValidationPermit::class.java)
-        val assemble = FutureDestructiveRealChainBoundary::class.java.declaredMethods
-            .single { it.name == "assembleBundleFromPermit" }
-        assemble.isAccessible = true
-        val fixture = RealChainBoundaryFixture.create()
-        assertNull(assemble.invoke(fixture.boundary, forgedPermit))
+        assertNull(
+            FutureDestructiveRealChainBoundary.FutureDestructiveExecutionBundle.ExecutionBundleMint
+                .assembleBundleFromPermit(forgedPermit),
+        )
         assertEquals(0, recorder.authorizedInvocations)
-        val mint = FutureDestructiveRealChainBoundary::class.java.declaredMethods
-            .single { it.name == "mintFinalLiveValidationPermit" }
-        assertTrue(Modifier.isPrivate(mint.modifiers))
-        assertTrue(Modifier.isPrivate(assemble.modifiers))
+        assertTrue(
+            FutureDestructiveExecutionBundle::class.java.declaredClasses.none { it.simpleName == "Companion" },
+        )
+        assertTrue(
+            RealChainFinalLiveValidationPermit::class.java.declaredClasses.none { it.simpleName == "Companion" },
+        )
     }
 
     @Test

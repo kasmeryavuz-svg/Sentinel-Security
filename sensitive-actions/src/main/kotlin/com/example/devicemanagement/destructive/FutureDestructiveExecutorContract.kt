@@ -82,14 +82,43 @@ internal class FutureDestructiveRealChainBoundary(
      * No companion mint. Only [assembleBundleFromPermit] can construct
      * and register an instance, and only from an exact live permit.
      */
-    class FutureDestructiveExecutionBundle private constructor()
+    class FutureDestructiveExecutionBundle private constructor() {
+        /**
+         * Sole bundle assembler. Not [create]. Production bytecode allows
+         * this call only from [assembleAndHandoff].
+         */
+        object ExecutionBundleMint {
+            fun assembleBundleFromPermit(
+                permit: RealChainFinalLiveValidationPermit,
+            ): FutureDestructiveExecutionBundle? {
+                if (!consumeIssuedPermit(permit)) {
+                    return null
+                }
+                val bundle = FutureDestructiveExecutionBundle()
+                registerIssuedBundle(bundle)
+                return bundle
+            }
+        }
+    }
 
     /**
      * Ultra-short-lived process-local permit minted only by
-     * [mintFinalLiveValidationPermit] after fresh live validation.
-     * Never returned to callers. Never persisted. No companion mint.
+     * [LiveValidationMint] after fresh live validation.
+     * Never returned to callers. Never persisted. No companion [create].
      */
-    class RealChainFinalLiveValidationPermit private constructor()
+    class RealChainFinalLiveValidationPermit private constructor() {
+        /**
+         * Sole permit mint. Not [create]. Production bytecode allows this
+         * call only from [assembleAndHandoff].
+         */
+        object LiveValidationMint {
+            fun mintFinalLiveValidationPermit(): RealChainFinalLiveValidationPermit {
+                val permit = RealChainFinalLiveValidationPermit()
+                registerIssuedPermit(permit)
+                return permit
+            }
+        }
+    }
 
     abstract class FutureDestructiveExecutorContract {
         fun execute(
@@ -240,31 +269,16 @@ internal class FutureDestructiveRealChainBoundary(
             }
             CooldownUsable.Usable -> Unit
         }
-        val permit = mintFinalLiveValidationPermit()
-        val bundle = assembleBundleFromPermit(permit)
+        val permit = RealChainFinalLiveValidationPermit.LiveValidationMint
+            .mintFinalLiveValidationPermit()
+        val bundle = FutureDestructiveExecutionBundle.ExecutionBundleMint
+            .assembleBundleFromPermit(permit)
             ?: return FutureDestructiveHandoffResult.Failed("real_chain_permit_not_live")
         return when (val acknowledgement = executor.execute(bundle)) {
             is FutureDestructiveHandoffAcknowledgement.Refused -> {
                 FutureDestructiveHandoffResult.Acknowledged(acknowledgement)
             }
         }
-    }
-
-    private fun mintFinalLiveValidationPermit(): RealChainFinalLiveValidationPermit {
-        val permit = RealChainFinalLiveValidationPermit()
-        registerIssuedPermit(permit)
-        return permit
-    }
-
-    private fun assembleBundleFromPermit(
-        permit: RealChainFinalLiveValidationPermit,
-    ): FutureDestructiveExecutionBundle? {
-        if (!consumeIssuedPermit(permit)) {
-            return null
-        }
-        val bundle = FutureDestructiveExecutionBundle()
-        registerIssuedBundle(bundle)
-        return bundle
     }
 
     private companion object {

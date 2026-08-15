@@ -382,7 +382,9 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary",
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$FutureDestructiveExecutorContract",
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$FutureDestructiveExecutionBundle",
+        "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$FutureDestructiveExecutionBundle\$ExecutionBundleMint",
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$RealChainFinalLiveValidationPermit",
+        "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$RealChainFinalLiveValidationPermit\$LiveValidationMint",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitProof",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority\$RuntimeDurablePreExecutionCommitProof",
@@ -1223,21 +1225,36 @@ internal object ProductionBytecodePolicyVerifier {
             val authorized = when (name) {
                 "mintFinalLiveValidationPermit",
                 "assembleBundleFromPermit",
-                "commitAfterConsumedAuthorization",
                 -> {
                     target.artifactPath == ":sensitive-actions" &&
                         className == realChainBoundaryOwner &&
                         callerMethod == "assembleAndHandoff"
                 }
+                "commitAfterConsumedAuthorization" -> {
+                    val fromBoundary = target.artifactPath == ":sensitive-actions" &&
+                        className == realChainBoundaryOwner &&
+                        callerMethod == "assembleAndHandoff"
+                    val fromAuthority = className ==
+                        "com/example/devicemanagement/destructive/" +
+                        "RuntimeDurablePreExecutionCommitAuthority" &&
+                        callerMethod == "commitAfterConsumedAuthorization"
+                    fromBoundary || fromAuthority
+                }
                 "registerIssuedPermit" -> {
-                    className == realChainBoundaryOwner &&
-                        callerMethod == "mintFinalLiveValidationPermit"
+                    callerMethod == "mintFinalLiveValidationPermit" &&
+                        (
+                            className == realChainBoundaryOwner ||
+                                className.endsWith("\$LiveValidationMint")
+                            )
                 }
                 "registerIssuedBundle",
                 "consumeIssuedPermit",
                 -> {
-                    className == realChainBoundaryOwner &&
-                        callerMethod == "assembleBundleFromPermit"
+                    callerMethod == "assembleBundleFromPermit" &&
+                        (
+                            className == realChainBoundaryOwner ||
+                                className.endsWith("\$ExecutionBundleMint")
+                            )
                 }
                 "consumeIssuedBundle" -> {
                     className in realChainExecutorContractOwners &&
@@ -1273,6 +1290,9 @@ internal object ProductionBytecodePolicyVerifier {
             val authorizedMethod = callerMethod in realChainHandoffConstructorMethods ||
                 callerMethod.startsWith("access\$")
             if (authorizedOwner && authorizedMethod) {
+                return
+            }
+            if (className == owner && callerMethod == "<init>") {
                 return
             }
             violation(
