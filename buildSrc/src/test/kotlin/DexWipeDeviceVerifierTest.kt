@@ -124,6 +124,20 @@ class DexWipeDeviceVerifierTest {
     }
 
     @Test
+    fun `nop padding before switch payload does not break const-zero control-flow proof`() {
+        val payload = packedSwitchPayload(relativeTarget = 7)
+        val units = packedSwitch(payloadOffset = 9) +
+            const4(dest = 0, literal = 0) +
+            invokeVirtual(methodIndex = 0, thisRegister = 1, flagsRegister = 0) +
+            returnVoid() +
+            intArrayOf(0x0000) +
+            payload
+        val result = DexWipeDeviceVerifier.scanCodeUnits(units, wipeDeviceMethodIndexes = setOf(0))
+        assertNull(result.unparseablePc, "unparseable at ${result.unparseablePc}")
+        assertEquals(listOf(true), result.wipeDeviceExactZero)
+    }
+
+    @Test
     fun `packed-switch target bypass of const-zero is rejected`() {
         val payload = packedSwitchPayload(relativeTarget = 4)
         val units = packedSwitch(payloadOffset = 8) +

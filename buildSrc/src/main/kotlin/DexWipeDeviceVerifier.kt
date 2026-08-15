@@ -14,20 +14,21 @@ internal object DexWipeDeviceVerifier {
             val wipeDataIndexes = dex.methodIndexes(DPM, WIPE_DATA, INT_DESCRIPTOR, VOID_DESCRIPTOR)
             dex.forEachCodeItem { classDescriptor, methodName, proto, code ->
                 val location = "$classDescriptor->$methodName$proto"
-                if (code.handlersUnparseable) {
-                    violations +=
-                        "$sourceName has unparseable DEX exception handlers at $location; " +
-                            "exact integer constant 0 cannot be proved"
-                }
                 val scanned = scanCodeUnits(
                     units = code.units,
                     wipeDeviceMethodIndexes = wipeDeviceIndexes,
                     wipeDataMethodIndexes = wipeDataIndexes,
                     handlerEntries = code.handlerEntries,
                 )
-                if (scanned.unparseablePc != null) {
+                val methodHasDestructiveInvoke =
+                    scanned.wipeDeviceExactZero.isNotEmpty() || scanned.wipeDataCount > 0
+                if (scanned.decodeIncomplete) {
                     violations +=
                         "$sourceName has unparseable DEX instructions at $location " +
+                            "pc=${scanned.unparseablePc}; exact integer constant 0 cannot be proved"
+                } else if (methodHasDestructiveInvoke && (scanned.unparseablePc != null || code.handlersUnparseable)) {
+                    violations +=
+                        "$sourceName has unparseable DEX control-flow at $location " +
                             "pc=${scanned.unparseablePc}; exact integer constant 0 cannot be proved"
                 }
                 repeat(scanned.wipeDataCount) {
@@ -68,6 +69,7 @@ internal object DexWipeDeviceVerifier {
             wipeDeviceExactZero = emptyList(),
             wipeDataCount = 0,
             unparseablePc = 0,
+            decodeIncomplete = true,
         )
         if (decoded.unparseablePc != null) {
             return collectInvokes(
@@ -77,6 +79,7 @@ internal object DexWipeDeviceVerifier {
                 predecessors = emptyMap(),
                 handlerEntries = handlerEntries,
                 unparseablePc = decoded.unparseablePc,
+                decodeIncomplete = true,
             )
         }
         val predecessors = buildPredecessors(decoded, units)
@@ -87,6 +90,7 @@ internal object DexWipeDeviceVerifier {
                 predecessors = emptyMap(),
                 handlerEntries = handlerEntries,
                 unparseablePc = decoded.instructions.keys.minOrNull() ?: 0,
+                decodeIncomplete = false,
             )
         for (handler in handlerEntries) {
             if (handler !in decoded.instructions) {
@@ -97,6 +101,7 @@ internal object DexWipeDeviceVerifier {
                     predecessors = predecessors,
                     handlerEntries = handlerEntries,
                     unparseablePc = handler,
+                    decodeIncomplete = false,
                 )
             }
         }
@@ -107,6 +112,7 @@ internal object DexWipeDeviceVerifier {
             predecessors = predecessors,
             handlerEntries = handlerEntries,
             unparseablePc = null,
+            decodeIncomplete = false,
         )
     }
 
@@ -117,6 +123,7 @@ internal object DexWipeDeviceVerifier {
         predecessors: Map<Int, Set<Int>>,
         handlerEntries: Set<Int>,
         unparseablePc: Int?,
+        decodeIncomplete: Boolean,
     ): DexWipeStreamResult {
         val wipeDeviceExactZero = mutableListOf<Boolean>()
         var wipeDataCount = 0
@@ -142,6 +149,7 @@ internal object DexWipeDeviceVerifier {
             wipeDeviceExactZero = wipeDeviceExactZero,
             wipeDataCount = wipeDataCount,
             unparseablePc = unparseablePc,
+            decodeIncomplete = decodeIncomplete,
         )
     }
 
@@ -236,7 +244,7 @@ internal object DexWipeDeviceVerifier {
             val next = insn.pc + insn.size
             when {
                 next == units.size -> Unit
-                next in decoded.payloadStarts -> return null
+                next in decoded.payloadStarts -> Unit
                 next in decoded.instructions -> targets += next
                 else -> return null
             }
@@ -451,6 +459,7 @@ internal object DexWipeDeviceVerifier {
         val wipeDeviceExactZero: List<Boolean>,
         val wipeDataCount: Int,
         val unparseablePc: Int?,
+        val decodeIncomplete: Boolean = false,
     )
 
     private val INVOKE_OPCODES = (0x6e..0x72).toSet() + (0x74..0x78).toSet()
