@@ -13,6 +13,44 @@ import org.gradle.api.tasks.TaskAction
 import java.io.File
 
 /**
+ * Shared task-owned inspect/write/cleanup envelope.
+ *
+ * Cleanup verification always runs after success, inspection failure, and
+ * report-writing failure. Only the exact task-private snapshot directory is
+ * checked. User-supplied candidate APKs are never deleted.
+ */
+object DestructiveValidationCandidateEvidenceTaskSupport {
+    fun <T> inspectWriteAndAssertCleanup(
+        snapshotDirectory: File,
+        inspect: () -> T,
+        write: (T) -> Unit,
+        assertProof: (T) -> Unit = {},
+    ): T {
+        var inspectionFailure: Throwable? = null
+        try {
+            val result = inspect()
+            write(result)
+            assertProof(result)
+            return result
+        } catch (failed: Throwable) {
+            inspectionFailure = failed
+            throw failed
+        } finally {
+            try {
+                DestructiveValidationCandidateEvidence.assertSnapshotDeleted(snapshotDirectory)
+            } catch (cleanupFailed: Throwable) {
+                val original = inspectionFailure
+                if (original != null) {
+                    original.addSuppressed(cleanupFailed)
+                } else {
+                    throw cleanupFailed
+                }
+            }
+        }
+    }
+}
+
+/**
  * Inspect one explicitly supplied APK as an untrusted candidate.
  * Never auto-selects assemble output and never mints a trusted expectation.
  */
@@ -36,19 +74,24 @@ abstract class GenerateDestructiveValidationCandidateEvidenceTask : DefaultTask(
 
     @TaskAction
     fun generate() {
-        val supplied = candidateApkPath.orNull?.trim().orEmpty()
-        check(supplied.isNotEmpty()) {
-            "${DestructiveValidationCandidateEvidence.CANDIDATE_APK_PROPERTY} must be " +
-                "supplied explicitly. This task never auto-selects a build output."
-        }
-        val apk = File(supplied)
-        val report = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
-            apk = apk,
-            androidSdkDir = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File),
-            projectRoot = projectRootPath.orNull?.takeIf { it.isNotBlank() }?.let(::File),
-            snapshotDirectory = snapshotDirectory.orNull?.asFile,
+        val snapshotDir = snapshotDirectory.get().asFile
+        DestructiveValidationCandidateEvidenceTaskSupport.inspectWriteAndAssertCleanup(
+            snapshotDirectory = snapshotDir,
+            inspect = {
+                val supplied = candidateApkPath.orNull?.trim().orEmpty()
+                check(supplied.isNotEmpty()) {
+                    "${DestructiveValidationCandidateEvidence.CANDIDATE_APK_PROPERTY} must be " +
+                        "supplied explicitly. This task never auto-selects a build output."
+                }
+                DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                    apk = File(supplied),
+                    androidSdkDir = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File),
+                    projectRoot = projectRootPath.orNull?.takeIf { it.isNotBlank() }?.let(::File),
+                    snapshotDirectory = snapshotDir,
+                )
+            },
+            write = ::writeUntrustedReport,
         )
-        writeUntrustedReport(report)
     }
 
     private fun writeUntrustedReport(
@@ -86,20 +129,28 @@ abstract class CheckUnsignedDestructiveValidationCandidateEvidenceTask : Default
 
     @TaskAction
     fun proveUnsignedIneligible() {
-        val apk = DestructiveValidationCandidateEvidence.findUnsignedReleaseApk(
-            apkDirectory.get().asFile,
+        val snapshotDir = snapshotDirectory.get().asFile
+        DestructiveValidationCandidateEvidenceTaskSupport.inspectWriteAndAssertCleanup(
+            snapshotDirectory = snapshotDir,
+            inspect = {
+                val apk = DestructiveValidationCandidateEvidence.findUnsignedReleaseApk(
+                    apkDirectory.get().asFile,
+                )
+                DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                    apk = apk,
+                    androidSdkDir = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File),
+                    projectRoot = projectRootPath.orNull?.takeIf { it.isNotBlank() }?.let(::File),
+                    snapshotDirectory = snapshotDir,
+                )
+            },
+            write = { report ->
+                val out = reportFile.get().asFile
+                out.parentFile.mkdirs()
+                out.writeText(report.render())
+                logger.lifecycle(report.statusLinesWithoutDigest().trim())
+            },
+            assertProof = DestructiveValidationCandidateEvidence::assertUnsignedIneligibleProof,
         )
-        val report = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
-            apk = apk,
-            androidSdkDir = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File),
-            projectRoot = projectRootPath.orNull?.takeIf { it.isNotBlank() }?.let(::File),
-            snapshotDirectory = snapshotDirectory.orNull?.asFile,
-        )
-        val out = reportFile.get().asFile
-        out.parentFile.mkdirs()
-        out.writeText(report.render())
-        logger.lifecycle(report.statusLinesWithoutDigest().trim())
-        DestructiveValidationCandidateEvidence.assertUnsignedIneligibleProof(report)
     }
 }
 
@@ -129,24 +180,28 @@ abstract class CheckUnsignedDisposableValidationBuildPurposeEvidenceTask : Defau
 
     @TaskAction
     fun proveObservedPurposeStillIneligible() {
-        val apk = DestructiveValidationCandidateEvidence.findUnsignedDisposableValidationApk(
-            apkDirectory.get().asFile,
+        val snapshotDir = snapshotDirectory.get().asFile
+        DestructiveValidationCandidateEvidenceTaskSupport.inspectWriteAndAssertCleanup(
+            snapshotDirectory = snapshotDir,
+            inspect = {
+                val apk = DestructiveValidationCandidateEvidence.findUnsignedDisposableValidationApk(
+                    apkDirectory.get().asFile,
+                )
+                DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                    apk = apk,
+                    androidSdkDir = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File),
+                    projectRoot = projectRootPath.orNull?.takeIf { it.isNotBlank() }?.let(::File),
+                    snapshotDirectory = snapshotDir,
+                )
+            },
+            write = { report ->
+                val out = reportFile.get().asFile
+                out.parentFile.mkdirs()
+                out.writeText(report.render())
+                logger.lifecycle(report.statusLinesWithoutDigest().trim())
+            },
+            assertProof =
+                DestructiveValidationCandidateEvidence::assertDisposableValidationUnsignedIneligibleProof,
         )
-        val report = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
-            apk = apk,
-            androidSdkDir = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File),
-            projectRoot = projectRootPath.orNull?.takeIf { it.isNotBlank() }?.let(::File),
-            snapshotDirectory = snapshotDirectory.orNull?.asFile,
-        )
-        val out = reportFile.get().asFile
-        out.parentFile.mkdirs()
-        out.writeText(report.render())
-        logger.lifecycle(report.statusLinesWithoutDigest().trim())
-        DestructiveValidationCandidateEvidence.assertDisposableValidationUnsignedIneligibleProof(
-            report,
-        )
-        check(!DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDirectory.get().asFile)) {
-            "disposable-validation snapshot must be deleted after inspection"
-        }
     }
 }

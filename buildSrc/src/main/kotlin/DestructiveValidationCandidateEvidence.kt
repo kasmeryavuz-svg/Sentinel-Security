@@ -14,15 +14,62 @@ import java.security.MessageDigest
  */
 object DestructiveValidationCandidateEvidence {
     const val AUTHORITY = "UNTRUSTED_CANDIDATE_ONLY"
-    const val REPORT_RELATIVE_PATH = "app/build/reports/destructive-validation-candidate.txt"
     const val CANDIDATE_APK_PROPERTY = "sentinel.destructiveValidationCandidateApk"
     const val GENERATE_TASK_PATH = ":app:generateDestructiveValidationCandidateEvidence"
     const val UNSIGNED_PROOF_TASK_PATH = ":app:checkUnsignedDestructiveValidationCandidateEvidence"
     const val DISPOSABLE_VALIDATION_PROOF_TASK_PATH =
         ":app:checkUnsignedDisposableValidationBuildPurposeEvidence"
+    const val EXPLICIT_CANDIDATE_REPORT_RELATIVE_PATH =
+        "app/build/reports/destructive-validation-explicit-candidate.txt"
+    const val REPORT_RELATIVE_PATH = "app/build/reports/destructive-validation-candidate.txt"
     const val DISPOSABLE_PURPOSE_REPORT_RELATIVE_PATH =
         "app/build/reports/destructive-validation-disposable-purpose.txt"
+    const val EXPLICIT_CANDIDATE_SNAPSHOT_RELATIVE_PATH =
+        "app/build/tmp/destructive-validation-explicit-candidate-snapshot"
+    const val UNSIGNED_RELEASE_SNAPSHOT_RELATIVE_PATH =
+        "app/build/tmp/destructive-validation-unsigned-release-snapshot"
+    const val DISPOSABLE_PURPOSE_SNAPSHOT_RELATIVE_PATH =
+        "app/build/tmp/destructive-validation-disposable-purpose-snapshot"
+    const val SHARED_LEGACY_SNAPSHOT_RELATIVE_PATH =
+        "app/build/tmp/destructive-validation-candidate-snapshot"
     const val SNAPSHOT_FILE_NAME = "immutable-candidate-snapshot.apk"
+
+    enum class CandidateApkSelection {
+        EXPLICIT_CANDIDATE_PROPERTY,
+        AGP_UNSIGNED_RELEASE_ARTIFACT,
+        AGP_UNSIGNED_DISPOSABLE_VALIDATION_ARTIFACT,
+    }
+
+    data class IsolatedCandidateEvidenceTask(
+        val taskPath: String,
+        val snapshotRelativePath: String,
+        val reportRelativePath: String,
+        val apkSelection: CandidateApkSelection,
+    )
+
+    val isolatedCandidateEvidenceTasks = listOf(
+        IsolatedCandidateEvidenceTask(
+            taskPath = GENERATE_TASK_PATH,
+            snapshotRelativePath = EXPLICIT_CANDIDATE_SNAPSHOT_RELATIVE_PATH,
+            reportRelativePath = EXPLICIT_CANDIDATE_REPORT_RELATIVE_PATH,
+            apkSelection = CandidateApkSelection.EXPLICIT_CANDIDATE_PROPERTY,
+        ),
+        IsolatedCandidateEvidenceTask(
+            taskPath = UNSIGNED_PROOF_TASK_PATH,
+            snapshotRelativePath = UNSIGNED_RELEASE_SNAPSHOT_RELATIVE_PATH,
+            reportRelativePath = REPORT_RELATIVE_PATH,
+            apkSelection = CandidateApkSelection.AGP_UNSIGNED_RELEASE_ARTIFACT,
+        ),
+        IsolatedCandidateEvidenceTask(
+            taskPath = DISPOSABLE_VALIDATION_PROOF_TASK_PATH,
+            snapshotRelativePath = DISPOSABLE_PURPOSE_SNAPSHOT_RELATIVE_PATH,
+            reportRelativePath = DISPOSABLE_PURPOSE_REPORT_RELATIVE_PATH,
+            apkSelection = CandidateApkSelection.AGP_UNSIGNED_DISPOSABLE_VALIDATION_ARTIFACT,
+        ),
+    )
+
+    class SnapshotCleanupException(message: String, cause: Throwable? = null) :
+        IllegalStateException(message, cause)
 
     enum class Signing {
         UNSIGNED,
@@ -203,17 +250,18 @@ object DestructiveValidationCandidateEvidence {
         signingInspector: ((File) -> CandidateSigningInspection)? = null,
         identityInspector: ((File) -> CandidateApkIdentity)? = null,
         gitProvenance: GitProvenance? = null,
+        cleanup: ((File) -> Unit)? = null,
     ): CandidateEvidenceReport {
         acceptCandidateFile(apk)
         rejectSymlinkPath(apk)
         val sourceIdentity = captureSourceIdentity(apk)
         val sourceDigestBefore = sha256OfExactBytes(apk)
-        val createdSnapshotDir = snapshotDirectory == null
         val snapshotDir = snapshotDirectory ?: Files.createTempDirectory(
             "sentinel-19f-candidate-snapshot-",
         ).toFile()
         snapshotDir.mkdirs()
-        val snapshot = File(snapshotDir, SNAPSHOT_FILE_NAME)
+        val snapshot = ownedSnapshotFile(snapshotDir)
+        var inspectionFailure: Throwable? = null
         try {
             copyImmutableSnapshot(apk, snapshot)
             val snapshotDigestBefore = sha256OfExactBytes(snapshot)
@@ -247,8 +295,21 @@ object DestructiveValidationCandidateEvidence {
                 git = git,
                 expected = expected,
             )
+        } catch (failed: Throwable) {
+            inspectionFailure = failed
+            throw failed
         } finally {
-            deleteSnapshotQuietly(snapshot, snapshotDir, createdSnapshotDir)
+            try {
+                (cleanup ?: ::deleteOwnedSnapshot)(snapshotDir)
+                assertSnapshotDeleted(snapshotDir)
+            } catch (cleanupFailed: Throwable) {
+                val original = inspectionFailure
+                if (original != null) {
+                    original.addSuppressed(cleanupFailed)
+                } else {
+                    throw cleanupFailed
+                }
+            }
         }
     }
 
@@ -587,7 +648,111 @@ object DestructiveValidationCandidateEvidence {
     }
 
     fun snapshotStillPresent(snapshotDirectory: File): Boolean {
-        return File(snapshotDirectory, SNAPSHOT_FILE_NAME).exists()
+        return ownedSnapshotFile(snapshotDirectory).exists()
+    }
+
+    fun ownedSnapshotFile(snapshotDirectory: File): File {
+        return File(snapshotDirectory, SNAPSHOT_FILE_NAME)
+    }
+
+    fun assertCandidateEvidenceTasksIsolated() {
+        check(isolatedCandidateEvidenceTasks.size == 3) {
+            "exactly three candidate-evidence tasks must remain isolated"
+        }
+        val snapshots = isolatedCandidateEvidenceTasks.map { it.snapshotRelativePath }
+        val reports = isolatedCandidateEvidenceTasks.map { it.reportRelativePath }
+        val tasks = isolatedCandidateEvidenceTasks.map { it.taskPath }
+        check(snapshots.distinct().size == snapshots.size) {
+            "candidate-evidence snapshot directories must be task-private"
+        }
+        check(reports.distinct().size == reports.size) {
+            "candidate-evidence report outputs must be task-private"
+        }
+        check(tasks.distinct().size == tasks.size) {
+            "candidate-evidence task paths must be unique"
+        }
+        check(SHARED_LEGACY_SNAPSHOT_RELATIVE_PATH !in snapshots) {
+            "the shared legacy snapshot directory must not be reused"
+        }
+        isolatedCandidateEvidenceTasks.forEach { task ->
+            isolatedCandidateEvidenceTasks.filter { it !== task }.forEach { other ->
+                check(task.snapshotRelativePath != other.snapshotRelativePath)
+                check(task.reportRelativePath != other.reportRelativePath)
+                check(!other.snapshotRelativePath.startsWith(task.snapshotRelativePath + "/")) {
+                    "one candidate-evidence snapshot directory must not nest inside another"
+                }
+                check(task.snapshotRelativePath != other.reportRelativePath)
+            }
+        }
+        val generate = isolatedCandidateEvidenceTasks.single { it.taskPath == GENERATE_TASK_PATH }
+        check(generate.apkSelection == CandidateApkSelection.EXPLICIT_CANDIDATE_PROPERTY)
+        val unsigned = isolatedCandidateEvidenceTasks.single { it.taskPath == UNSIGNED_PROOF_TASK_PATH }
+        check(unsigned.apkSelection == CandidateApkSelection.AGP_UNSIGNED_RELEASE_ARTIFACT)
+        check(unsigned.reportRelativePath == REPORT_RELATIVE_PATH)
+        val disposable = isolatedCandidateEvidenceTasks.single {
+            it.taskPath == DISPOSABLE_VALIDATION_PROOF_TASK_PATH
+        }
+        check(
+            disposable.apkSelection ==
+                CandidateApkSelection.AGP_UNSIGNED_DISPOSABLE_VALIDATION_ARTIFACT,
+        )
+    }
+
+    fun assertSnapshotDeleted(snapshotDirectory: File) {
+        if (snapshotStillPresent(snapshotDirectory)) {
+            throw SnapshotCleanupException(
+                "task-private snapshot remained after inspection: " +
+                    ownedSnapshotFile(snapshotDirectory).absolutePath,
+            )
+        }
+    }
+
+    fun deleteOwnedSnapshot(snapshotDirectory: File) {
+        val directoryPath = snapshotDirectory.toPath().toAbsolutePath().normalize()
+        if (Files.isSymbolicLink(directoryPath)) {
+            throw SnapshotCleanupException(
+                "task-private snapshot directory must not be a symlink",
+            )
+        }
+        val snapshot = ownedSnapshotFile(snapshotDirectory)
+        val snapshotPath = snapshot.toPath().toAbsolutePath().normalize()
+        val expected = directoryPath.resolve(SNAPSHOT_FILE_NAME)
+        if (snapshotPath != expected) {
+            throw SnapshotCleanupException(
+                "refusing to delete a path outside the task-private snapshot directory",
+            )
+        }
+        if (Files.isSymbolicLink(snapshotPath)) {
+            throw SnapshotCleanupException("task-private snapshot must not be a symlink")
+        }
+        try {
+            if (Files.exists(snapshotPath, LinkOption.NOFOLLOW_LINKS)) {
+                snapshot.setWritable(true)
+                Files.deleteIfExists(snapshotPath)
+            }
+        } catch (failed: Exception) {
+            throw SnapshotCleanupException(
+                "task-private snapshot could not be deleted",
+                failed,
+            )
+        }
+        if (Files.exists(snapshotPath, LinkOption.NOFOLLOW_LINKS)) {
+            throw SnapshotCleanupException("task-private snapshot remained after cleanup")
+        }
+        if (!snapshotDirectory.exists()) {
+            return
+        }
+        val remaining = snapshotDirectory.listFiles().orEmpty()
+        if (remaining.isNotEmpty()) {
+            throw SnapshotCleanupException(
+                "task-private snapshot directory is not empty after snapshot deletion",
+            )
+        }
+        if (!snapshotDirectory.delete()) {
+            throw SnapshotCleanupException(
+                "task-private snapshot directory could not be deleted",
+            )
+        }
     }
 
     private fun copyImmutableSnapshot(source: File, snapshot: File) {
@@ -616,26 +781,6 @@ object DestructiveValidationCandidateEvidence {
             throw RejectedException(
                 "APK bytes changed during $phase; refusing the candidate",
             )
-        }
-    }
-
-    private fun deleteSnapshotQuietly(
-        snapshot: File,
-        snapshotDir: File,
-        createdSnapshotDir: Boolean,
-    ) {
-        try {
-            if (snapshot.exists()) {
-                snapshot.setWritable(true)
-                Files.deleteIfExists(snapshot.toPath())
-            }
-            if (createdSnapshotDir) {
-                snapshotDir.deleteRecursively()
-            } else if (snapshotDir.isDirectory && snapshotDir.listFiles().isNullOrEmpty()) {
-                snapshotDir.delete()
-            }
-        } catch (_: Exception) {
-            // Snapshot retention is never required; inspection already finished.
         }
     }
 

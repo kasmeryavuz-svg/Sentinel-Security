@@ -143,6 +143,7 @@ class DestructiveDomainIsolationTest {
         assertTrue(sources.contains("Checkpoint19FDecision"))
         assertTrue(sources.contains("Checkpoint19GDecision"))
         assertTrue(sources.contains("Checkpoint19HDecision"))
+        assertTrue(sources.contains("Checkpoint19JDecision"))
         assertTrue(sources.contains("ProductionDestructiveRealChainOrchestrator"))
         assertTrue(sources.contains("assembleAlreadyBoundDeviceFactoryReset"))
         assertTrue(sources.contains("ProductionDestructiveHumanConfirmationSource"))

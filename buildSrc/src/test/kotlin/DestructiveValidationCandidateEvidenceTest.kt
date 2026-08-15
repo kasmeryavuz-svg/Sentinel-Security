@@ -671,6 +671,231 @@ class DestructiveValidationCandidateEvidenceTest {
         }
     }
 
+    @Test
+    fun `successful inspection still fails when cleanup leaves a snapshot`() {
+        val root = Files.createTempDirectory("candidate-cleanup-left").toFile()
+        val snapshotDir = File(root, "explicit-snapshot")
+        try {
+            val apk = writeZipApk(File(root, "supplied-candidate.apk"))
+            val thrown = assertFailsWith<DestructiveValidationCandidateEvidence.SnapshotCleanupException> {
+                DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                    apk = apk,
+                    snapshotDirectory = snapshotDir,
+                    signingInspector = { unsignedSigning() },
+                    identityInspector = { matchingIdentity() },
+                    gitProvenance = unavailableGit(),
+                    cleanup = { },
+                )
+            }
+            assertTrue(thrown.message.orEmpty().contains("task-private snapshot remained"))
+            assertTrue(apk.isFile)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `successful explicit-candidate cleanup deletes only the owned snapshot`() {
+        val root = Files.createTempDirectory("candidate-cleanup-success").toFile()
+        val snapshotDir = File(root, "explicit-snapshot")
+        val otherSnapshotDir = File(root, "other-snapshot")
+        val otherReport = File(root, "other-report.txt")
+        try {
+            val apk = writeZipApk(File(root, "supplied-candidate.apk"))
+            otherSnapshotDir.mkdirs()
+            val otherSnapshot = DestructiveValidationCandidateEvidence.ownedSnapshotFile(otherSnapshotDir)
+            otherSnapshot.writeBytes(byteArrayOf(0x01))
+            otherReport.writeText("keep")
+            val report = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                apk = apk,
+                snapshotDirectory = snapshotDir,
+                signingInspector = { unsignedSigning() },
+                identityInspector = { matchingIdentity() },
+                gitProvenance = unavailableGit(),
+            )
+            assertEquals("INELIGIBLE", report.candidateStatus)
+            assertFalse(DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDir))
+            assertTrue(DestructiveValidationCandidateEvidence.snapshotStillPresent(otherSnapshotDir))
+            assertTrue(otherReport.isFile)
+            assertTrue(apk.isFile)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `failed explicit-candidate cleanup fails the inspection and preserves the original error`() {
+        val root = Files.createTempDirectory("candidate-cleanup-failed").toFile()
+        val snapshotDir = File(root, "explicit-snapshot")
+        try {
+            val apk = writeZipApk(File(root, "supplied-candidate.apk"))
+            val thrown = assertFailsWith<DestructiveValidationCandidateEvidence.RejectedException> {
+                DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                    apk = apk,
+                    snapshotDirectory = snapshotDir,
+                    afterInitialDigest = { apk.appendBytes(byteArrayOf(0x09)) },
+                    signingInspector = { unsignedSigning() },
+                    identityInspector = { matchingIdentity() },
+                    gitProvenance = unavailableGit(),
+                    cleanup = { },
+                )
+            }
+            assertTrue(thrown.message.orEmpty().contains("changed during"))
+            assertTrue(
+                thrown.suppressed.any {
+                    it is DestructiveValidationCandidateEvidence.SnapshotCleanupException
+                },
+            )
+            assertTrue(apk.isFile)
+        } finally {
+            snapshotDir.setWritable(true)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `successful 19F proof cleanup deletes the unsigned-release snapshot`() {
+        val root = Files.createTempDirectory("unsigned-cleanup-success").toFile()
+        val snapshotDir = File(root, "unsigned-release-snapshot")
+        try {
+            val apk = writeZipApk(File(root, "app-release-unsigned.apk"))
+            val report = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                apk = apk,
+                snapshotDirectory = snapshotDir,
+                signingInspector = { unsignedSigning() },
+                identityInspector = { matchingIdentity() },
+                gitProvenance = unavailableGit(),
+            )
+            DestructiveValidationCandidateEvidence.assertUnsignedIneligibleProof(report)
+            DestructiveValidationCandidateEvidenceTaskSupport.inspectWriteAndAssertCleanup(
+                snapshotDirectory = snapshotDir,
+                inspect = { report },
+                write = { },
+                assertProof = DestructiveValidationCandidateEvidence::assertUnsignedIneligibleProof,
+            )
+            assertFalse(DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDir))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `failed 19F proof cleanup fails the task envelope`() {
+        val root = Files.createTempDirectory("unsigned-cleanup-failed").toFile()
+        val snapshotDir = File(root, "unsigned-release-snapshot")
+        try {
+            snapshotDir.mkdirs()
+            val leftover = DestructiveValidationCandidateEvidence.ownedSnapshotFile(snapshotDir)
+            leftover.writeBytes(byteArrayOf(0x03))
+            assertTrue(leftover.isFile)
+            val thrown = assertFailsWith<DestructiveValidationCandidateEvidence.SnapshotCleanupException> {
+                DestructiveValidationCandidateEvidenceTaskSupport.inspectWriteAndAssertCleanup(
+                    snapshotDirectory = snapshotDir,
+                    inspect = { "ok" },
+                    write = { },
+                )
+            }
+            assertTrue(thrown.message.orEmpty().contains("task-private snapshot remained"))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `successful 19G proof cleanup deletes the disposable-purpose snapshot`() {
+        val root = Files.createTempDirectory("purpose-cleanup-success").toFile()
+        val snapshotDir = File(root, "disposable-purpose-snapshot")
+        try {
+            val apk = writeZipApk(File(root, "app-disposableValidation-unsigned.apk"))
+            val report = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+                apk = apk,
+                snapshotDirectory = snapshotDir,
+                signingInspector = { unsignedSigning() },
+                identityInspector = {
+                    matchingIdentity().copy(
+                        buildPurposeObserved = "DISPOSABLE_DEVICE_VALIDATION",
+                        buildPurposeStatus = DestructiveValidationBuildPurposeParser.STATUS_OBSERVED,
+                    )
+                },
+                gitProvenance = unavailableGit(),
+            )
+            DestructiveValidationCandidateEvidence.assertDisposableValidationUnsignedIneligibleProof(
+                report,
+            )
+            DestructiveValidationCandidateEvidenceTaskSupport.inspectWriteAndAssertCleanup(
+                snapshotDirectory = snapshotDir,
+                inspect = { report },
+                write = { },
+                assertProof =
+                    DestructiveValidationCandidateEvidence::assertDisposableValidationUnsignedIneligibleProof,
+            )
+            assertFalse(DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDir))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `failed 19G proof cleanup fails the task envelope`() {
+        val root = Files.createTempDirectory("purpose-cleanup-failed").toFile()
+        val snapshotDir = File(root, "disposable-purpose-snapshot")
+        try {
+            snapshotDir.mkdirs()
+            val leftover = DestructiveValidationCandidateEvidence.ownedSnapshotFile(snapshotDir)
+            leftover.writeBytes(byteArrayOf(0x04))
+            assertTrue(leftover.isFile)
+            assertFailsWith<DestructiveValidationCandidateEvidence.SnapshotCleanupException> {
+                DestructiveValidationCandidateEvidenceTaskSupport.inspectWriteAndAssertCleanup(
+                    snapshotDirectory = snapshotDir,
+                    inspect = { "ok" },
+                    write = { },
+                )
+            }
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `one task cleanup cannot remove another task snapshot or report`() {
+        val root = Files.createTempDirectory("isolated-cleanup").toFile()
+        val first = File(root, "explicit-candidate-snapshot")
+        val second = File(root, "unsigned-release-snapshot")
+        val firstReport = File(root, "explicit-candidate.txt")
+        val secondReport = File(root, "unsigned-release.txt")
+        try {
+            first.mkdirs()
+            second.mkdirs()
+            DestructiveValidationCandidateEvidence.ownedSnapshotFile(first).writeBytes(byteArrayOf(0x11))
+            DestructiveValidationCandidateEvidence.ownedSnapshotFile(second).writeBytes(byteArrayOf(0x22))
+            firstReport.writeText("first")
+            secondReport.writeText("second")
+            DestructiveValidationCandidateEvidence.deleteOwnedSnapshot(first)
+            assertFalse(DestructiveValidationCandidateEvidence.snapshotStillPresent(first))
+            assertTrue(DestructiveValidationCandidateEvidence.snapshotStillPresent(second))
+            assertTrue(firstReport.isFile)
+            assertTrue(secondReport.isFile)
+            assertEquals("second", secondReport.readText())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `owned snapshot cleanup refuses a path outside the task-private directory`() {
+        val root = Files.createTempDirectory("cleanup-outside").toFile()
+        try {
+            val userApk = writeZipApk(File(root, "user-supplied.apk"))
+            val snapshotDir = File(root, "snapshot")
+            snapshotDir.mkdirs()
+            DestructiveValidationCandidateEvidence.deleteOwnedSnapshot(snapshotDir)
+            assertTrue(userApk.isFile)
+            assertFalse(snapshotDir.exists())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     private fun inspect(
         signing: DestructiveValidationCandidateEvidence.CandidateSigningInspection,
         identity: DestructiveValidationCandidateEvidence.CandidateApkIdentity,

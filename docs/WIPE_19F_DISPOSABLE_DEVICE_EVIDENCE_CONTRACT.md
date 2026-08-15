@@ -313,8 +313,12 @@ runtime authorization.
 - The tooling never mints a trusted artifact expectation, never writes
   a digest into production source, and never uses signing passwords or
   keystore paths.
-- Reports are written only under the gitignored path
+- The unsigned-release proof report remains the gitignored path
   `app/build/reports/destructive-validation-candidate.txt`.
+- The explicit general-candidate report is a separate gitignored path
+  `app/build/reports/destructive-validation-explicit-candidate.txt`.
+- Each candidate-evidence task uses a unique task-private snapshot
+  directory. Tasks must not share mutable snapshot or report paths.
 - Every report includes:
 
 ```text

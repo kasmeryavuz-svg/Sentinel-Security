@@ -134,14 +134,20 @@ Required names:
 
 Behavior:
 
-- all four keystore secrets absent: `assembleRelease` / `bundleRelease`
-  produce an **unsigned local verification** artifact. Release is never
-  assigned the Android debug signing configuration. That artifact is
-  **not** a production distribution.
-- any but not all four keystore secrets present: configuration **fails
-  closed**. There is no silent debug-key fallback.
-- all four present: release uses the `production` signing config, never the
-  debug signing config.
+- ordinary `assembleRelease` / `bundleRelease` remain **unsigned local
+  verification** artifacts unless production distribution is explicitly
+  requested. Populating any or all `SENTINEL_RELEASE_*` values does
+  **not** attach a signing configuration to ordinary release work.
+  Release is never assigned the Android debug signing configuration.
+  That artifact is **not** a production distribution.
+- ordinary non-distribution release configuration does **not** read or
+  validate production-signing inputs.
+- explicit production distribution
+  (`assembleProductionRelease` / `bundleProductionRelease` /
+  `sentinel.productionDistribution=true`) **fails closed** unless the
+  complete keystore secret set, an existing non-debug keystore, and a
+  valid expected certificate fingerprint are present. There is no
+  silent debug-key fallback.
 - a random developer or test certificate is **never** classified as
   production merely because it is not the Android debug certificate.
 

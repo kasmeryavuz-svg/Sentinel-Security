@@ -86,14 +86,51 @@ fun productionDistributionTasksRequested(): Boolean {
     }
 }
 
-val productionSigningSecrets = readProductionSigningSecrets()
-val configuredProductionCertSha256 = readExpectedProductionCertSha256()
 val productionDistributionFlag =
     providers.gradleProperty("sentinel.productionDistribution")
         .map { it.equals("true", ignoreCase = true) }
         .orElse(false)
 val requestProductionDistribution =
     productionDistributionFlag.get() || productionDistributionTasksRequested()
+
+val productionSigningSecrets = if (requestProductionDistribution) {
+    val secrets = readProductionSigningSecrets()
+    val fingerprint = readExpectedProductionCertSha256()
+    val decision = ProductionDistributionSigningGate.decide(
+        distributionRequested = true,
+        inputs = ProductionDistributionSigningGate.ObservedSigningInputs(
+            storeFilePresent = secrets != null,
+            storePasswordPresent = secrets != null,
+            keyAliasPresent = secrets != null,
+            keyPasswordPresent = secrets != null,
+            certificateFingerprintPresent = !fingerprint.isNullOrBlank(),
+            storeFileExists = secrets?.storeFile?.isFile == true,
+            storeFileLooksLikeDebugOrTest =
+                secrets?.storeFile?.name?.contains("debug", ignoreCase = true) == true,
+            certificateFingerprintValid = fingerprint != null &&
+                ReleaseArtifactSecurityVerifier.normalizeSha256Fingerprint(fingerprint) != null,
+        ),
+    )
+    check(ProductionDistributionSigningGate.mustAttach(decision)) {
+        "Production distribution signing refused: $decision"
+    }
+    secrets
+} else {
+    check(
+        ProductionDistributionSigningGate.decide(
+            distributionRequested = false,
+            inputs = null,
+        ) == ProductionDistributionSigningGate.Decision.DO_NOT_ATTACH,
+    ) {
+        "ordinary release must not attach production signing"
+    }
+    null
+}
+val configuredProductionCertSha256 = if (requestProductionDistribution) {
+    readExpectedProductionCertSha256()
+} else {
+    null
+}
 
 android {
     namespace = "com.example.devicemanagement"
@@ -111,7 +148,7 @@ android {
 
     signingConfigs {
         val secrets = productionSigningSecrets
-        if (secrets != null) {
+        if (requestProductionDistribution && secrets != null) {
             create("production") {
                 storeFile = secrets.storeFile
                 storePassword = secrets.storePassword
@@ -140,8 +177,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            val secrets = productionSigningSecrets
-            if (secrets != null) {
+            if (requestProductionDistribution) {
                 signingConfig = signingConfigs.getByName("production")
             }
         }
@@ -166,6 +202,18 @@ android {
     }
     check(signingConfigs.findByName("debug") !== disposableValidationSigning) {
         "disposableValidation must not use the Android debug signing key"
+    }
+    if (!requestProductionDistribution) {
+        check(signingConfigs.findByName("production") == null) {
+            "ordinary release must not create a production signing configuration"
+        }
+        check(buildTypes.getByName("release").signingConfig == null) {
+            "ordinary assembleRelease/bundleRelease must remain unsigned unless " +
+                "production distribution is explicitly requested"
+        }
+    }
+    check(buildTypes.getByName("release").signingConfig !== signingConfigs.findByName("debug")) {
+        "release must never use the Android debug signing key"
     }
 
     compileOptions {
@@ -618,6 +666,8 @@ fun verifyProvisioningManifest(
     }
 }
 
+DestructiveValidationCandidateEvidence.assertCandidateEvidenceTasksIsolated()
+
 tasks.register<GenerateDestructiveValidationCandidateEvidenceTask>(
     "generateDestructiveValidationCandidateEvidence",
 ) {
@@ -631,10 +681,10 @@ tasks.register<GenerateDestructiveValidationCandidateEvidenceTask>(
     androidSdkDirectory.set(android.sdkDirectory.absolutePath)
     projectRootPath.set(rootProject.layout.projectDirectory.asFile.absolutePath)
     reportFile.set(
-        layout.buildDirectory.file("reports/destructive-validation-candidate.txt"),
+        layout.buildDirectory.file("reports/destructive-validation-explicit-candidate.txt"),
     )
     snapshotDirectory.set(
-        layout.buildDirectory.dir("tmp/destructive-validation-candidate-snapshot"),
+        layout.buildDirectory.dir("tmp/destructive-validation-explicit-candidate-snapshot"),
     )
 }
 
@@ -1005,7 +1055,7 @@ androidComponents {
                 )
                 snapshotDirectory.set(
                     layout.buildDirectory.dir(
-                        "tmp/destructive-validation-candidate-snapshot",
+                        "tmp/destructive-validation-unsigned-release-snapshot",
                     ),
                 )
             }

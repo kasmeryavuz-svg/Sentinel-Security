@@ -37,6 +37,7 @@ class Checkpoint19HWipeBoundaryFreezeTest {
         assertFalse(appSources.contains("wipeData"))
         assertFalse(appSources.contains("wipeDevice"))
         assertFalse(appSources.contains("Checkpoint19HDecision"))
+        assertFalse(appSources.contains("Checkpoint19JDecision"))
         assertFalse(appSources.contains("Checkpoint19GDecision"))
         assertFalse(appSources.contains("DestructiveSigningCeremonyPreparation"))
         assertFalse(appSources.contains("checkDestructiveSigningCeremonyPreparation"))
