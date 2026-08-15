@@ -79,8 +79,7 @@ class RuntimeDestructivePreExecutionStore private constructor(
  * paired durability. Runtime execution remains fail-closed while the
  * disposable-device artifact digest is unrecorded.
  *
- * The capability is process-local. It is not written to storage and cannot
- * be sent across processes.
+ * The capability is process-local. It is not written to storage and cannot be sent across processes.
  */
 class RuntimeDestructiveSafetyDurability private constructor(
     val cooldown: RuntimeDenyOnlyCooldownStore,

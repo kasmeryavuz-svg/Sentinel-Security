@@ -251,10 +251,10 @@ class Checkpoint19DRealChainAssemblyTest {
                 "FutureDestructiveExecutorContract.kt",
         ).readText()
         val consumeIndex = boundary.indexOf("authorizationAuthority.consume(")
-        val commitIndex = boundary.indexOf("commitAfterConsumedAuthorization(")
+        val commitIndex = boundary.indexOf("runtimePreExecutionAuthority.commitAfterConsumedAuthorization(")
         val liveIndex = boundary.indexOf("liveFactsSource.currentFacts()")
-        val permitIndex = boundary.indexOf("mintFinalLiveValidationPermit()")
-        val bundleIndex = boundary.indexOf("assembleBundleFromPermit(permit)")
+        val permitIndex = boundary.indexOf("val permit = mintFinalLiveValidationPermit()")
+        val bundleIndex = boundary.indexOf("val bundle = assembleBundleFromPermit(permit)")
         val executeIndex = boundary.indexOf("executor.execute(bundle)")
         assertTrue(consumeIndex > 0)
         assertTrue(commitIndex > consumeIndex)
@@ -419,17 +419,17 @@ class Checkpoint19DRealChainAssemblyTest {
     }
 
     private companion object {
-        fun disposableObservedIdentity(): DestructiveArtifactIdentity? {
-            return DestructiveArtifactIdentity.snapshot(
-                certificateSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                artifactSha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-                packageName = "com.example.devicemanagement",
-                adminComponent =
-                    "com.example.devicemanagement/com.example.devicemanagement.management.SentinelDeviceAdminReceiver",
-                buildPurpose = DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION,
-            )
-        }
-
         val HEX_SHA256 = Regex("\\b[0-9a-fA-F]{64}\\b")
     }
+}
+
+private fun disposableObservedIdentity(): DestructiveArtifactIdentity? {
+    return DestructiveArtifactIdentity.snapshot(
+        certificateSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        artifactSha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        packageName = "com.example.devicemanagement",
+        adminComponent =
+            "com.example.devicemanagement/com.example.devicemanagement.management.SentinelDeviceAdminReceiver",
+        buildPurpose = DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION,
+    )
 }

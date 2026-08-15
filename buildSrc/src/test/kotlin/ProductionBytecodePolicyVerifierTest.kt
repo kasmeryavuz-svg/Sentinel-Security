@@ -3046,6 +3046,17 @@ class ProductionBytecodePolicyVerifierTest {
                     }
                 }
                 """.trimIndent(),
+            "com/example/devicemanagement/destructive/ProductionDestructiveRealChainOrchestrator.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class ProductionDestructiveRealChainOrchestrator {
+                    public FutureDestructiveHandoffResult assembleAlreadyBoundDeviceFactoryReset(
+                        ProductionBoundDeviceFactoryResetAttempt attempt
+                    ) {
+                        return null;
+                    }
+                }
+                """.trimIndent(),
         )
         val violations = verify(":sensitive-actions", classes)
         assertTrue(violations.any { "no production trigger origin is authorized" in it })
