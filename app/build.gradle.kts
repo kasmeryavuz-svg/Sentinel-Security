@@ -638,6 +638,36 @@ tasks.register<GenerateDestructiveValidationCandidateEvidenceTask>(
     )
 }
 
+tasks.register<CheckDestructiveSigningCeremonyPreparationTask>(
+    "checkDestructiveSigningCeremonyPreparation",
+) {
+    group = "verification"
+    description =
+        "Prove the real signing-ceremony preparation state remains NOT_READY. " +
+            "Never signs, never reads production secrets, and never mints trust."
+    disposableValidationRemainsUnsigned.set(
+        android.buildTypes
+            .getByName(DestructiveValidationExpectedIdentity.DISPOSABLE_VALIDATION_BUILD_TYPE)
+            .signingConfig == null,
+    )
+    productionSigningConfigurationActive.set(
+        android.signingConfigs.findByName("production") != null,
+    )
+    productionDistributionRequested.set(requestProductionDistribution)
+    filledCeremonyRecordPath.set(
+        rootProject.layout.projectDirectory
+            .file(DestructiveSigningCeremonyPreparation.FILLED_RECORD_RELATIVE_PATH)
+            .asFile
+            .absolutePath,
+    )
+    reportFile.set(
+        layout.buildDirectory.file("reports/destructive-signing-ceremony-preparation.txt"),
+    )
+    temporaryDirectory.set(
+        layout.buildDirectory.dir("tmp/destructive-signing-ceremony-preparation"),
+    )
+}
+
 androidComponents {
     onVariants(selector().all()) { variant ->
         val variantName = variant.name

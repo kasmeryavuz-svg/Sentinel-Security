@@ -9,9 +9,9 @@ import java.io.File
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
 
-class Checkpoint19GWipeBoundaryFreezeTest {
+class Checkpoint19HWipeBoundaryFreezeTest {
     @Test
-    fun `DeviceAdmin metadata remains exactly disable-camera and wipe-data after 19G`() {
+    fun `DeviceAdmin metadata remains exactly disable-camera and wipe-data after 19H`() {
         val metadataFile = File(requireNotNull(System.getProperty("deviceAdminMetadataFile")))
         val factory = DocumentBuilderFactory.newInstance().apply {
             setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
@@ -32,7 +32,7 @@ class Checkpoint19GWipeBoundaryFreezeTest {
     }
 
     @Test
-    fun `implementation sources retain production chain without a 19G trigger`() {
+    fun `implementation sources retain production chain without a 19H trigger`() {
         val sourceRoot = File(
             requireNotNull(System.getProperty("deviceManagementSourceDir")),
             "java",
@@ -53,19 +53,17 @@ class Checkpoint19GWipeBoundaryFreezeTest {
             .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
             .joinToString("\n") { it.readText() }
 
-        assertFalse(sources.contains("Checkpoint19GDecision"))
         assertFalse(sources.contains("Checkpoint19HDecision"))
-        assertFalse(sources.contains("DESTRUCTIVE_VALIDATION_BUILD_PURPOSE"))
-        assertFalse(sources.contains("checkUnsignedDisposableValidationBuildPurposeEvidence"))
-        assertFalse(sources.contains("DestructiveValidationCandidateEvidence"))
+        assertFalse(sources.contains("DestructiveSigningCeremonyPreparation"))
+        assertFalse(sources.contains("checkDestructiveSigningCeremonyPreparation"))
         assertTrue(sources.contains("ProductionDestructiveRealChain.retainForProduction"))
     }
 
     @Test
-    fun `19G freeze tests do not invoke the platform whole-device call`() {
+    fun `19H freeze tests do not invoke the platform whole-device call`() {
         val thisFile = File(
             File(requireNotNull(System.getProperty("deviceManagementSourceDir"))),
-            "../test/java/com/example/devicemanagement/management/Checkpoint19GWipeBoundaryFreezeTest.kt",
+            "../test/java/com/example/devicemanagement/management/Checkpoint19HWipeBoundaryFreezeTest.kt",
         ).canonicalFile.readText()
         assertFalse(thisFile.contains("manager." + "wipeDevice"))
         assertFalse(thisFile.contains("import android.app.admin." + "DevicePolicyManager"))
