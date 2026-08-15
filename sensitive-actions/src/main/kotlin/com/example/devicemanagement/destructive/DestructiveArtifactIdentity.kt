@@ -21,7 +21,7 @@ internal enum class DestructiveArtifactBuildPurpose {
  *
  * This type is observed identity only. Expected digests are held by an
  * opaque [DestructiveArtifactIdentityExpectation] minted only by
- * [TrustedDestructiveArtifactExpectationFactory]. An observed snapshot
+ * [TrustedDestructiveArtifactExpectationMint]. An observed snapshot
  * cannot become a trusted expectation. There is no debug-key fallback.
  */
 internal class DestructiveArtifactIdentity private constructor(
@@ -134,7 +134,7 @@ internal class DestructiveArtifactIdentity private constructor(
  * Opaque trusted expected identity. This is not an observed
  * [DestructiveArtifactIdentity] and cannot be constructed from one.
  * The only mint path is
- * [TrustedDestructiveArtifactExpectationFactory.issueFromTrustedValidationSource].
+ * [TrustedDestructiveArtifactExpectationMint.issueFromTrustedValidationSource].
  */
 internal class DestructiveArtifactIdentityExpectation private constructor(
     val certificateSha256: String,
@@ -144,14 +144,14 @@ internal class DestructiveArtifactIdentityExpectation private constructor(
     val buildPurpose: DestructiveArtifactBuildPurpose,
 ) {
     /**
-     * Sole mint path for a trusted artifact expectation. Production bytecode
-     * allows this call only from
-     * [TrustedDestructiveArtifactValidationSource.trustedExpectation].
-     * The factory does not accept a caller-created or observed
-     * [DestructiveArtifactIdentity].
+     * Sole mint path for a trusted artifact expectation. Dedicated Kotlin
+     * object with one JVM owner
+     * (`DestructiveArtifactIdentityExpectation$TrustedDestructiveArtifactExpectationMint`).
+     * Not a companion. Does not accept a caller-created or observed
+     * [DestructiveArtifactIdentity]. Production bytecode allows this call
+     * only from [TrustedDestructiveArtifactValidationSource.trustedExpectation].
      */
-    companion object TrustedDestructiveArtifactExpectationFactory {
-        @JvmStatic
+    object TrustedDestructiveArtifactExpectationMint {
         fun issueFromTrustedValidationSource(
             certificateSha256: String,
             artifactSha256: String,

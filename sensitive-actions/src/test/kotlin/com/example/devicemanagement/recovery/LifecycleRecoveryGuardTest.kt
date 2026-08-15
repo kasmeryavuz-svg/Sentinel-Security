@@ -55,6 +55,8 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("issueRuntimeDurability"))
         assertFalse(sources.contains("DestructiveArtifactIdentity"))
         assertFalse(sources.contains("TrustedDestructiveArtifactExpectationFactory"))
+        assertFalse(sources.contains("TrustedDestructiveArtifactExpectationMint"))
+        assertFalse(sources.contains("RuntimeDestructiveSafetyDurabilityMint"))
         assertFalse(sources.contains("issueFromTrustedValidationSource"))
         assertFalse(sources.contains("DestructiveHumanApproval"))
         assertFalse(sources.contains("DestructiveHumanConfirmation"))

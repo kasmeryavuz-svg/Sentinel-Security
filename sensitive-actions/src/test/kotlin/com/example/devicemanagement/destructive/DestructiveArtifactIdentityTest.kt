@@ -133,7 +133,8 @@ class DestructiveArtifactIdentityTest {
     fun `ordinary non-destructive builds cannot become future validation eligible`() {
         val ordinary = requireIdentity(buildPurpose = DestructiveArtifactBuildPurpose.ORDINARY_NON_DESTRUCTIVE)
         assertNull(
-            DestructiveArtifactIdentityExpectation.issueFromTrustedValidationSource(
+            DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationMint
+                .issueFromTrustedValidationSource(
                 certificateSha256 = ordinary.certificateSha256,
                 artifactSha256 = ordinary.artifactSha256,
                 packageName = ordinary.packageName,
@@ -167,7 +168,7 @@ class DestructiveArtifactIdentityTest {
             },
         )
         assertFalse(
-            DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationFactory::class.java
+            DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationMint::class.java
                 .declaredMethods.any { method ->
                     method.parameterTypes.contains(DestructiveArtifactIdentity::class.java)
                 },
@@ -221,7 +222,7 @@ class DestructiveArtifactIdentityTest {
             DestructiveArtifactIdentityExpectation::class.java,
             DestructiveArtifactIdentityMatchProof::class.java,
             DestructiveArtifactIdentityAuthority::class.java,
-            DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationFactory::class.java,
+            DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationMint::class.java,
             TrustedDestructiveArtifactValidationSource::class.java,
         )
         types.forEach { type ->
@@ -272,7 +273,8 @@ class DestructiveArtifactIdentityTest {
         artifactSha256: String,
     ): DestructiveArtifactIdentityExpectation {
         return requireNotNull(
-            DestructiveArtifactIdentityExpectation.issueFromTrustedValidationSource(
+            DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationMint
+                .issueFromTrustedValidationSource(
                 certificateSha256 = certificateSha256,
                 artifactSha256 = artifactSha256,
                 packageName = PACKAGE_NAME,

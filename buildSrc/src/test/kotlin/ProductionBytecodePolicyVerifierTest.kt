@@ -1980,6 +1980,277 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `rogue Kotlin caller cannot mint trusted artifact expectation`() {
+        val classes = compileKotlin(
+            *trustedArtifactExpectationKotlinStubs(),
+            "attack/RogueKotlinArtifactExpectationMint.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.DestructiveArtifactBuildPurpose
+                import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation
+                class RogueKotlinArtifactExpectationMint {
+                    fun forge() {
+                        DestructiveArtifactIdentityExpectation.issueFromTrustedValidationSource(
+                            "aa", "bb", "com.example.app", "com.example.app/Admin",
+                            DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION,
+                        )
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "trusted artifact expectation issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedValidationSource" in it })
+    }
+
+    @Test
+    fun `rogue Kotlin explicit companion cannot mint trusted artifact expectation`() {
+        val classes = compileKotlin(
+            *trustedArtifactExpectationKotlinStubs(),
+            "attack/RogueKotlinNamedCompanionArtifactMint.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.DestructiveArtifactBuildPurpose
+                import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation
+                class RogueKotlinNamedCompanionArtifactMint {
+                    fun forge() {
+                        DestructiveArtifactIdentityExpectation
+                            .TrustedDestructiveArtifactExpectationFactory
+                            .issueFromTrustedValidationSource(
+                                "aa", "bb", "com.example.app", "com.example.app/Admin",
+                                DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION,
+                            )
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "trusted artifact expectation issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedValidationSource" in it })
+    }
+
+    @Test
+    fun `rogue Kotlin caller cannot mint runtime durability`() {
+        val classes = compileKotlin(
+            *runtimeDurabilityKotlinStubs(),
+            "attack/RogueKotlinRuntimeDurabilityMint.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.DestructivePreExecutionDurableStore
+                import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability
+                import com.example.devicemanagement.persistence.DenyOnlyMarkerDurableMedium
+                class RogueKotlinRuntimeDurabilityMint {
+                    fun forge(
+                        medium: DenyOnlyMarkerDurableMedium,
+                        store: DestructivePreExecutionDurableStore,
+                    ) {
+                        RuntimeDestructiveSafetyDurability.issueFromTrustedAndroidStores(medium, store)
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "runtime durability issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedAndroidStores" in it })
+    }
+
+    @Test
+    fun `rogue Kotlin explicit Companion cannot mint runtime durability`() {
+        val classes = compileKotlin(
+            *runtimeDurabilityKotlinStubs(),
+            "attack/RogueKotlinCompanionRuntimeDurabilityMint.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.DestructivePreExecutionDurableStore
+                import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability
+                import com.example.devicemanagement.persistence.DenyOnlyMarkerDurableMedium
+                class RogueKotlinCompanionRuntimeDurabilityMint {
+                    fun forge(
+                        medium: DenyOnlyMarkerDurableMedium,
+                        store: DestructivePreExecutionDurableStore,
+                    ) {
+                        RuntimeDestructiveSafetyDurability.Companion
+                            .issueFromTrustedAndroidStores(medium, store)
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "runtime durability issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedAndroidStores" in it })
+    }
+
+    @Test
+    fun `rogue Kotlin method references cannot mint trusted artifact expectation`() {
+        val classes = compileKotlin(
+            *trustedArtifactExpectationKotlinStubs(),
+            "attack/RogueKotlinArtifactExpectationHandle.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.DestructiveArtifactBuildPurpose
+                import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation
+                class RogueKotlinArtifactExpectationHandle {
+                    fun forge() {
+                        val outer = DestructiveArtifactIdentityExpectation::issueFromTrustedValidationSource
+                        outer(
+                            "aa", "bb", "com.example.app", "com.example.app/Admin",
+                            DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION,
+                        )
+                        val named = DestructiveArtifactIdentityExpectation
+                            .TrustedDestructiveArtifactExpectationFactory::issueFromTrustedValidationSource
+                        named(
+                            "aa", "bb", "com.example.app", "com.example.app/Admin",
+                            DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION,
+                        )
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "trusted artifact expectation issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedValidationSource" in it })
+    }
+
+    @Test
+    fun `rogue Kotlin method references cannot mint runtime durability`() {
+        val classes = compileKotlin(
+            *runtimeDurabilityKotlinStubs(),
+            "attack/RogueKotlinRuntimeDurabilityHandle.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.DestructivePreExecutionDurableStore
+                import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability
+                import com.example.devicemanagement.persistence.DenyOnlyMarkerDurableMedium
+                class RogueKotlinRuntimeDurabilityHandle {
+                    fun forge(
+                        medium: DenyOnlyMarkerDurableMedium,
+                        store: DestructivePreExecutionDurableStore,
+                    ) {
+                        val outer = RuntimeDestructiveSafetyDurability::issueFromTrustedAndroidStores
+                        outer(medium, store)
+                        val companion = RuntimeDestructiveSafetyDurability.Companion::issueFromTrustedAndroidStores
+                        companion(medium, store)
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "runtime durability issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedAndroidStores" in it })
+    }
+
+    @Test
+    fun `rogue Kotlin caller cannot invoke dedicated artifact expectation mint`() {
+        val classes = compileKotlin(
+            *trustedArtifactExpectationKotlinStubs(),
+            "attack/RogueKotlinDedicatedArtifactMint.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.DestructiveArtifactBuildPurpose
+                import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation
+                class RogueKotlinDedicatedArtifactMint {
+                    fun forge() {
+                        DestructiveArtifactIdentityExpectation
+                            .TrustedDestructiveArtifactExpectationMint
+                            .issueFromTrustedValidationSource(
+                                "aa", "bb", "com.example.app", "com.example.app/Admin",
+                                DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION,
+                            )
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "trusted artifact expectation issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedValidationSource" in it })
+    }
+
+    @Test
+    fun `rogue Kotlin caller cannot invoke dedicated runtime durability mint`() {
+        val classes = compileKotlin(
+            *runtimeDurabilityKotlinStubs(),
+            "attack/RogueKotlinDedicatedRuntimeDurabilityMint.kt" to
+                """
+                package attack
+                import com.example.devicemanagement.destructive.DestructivePreExecutionDurableStore
+                import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability
+                import com.example.devicemanagement.persistence.DenyOnlyMarkerDurableMedium
+                class RogueKotlinDedicatedRuntimeDurabilityMint {
+                    fun forge(
+                        medium: DenyOnlyMarkerDurableMedium,
+                        store: DestructivePreExecutionDurableStore,
+                    ) {
+                        RuntimeDestructiveSafetyDurability.RuntimeDestructiveSafetyDurabilityMint
+                            .issueFromTrustedAndroidStores(medium, store)
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "runtime durability issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedAndroidStores" in it })
+    }
+
+    @Test
+    fun `authorized Kotlin validation source may mint trusted artifact expectation`() {
+        val classes = compileKotlin(
+            *trustedArtifactExpectationKotlinStubs(),
+            "com/example/devicemanagement/destructive/TrustedDestructiveArtifactValidationSource.kt" to
+                """
+                package com.example.devicemanagement.destructive
+                object TrustedDestructiveArtifactValidationSource {
+                    fun trustedExpectation(): DestructiveArtifactIdentityExpectation? {
+                        return DestructiveArtifactIdentityExpectation
+                            .TrustedDestructiveArtifactExpectationMint
+                            .issueFromTrustedValidationSource(
+                            "aa", "bb", "com.example.app", "com.example.app/Admin",
+                            DestructiveArtifactBuildPurpose.DISPOSABLE_DEVICE_VALIDATION,
+                        )
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "trusted artifact expectation issuance" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `authorized Kotlin Android factory may mint runtime durability`() {
+        val classes = compileKotlin(
+            *runtimeDurabilityKotlinStubs(),
+            "com/example/devicemanagement/logging/StructuredLogger.kt" to
+                """
+                package com.example.devicemanagement.logging
+                interface StructuredLogger
+                """.trimIndent(),
+            "com/example/devicemanagement/persistence/AndroidDestructiveSafetyPersistence.kt" to
+                """
+                package com.example.devicemanagement.persistence
+                import android.content.Context
+                import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability
+                import com.example.devicemanagement.logging.StructuredLogger
+                object AndroidDestructiveSafetyPersistence {
+                    fun issueRuntimeDurability(
+                        context: Context,
+                        logger: StructuredLogger,
+                    ): RuntimeDestructiveSafetyDurability? {
+                        return RuntimeDestructiveSafetyDurability.RuntimeDestructiveSafetyDurabilityMint
+                            .issueFromTrustedAndroidStores(null, null)
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(
+            violations.none { "runtime durability issuance" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
     fun `recovery class cannot reference human confirmation mint`() {
         val classes = compileJava(
             *humanConfirmationMintStubs(),
@@ -2455,6 +2726,113 @@ class ProductionBytecodePolicyVerifierTest {
         return ProductionBytecodePolicyVerifier.verify(
             ProductionBytecodePolicyVerifier.classTargets(artifact, listOf(classes)),
         )
+    }
+
+    private fun trustedArtifactExpectationKotlinStubs(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/destructive/DestructiveArtifactBuildPurpose.kt" to
+                """
+                package com.example.devicemanagement.destructive
+                enum class DestructiveArtifactBuildPurpose { DISPOSABLE_DEVICE_VALIDATION }
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveArtifactIdentityExpectation.kt" to
+                """
+                package com.example.devicemanagement.destructive
+                class DestructiveArtifactIdentityExpectation {
+                    companion object TrustedDestructiveArtifactExpectationFactory {
+                        @JvmStatic
+                        fun issueFromTrustedValidationSource(
+                            certificateSha256: String,
+                            artifactSha256: String,
+                            packageName: String,
+                            adminComponent: String,
+                            buildPurpose: DestructiveArtifactBuildPurpose,
+                        ): DestructiveArtifactIdentityExpectation? = null
+                    }
+                    object TrustedDestructiveArtifactExpectationMint {
+                        fun issueFromTrustedValidationSource(
+                            certificateSha256: String,
+                            artifactSha256: String,
+                            packageName: String,
+                            adminComponent: String,
+                            buildPurpose: DestructiveArtifactBuildPurpose,
+                        ): DestructiveArtifactIdentityExpectation? = null
+                    }
+                }
+                """.trimIndent(),
+        )
+    }
+
+    private fun runtimeDurabilityKotlinStubs(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/persistence/DenyOnlyMarkerDurableMedium.kt" to
+                """
+                package com.example.devicemanagement.persistence
+                class DenyOnlyMarkerDurableMedium
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructivePreExecutionDurableStore.kt" to
+                """
+                package com.example.devicemanagement.destructive
+                class DestructivePreExecutionDurableStore
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability.kt" to
+                """
+                package com.example.devicemanagement.destructive
+                import com.example.devicemanagement.persistence.DenyOnlyMarkerDurableMedium
+                class RuntimeDestructiveSafetyDurability {
+                    companion object {
+                        @JvmStatic
+                        fun issueFromTrustedAndroidStores(
+                            cooldownMedium: DenyOnlyMarkerDurableMedium?,
+                            preExecutionStore: DestructivePreExecutionDurableStore?,
+                        ): RuntimeDestructiveSafetyDurability? = null
+                    }
+                    object RuntimeDestructiveSafetyDurabilityMint {
+                        fun issueFromTrustedAndroidStores(
+                            cooldownMedium: DenyOnlyMarkerDurableMedium?,
+                            preExecutionStore: DestructivePreExecutionDurableStore?,
+                        ): RuntimeDestructiveSafetyDurability? = null
+                    }
+                }
+                """.trimIndent(),
+        )
+    }
+
+    private fun compileKotlin(vararg sources: Pair<String, String>): File {
+        val root = Files.createTempDirectory("policy-kotlin-fixture").toFile()
+        val sourceRoot = File(root, "src").apply { mkdirs() }
+        val classes = File(root, "classes").apply { mkdirs() }
+        val sourceFiles = sources.map { (path, source) ->
+            val relative = if (path.endsWith(".kt")) path else "$path.kt"
+            File(sourceRoot, relative).apply {
+                parentFile.mkdirs()
+                writeText(source)
+            }
+        }
+        val platform = compileJava()
+        val stdlib = jarOnClasspath(KotlinVersion::class.java)
+        val classpath = listOf(platform.absolutePath, stdlib.absolutePath)
+            .joinToString(File.pathSeparator)
+        val compilerClasspath = System.getProperty("java.class.path")
+        val java = File(System.getProperty("java.home"), "bin/java").absolutePath
+        val command = mutableListOf(
+            java,
+            "-Djava.awt.headless=true",
+            "-cp", compilerClasspath,
+            "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
+            "-d", classes.absolutePath,
+            "-cp", classpath,
+            "-jvm-target", "17",
+        )
+        command.addAll(sourceFiles.map { it.absolutePath })
+        val process = ProcessBuilder(command).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().readText()
+        check(process.waitFor() == 0) { "kotlinc failed:\n$output" }
+        return classes
+    }
+
+    private fun jarOnClasspath(type: Class<*>): File {
+        return File(type.protectionDomain.codeSource.location.toURI())
     }
 
     private fun compileJava(vararg sources: Pair<String, String>): File {

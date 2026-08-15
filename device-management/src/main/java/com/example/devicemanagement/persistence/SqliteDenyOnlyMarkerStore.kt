@@ -312,6 +312,7 @@ internal object AndroidDestructiveSafetyPersistence {
         val medium = openDenyOnlyMedium(context, logger) ?: return null
         val store = openPreExecutionStore(context, logger) ?: return null
         return com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability
+            .RuntimeDestructiveSafetyDurabilityMint
             .issueFromTrustedAndroidStores(medium, store)
     }
 

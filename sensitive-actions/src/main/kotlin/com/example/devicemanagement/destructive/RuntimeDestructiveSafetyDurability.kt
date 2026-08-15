@@ -9,8 +9,8 @@ import com.example.devicemanagement.persistence.TrustedRuntimeDenyOnlyCooldownMa
  *
  * This is not an interface. In-memory and reconstructable test stores cannot
  * implement it or be assigned to it. The only mint path is
- * [RuntimeDestructiveSafetyDurability.issueFromTrustedAndroidStores], which
- * accepts only the trusted Android SQLite medium.
+ * [RuntimeDestructiveSafetyDurabilityMint.issueFromTrustedAndroidStores],
+ * which accepts only the trusted Android SQLite medium.
  *
  * A future real destructive chain must require this type (or the paired
  * [RuntimeDestructiveSafetyDurability]) and must not accept
@@ -41,8 +41,8 @@ class RuntimeDenyOnlyCooldownStore private constructor(
  *
  * This is not an interface. In-memory and unavailable test stores cannot
  * implement it or be assigned to it. The only mint path is
- * [RuntimeDestructiveSafetyDurability.issueFromTrustedAndroidStores], which
- * accepts only the trusted Android SQLite store.
+ * [RuntimeDestructiveSafetyDurabilityMint.issueFromTrustedAndroidStores],
+ * which accepts only the trusted Android SQLite store.
  *
  * A future real destructive chain must require this type (or the paired
  * [RuntimeDestructiveSafetyDurability]) and must not accept
@@ -91,11 +91,26 @@ class RuntimeDestructiveSafetyDurability private constructor(
         const val TRUSTED_PRE_EXECUTION_STORE_CLASS =
             "com.example.devicemanagement.persistence.SqliteDestructivePreExecutionStore"
 
-        /**
-         * Sole mint path for the runtime-durable pair. Production bytecode
-         * allows this call only from AndroidDestructiveSafetyPersistence.
-         */
-        @JvmStatic
+        fun isTrustedCooldownMedium(medium: DenyOnlyMarkerDurableMedium): Boolean {
+            return medium::class.java.name == TRUSTED_COOLDOWN_MEDIUM_CLASS &&
+                medium !is ReconstructableDenyOnlyMarkerMedium
+        }
+
+        fun isTrustedPreExecutionStore(store: DestructivePreExecutionDurableStore): Boolean {
+            return store::class.java.name == TRUSTED_PRE_EXECUTION_STORE_CLASS &&
+                store !is InMemoryDestructivePreExecutionDurableStore &&
+                store !is UnavailableDestructivePreExecutionDurableStore
+        }
+    }
+
+    /**
+     * Sole mint path for the runtime-durable pair. Dedicated Kotlin object
+     * with one JVM owner
+     * (`RuntimeDestructiveSafetyDurability$RuntimeDestructiveSafetyDurabilityMint`).
+     * Not a companion. Production bytecode allows this call only from
+     * AndroidDestructiveSafetyPersistence.
+     */
+    object RuntimeDestructiveSafetyDurabilityMint {
         fun issueFromTrustedAndroidStores(
             cooldownMedium: DenyOnlyMarkerDurableMedium,
             preExecutionStore: DestructivePreExecutionDurableStore,
@@ -109,17 +124,6 @@ class RuntimeDestructiveSafetyDurability private constructor(
                 cooldown = cooldown,
                 preExecution = preExecution,
             )
-        }
-
-        fun isTrustedCooldownMedium(medium: DenyOnlyMarkerDurableMedium): Boolean {
-            return medium::class.java.name == TRUSTED_COOLDOWN_MEDIUM_CLASS &&
-                medium !is ReconstructableDenyOnlyMarkerMedium
-        }
-
-        fun isTrustedPreExecutionStore(store: DestructivePreExecutionDurableStore): Boolean {
-            return store::class.java.name == TRUSTED_PRE_EXECUTION_STORE_CLASS &&
-                store !is InMemoryDestructivePreExecutionDurableStore &&
-                store !is UnavailableDestructivePreExecutionDurableStore
         }
     }
 }

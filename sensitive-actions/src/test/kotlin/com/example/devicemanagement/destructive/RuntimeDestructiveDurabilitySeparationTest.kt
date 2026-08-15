@@ -41,7 +41,8 @@ class RuntimeDestructiveDurabilitySeparationTest {
             inMemory.javaClass.isAssignableFrom(RuntimeDestructivePreExecutionStore::class.java),
         )
         assertNull(
-            RuntimeDestructiveSafetyDurability.issueFromTrustedAndroidStores(
+            RuntimeDestructiveSafetyDurability.RuntimeDestructiveSafetyDurabilityMint
+                .issueFromTrustedAndroidStores(
                 ReconstructableDenyOnlyMarkerMedium(),
                 inMemory,
             ),
@@ -61,7 +62,8 @@ class RuntimeDestructiveDurabilitySeparationTest {
         )
         assertFalse(RuntimeDestructiveSafetyDurability.isTrustedCooldownMedium(medium))
         assertNull(
-            RuntimeDestructiveSafetyDurability.issueFromTrustedAndroidStores(
+            RuntimeDestructiveSafetyDurability.RuntimeDestructiveSafetyDurabilityMint
+                .issueFromTrustedAndroidStores(
                 medium,
                 InMemoryDestructivePreExecutionDurableStore(),
             ),
@@ -79,7 +81,8 @@ class RuntimeDestructiveDurabilitySeparationTest {
         assertFalse(RuntimeDestructiveSafetyDurability.isTrustedCooldownMedium(forgedMedium))
         assertFalse(RuntimeDestructiveSafetyDurability.isTrustedPreExecutionStore(forgedStore))
         assertNull(
-            RuntimeDestructiveSafetyDurability.issueFromTrustedAndroidStores(
+            RuntimeDestructiveSafetyDurability.RuntimeDestructiveSafetyDurabilityMint
+                .issueFromTrustedAndroidStores(
                 forgedMedium,
                 forgedStore,
             ),
@@ -110,6 +113,7 @@ class RuntimeDestructiveDurabilitySeparationTest {
         assertTrue(factory.contains("fun issueRuntimeDurability"))
         assertTrue(factory.contains("RuntimeDestructiveSafetyDurability"))
         assertTrue(factory.contains("issueFromTrustedAndroidStores"))
+        assertTrue(factory.contains("RuntimeDestructiveSafetyDurabilityMint"))
         assertTrue(factory.contains("Not invoked by DeviceManagement composition"))
         assertFalse(factory.contains("wipeDevice"))
         assertFalse(factory.contains("wipeData"))

@@ -362,7 +362,11 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/DestructiveArtifactIdentityAuthority",
         "com/example/devicemanagement/destructive/DestructiveArtifactIdentityExpectation",
         "com/example/devicemanagement/destructive/TrustedDestructiveArtifactExpectationFactory",
+        "com/example/devicemanagement/destructive/DestructiveArtifactIdentityExpectation\$TrustedDestructiveArtifactExpectationMint",
+        "com/example/devicemanagement/destructive/TrustedDestructiveArtifactExpectationMint",
         "com/example/devicemanagement/destructive/TrustedDestructiveArtifactValidationSource",
+        "com/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability\$RuntimeDestructiveSafetyDurabilityMint",
+        "com/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurabilityMint",
         "com/example/devicemanagement/destructive/DestructiveHumanApprovalAuthority",
         "com/example/devicemanagement/destructive/DestructiveHumanApproval",
         "com/example/devicemanagement/destructive/DestructiveHumanConfirmation",
@@ -391,6 +395,8 @@ internal object ProductionBytecodePolicyVerifier {
         "issueRuntimeDurability",
         "issueFromTrustedValidationSource",
         "issueFromTrustedConfirmationSource",
+        "mintFromTrustedAndroidMedium",
+        "mintFromTrustedAndroidStore",
         "issueChallenge",
         "redeem",
         "admit",
@@ -467,27 +473,29 @@ internal object ProductionBytecodePolicyVerifier {
             "Lcom/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability;",
     )
 
-    private val trustedRuntimeDurabilityIssueInvocation =
-        "com/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability." +
-            "issueFromTrustedAndroidStores(" +
-            "Lcom/example/devicemanagement/persistence/DenyOnlyMarkerDurableMedium;" +
-            "Lcom/example/devicemanagement/destructive/DestructivePreExecutionDurableStore;)" +
-            "Lcom/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability;"
-
     private val trustedArtifactExpectationIssueOrigin = InvocationOrigin(
         "com/example/devicemanagement/destructive/TrustedDestructiveArtifactValidationSource",
         "trustedExpectation",
         "()Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentityExpectation;",
     )
 
-    private val trustedArtifactExpectationFactoryOwner =
-        "com/example/devicemanagement/destructive/DestructiveArtifactIdentityExpectation"
-
-    private val trustedHumanConfirmationMintOwner =
-        "com/example/devicemanagement/destructive/DestructiveHumanConfirmationMint"
-
     private val trustedHumanConfirmationAuthorityOwner =
         "com/example/devicemanagement/destructive/DestructiveHumanConfirmationAuthority"
+
+    /**
+     * Trusted mint operations whose security depends on bytecode origin.
+     * Kotlin companions split a single source method across the outer
+     * class, `$Companion`, and a named-companion owner. The verifier
+     * therefore matches these methods by name on every JVM owner,
+     * including method-handle forms.
+     */
+    private val trustedOriginBoundMintNames = setOf(
+        "issueFromTrustedAndroidStores",
+        "issueFromTrustedValidationSource",
+        "issueFromTrustedConfirmationSource",
+        "mintFromTrustedAndroidMedium",
+        "mintFromTrustedAndroidStore",
+    )
 
     private val trustedDestructiveSafetyMutationOrigins = mapOf(
         "com/example/devicemanagement/destructive/DenyOnlyCooldownMarkerStore." +
@@ -937,24 +945,7 @@ internal object ProductionBytecodePolicyVerifier {
             descriptor: String,
             location: String,
         ) {
-            val invocation = "$owner.$name$descriptor"
-            if (invocation != trustedRuntimeDurabilityIssueInvocation) {
-                return
-            }
-            val actualOrigin = InvocationOrigin(
-                className,
-                methodName(location),
-                methodDescriptor(location),
-            )
-            if (
-                target.artifactPath != ":device-management-impl" ||
-                actualOrigin != trustedRuntimeDurabilityIssueOrigin
-            ) {
-                violation(
-                    "$location invokes runtime durability issuance $invocation outside " +
-                        "AndroidDestructiveSafetyPersistence",
-                )
-            }
+            checkTrustedOriginBoundMint(owner, name, descriptor, location)
         }
 
         private fun checkTrustedArtifactExpectationIssueInvocation(
@@ -963,26 +954,7 @@ internal object ProductionBytecodePolicyVerifier {
             descriptor: String,
             location: String,
         ) {
-            if (owner != trustedArtifactExpectationFactoryOwner ||
-                name != "issueFromTrustedValidationSource"
-            ) {
-                return
-            }
-            val invocation = "$owner.$name$descriptor"
-            val actualOrigin = InvocationOrigin(
-                className,
-                methodName(location),
-                methodDescriptor(location),
-            )
-            if (
-                target.artifactPath != ":sensitive-actions" ||
-                actualOrigin != trustedArtifactExpectationIssueOrigin
-            ) {
-                violation(
-                    "$location invokes trusted artifact expectation issuance $invocation " +
-                        "outside TrustedDestructiveArtifactValidationSource",
-                )
-            }
+            checkTrustedOriginBoundMint(owner, name, descriptor, location)
         }
 
         private fun checkTrustedHumanConfirmationMintInvocation(
@@ -991,22 +963,89 @@ internal object ProductionBytecodePolicyVerifier {
             descriptor: String,
             location: String,
         ) {
-            if (owner != trustedHumanConfirmationMintOwner ||
-                name != "issueFromTrustedConfirmationSource"
-            ) {
+            checkTrustedOriginBoundMint(owner, name, descriptor, location)
+        }
+
+        private fun checkTrustedOriginBoundMint(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            if (name !in trustedOriginBoundMintNames) {
                 return
             }
             val invocation = "$owner.$name$descriptor"
-            if (
-                target.artifactPath != ":sensitive-actions" ||
-                className != trustedHumanConfirmationAuthorityOwner ||
-                methodName(location) != "confirm"
-            ) {
-                violation(
-                    "$location invokes human confirmation issuance $invocation outside " +
-                        "DestructiveHumanConfirmationAuthority",
-                )
+            val actualOrigin = InvocationOrigin(
+                className,
+                methodName(location),
+                methodDescriptor(location),
+            )
+            val callerMethod = methodName(location)
+            val authorized = isKotlinMintBridge(owner, name, className, callerMethod) ||
+                when (name) {
+                    "issueFromTrustedAndroidStores" -> {
+                        target.artifactPath == ":device-management-impl" &&
+                            actualOrigin == trustedRuntimeDurabilityIssueOrigin
+                    }
+                    "mintFromTrustedAndroidMedium",
+                    "mintFromTrustedAndroidStore",
+                    -> isRuntimeDurabilityMintMethod(className, callerMethod)
+                    "issueFromTrustedValidationSource" -> {
+                        target.artifactPath == ":sensitive-actions" &&
+                            actualOrigin == trustedArtifactExpectationIssueOrigin
+                    }
+                    "issueFromTrustedConfirmationSource" -> {
+                        target.artifactPath == ":sensitive-actions" &&
+                            className == trustedHumanConfirmationAuthorityOwner &&
+                            callerMethod == "confirm"
+                    }
+                    else -> false
+                }
+            if (authorized) {
+                return
             }
+            val label = when (name) {
+                "issueFromTrustedAndroidStores",
+                "mintFromTrustedAndroidMedium",
+                "mintFromTrustedAndroidStore",
+                -> "runtime durability issuance"
+                "issueFromTrustedValidationSource" -> "trusted artifact expectation issuance"
+                "issueFromTrustedConfirmationSource" -> "human confirmation issuance"
+                else -> "trusted mint issuance"
+            }
+            val required = when (name) {
+                "issueFromTrustedAndroidStores",
+                "mintFromTrustedAndroidMedium",
+                "mintFromTrustedAndroidStore",
+                -> "AndroidDestructiveSafetyPersistence"
+                "issueFromTrustedValidationSource" -> "TrustedDestructiveArtifactValidationSource"
+                "issueFromTrustedConfirmationSource" -> "DestructiveHumanConfirmationAuthority"
+                else -> "the trusted mint origin"
+            }
+            violation("$location invokes $label $invocation outside $required")
+        }
+
+        private fun isKotlinMintBridge(
+            calleeOwner: String,
+            calleeName: String,
+            callerClass: String,
+            callerMethod: String,
+        ): Boolean {
+            if (calleeName != callerMethod) {
+                return false
+            }
+            return calleeOwner.startsWith("$callerClass\$")
+        }
+
+        private fun isRuntimeDurabilityMintMethod(owner: String, method: String): Boolean {
+            return method == "issueFromTrustedAndroidStores" &&
+                (
+                    owner == "com/example/devicemanagement/destructive/" +
+                        "RuntimeDestructiveSafetyDurability\$RuntimeDestructiveSafetyDurabilityMint" ||
+                        owner == "com/example/devicemanagement/destructive/" +
+                        "RuntimeDestructiveSafetyDurabilityMint"
+                    )
         }
 
         private fun checkTrustedHumanConfirmationConfirmInvocation(

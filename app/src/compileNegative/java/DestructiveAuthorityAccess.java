@@ -25,10 +25,11 @@ import com.example.devicemanagement.persistence.AndroidDestructiveSafetyPersiste
 import com.example.devicemanagement.destructive.RuntimeDenyOnlyCooldownStore;
 import com.example.devicemanagement.destructive.RuntimeDestructivePreExecutionStore;
 import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability;
+import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability.RuntimeDestructiveSafetyDurabilityMint;
 import com.example.devicemanagement.destructive.DestructiveArtifactIdentity;
 import com.example.devicemanagement.destructive.DestructiveArtifactIdentityAuthority;
 import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation;
-import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationFactory;
+import com.example.devicemanagement.destructive.DestructiveArtifactIdentityExpectation.TrustedDestructiveArtifactExpectationMint;
 import com.example.devicemanagement.destructive.TrustedDestructiveArtifactValidationSource;
 import com.example.devicemanagement.destructive.DestructiveHumanApproval;
 import com.example.devicemanagement.destructive.DestructiveHumanApprovalAuthority;
@@ -63,10 +64,11 @@ final class DestructiveAuthorityAccess {
     RuntimeDenyOnlyCooldownStore runtimeCooldown;
     RuntimeDestructivePreExecutionStore runtimePreExecution;
     RuntimeDestructiveSafetyDurability runtimeDurability;
+    RuntimeDestructiveSafetyDurabilityMint runtimeDurabilityMint;
     DestructiveArtifactIdentity artifactIdentity;
     DestructiveArtifactIdentityAuthority artifactIdentityAuthority;
     DestructiveArtifactIdentityExpectation artifactIdentityExpectation;
-    TrustedDestructiveArtifactExpectationFactory trustedArtifactExpectationFactory;
+    TrustedDestructiveArtifactExpectationMint trustedArtifactExpectationMint;
     TrustedDestructiveArtifactValidationSource trustedArtifactValidationSource;
     DestructiveHumanApproval humanApproval;
     DestructiveHumanApprovalAuthority humanApprovalAuthority;

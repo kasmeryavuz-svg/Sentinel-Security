@@ -50,6 +50,8 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("issueChallenge"))
         assertFalse(composition.contains("issueFromTrustedConfirmationSource"))
         assertFalse(composition.contains("issueFromTrustedValidationSource"))
+        assertFalse(composition.contains("RuntimeDestructiveSafetyDurabilityMint"))
+        assertFalse(composition.contains("TrustedDestructiveArtifactExpectationMint"))
     }
 
     @Test

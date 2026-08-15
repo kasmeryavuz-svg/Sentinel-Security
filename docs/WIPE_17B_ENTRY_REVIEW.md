@@ -113,10 +113,12 @@ being forced to use those components. 17B now separates the two:
 It is not an interface. In-memory, reconstructable, unavailable, and
 any other caller-supplied persistence cannot implement it or be
 assigned to it. The only mint path is
-`RuntimeDestructiveSafetyDurability.issueFromTrustedAndroidStores`,
+`RuntimeDestructiveSafetyDurabilityMint.issueFromTrustedAndroidStores`,
 which accepts only the exact Android classes
 `SqliteDenyOnlyMarkerStore` and `SqliteDestructivePreExecutionStore`.
-Production bytecode allows that mint only from
+The mint is a dedicated Kotlin object with one JVM owner, not a
+companion. Production bytecode allows that mint, on every JVM owner
+and method-handle form, only from
 `AndroidDestructiveSafetyPersistence.issueRuntimeDurability`.
 
 That factory remains **unwired** from `DeviceManagement.create` and
@@ -282,9 +284,11 @@ Missing, malformed, all-zero, or mismatched values fail closed. Observed
 identity is a separate type from trusted expected identity. A caller-
 created `DestructiveArtifactIdentity` cannot become a trusted
 expectation. The only mint path is
-`TrustedDestructiveArtifactExpectationFactory.issueFromTrustedValidationSource`,
-which does not accept an observed identity. Production bytecode allows
-that mint only from `TrustedDestructiveArtifactValidationSource`, which
+`TrustedDestructiveArtifactExpectationMint.issueFromTrustedValidationSource`,
+which does not accept an observed identity. The mint is a dedicated
+Kotlin object with one JVM owner, not a companion. Production bytecode
+allows that mint, on every JVM owner and method-handle form, only from
+`TrustedDestructiveArtifactValidationSource`, which
 returns null because no disposable-device artifact hash is recorded.
 `UnwiredDestructiveArtifactIdentitySource` also returns no expectation.
 Callers cannot select the trusted digest at admit time. Ordinary
