@@ -2621,6 +2621,29 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `recovery class cannot reference Checkpoint 19G decision`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/Checkpoint19GDecision.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class Checkpoint19GDecision {}
+                """.trimIndent(),
+            "com/example/devicemanagement/recovery/RogueRecoveryCheckpoint19G.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.destructive.Checkpoint19GDecision;
+                public final class RogueRecoveryCheckpoint19G {
+                    Checkpoint19GDecision decision;
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "Checkpoint19GDecision" in it })
+    }
+
+    @Test
     fun `rogue caller cannot mint trusted artifact expectation`() {
         val classes = compileJava(
             *trustedArtifactExpectationStubs(),

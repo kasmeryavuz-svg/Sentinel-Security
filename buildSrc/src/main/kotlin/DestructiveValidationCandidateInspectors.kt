@@ -21,8 +21,6 @@ object DestructiveValidationCandidateInspectors {
     private val targetSdk = Regex("""targetSdkVersion:'([^']+)'""")
     private val xmlName = Regex("""android:name[^=]*="([^"]+)"""")
     private val xmlElement = Regex("""^(\s*)E:\s+([A-Za-z0-9_.-]+)\b""")
-    private const val BUILD_PURPOSE_ENTRY = "META-INF/sentinel-destructive-build-purpose"
-
     fun inspectSigning(
         apk: File,
         androidSdkDir: File?,
@@ -94,12 +92,24 @@ object DestructiveValidationCandidateInspectors {
     ): DestructiveValidationCandidateEvidence.CandidateApkIdentity {
         val aapt2 = locateAapt2(androidSdkDir)
         if (aapt2 == null) {
-            return unavailableIdentity(aapt2Available = false, detail = "aapt2 unavailable")
+            return unavailableIdentity(
+                aapt2Available = false,
+                detail = "aapt2 unavailable",
+                buildPurposeStatus = DestructiveValidationBuildPurposeParser.STATUS_UNINSPECTABLE,
+            )
         }
         val badging = runCommand(listOf(aapt2.absolutePath, "dump", "badging", apk.absolutePath))
-            ?: return unavailableIdentity(aapt2Available = true, detail = "aapt2 badging failed")
+            ?: return unavailableIdentity(
+                aapt2Available = true,
+                detail = "aapt2 badging failed",
+                buildPurposeStatus = DestructiveValidationBuildPurposeParser.STATUS_UNINSPECTABLE,
+            )
         if (badging.exitCode != 0) {
-            return unavailableIdentity(aapt2Available = true, detail = "aapt2 badging exit ${badging.exitCode}")
+            return unavailableIdentity(
+                aapt2Available = true,
+                detail = "aapt2 badging exit ${badging.exitCode}",
+                buildPurposeStatus = DestructiveValidationBuildPurposeParser.STATUS_UNINSPECTABLE,
+            )
         }
         val pkg = packageName.find(badging.output)?.groupValues?.get(1)
         val observedVersionCode = versionCode.find(badging.output)?.groupValues?.get(1)
@@ -132,6 +142,11 @@ object DestructiveValidationCandidateInspectors {
         val policies = policiesDump
             ?.takeIf { it.exitCode == 0 }
             ?.let { extractPolicies(it.output) }
+        val purpose = if (manifest == null || manifest.exitCode != 0) {
+            DestructiveValidationBuildPurposeParser.uninspectable("aapt2 manifest xmltree failed")
+        } else {
+            inspectObservedBuildPurpose(manifest.output)
+        }
         return DestructiveValidationCandidateEvidence.CandidateApkIdentity(
             packageName = pkg,
             adminComponent = admin,
@@ -140,9 +155,10 @@ object DestructiveValidationCandidateInspectors {
             versionName = observedVersionName,
             minSdk = observedMinSdk,
             targetSdk = observedTargetSdk,
-            buildPurposeObserved = inspectObservedBuildPurpose(apk),
+            buildPurposeObserved = purpose.observed,
+            buildPurposeStatus = purpose.status,
             aapt2Available = true,
-            detail = "aapt2 inspected",
+            detail = "aapt2 inspected;${purpose.detail}",
         )
     }
 
@@ -160,24 +176,10 @@ object DestructiveValidationCandidateInspectors {
         )
     }
 
-    fun inspectObservedBuildPurpose(apk: File): String? {
-        return try {
-            java.util.jar.JarFile(apk, false).use { jar ->
-                val entry = jar.getEntry(BUILD_PURPOSE_ENTRY) ?: return null
-                if (entry.isDirectory) {
-                    return null
-                }
-                jar.getInputStream(entry).bufferedReader().use { it.readText() }
-                    .trim()
-                    .takeIf { candidate ->
-                        candidate.isNotEmpty() &&
-                            '\n' !in candidate &&
-                            candidate.length <= 128
-                    }
-            }
-        } catch (_: Exception) {
-            null
-        }
+    fun inspectObservedBuildPurpose(
+        manifestXmltree: String,
+    ): DestructiveValidationBuildPurposeParser.Observation {
+        return DestructiveValidationBuildPurposeParser.parse(manifestXmltree)
     }
 
     fun captureGit(projectRoot: File?): DestructiveValidationCandidateEvidence.GitProvenance {
@@ -449,6 +451,7 @@ object DestructiveValidationCandidateInspectors {
     private fun unavailableIdentity(
         aapt2Available: Boolean,
         detail: String,
+        buildPurposeStatus: String = DestructiveValidationBuildPurposeParser.STATUS_UNAVAILABLE,
     ): DestructiveValidationCandidateEvidence.CandidateApkIdentity {
         return DestructiveValidationCandidateEvidence.CandidateApkIdentity(
             packageName = null,
@@ -459,6 +462,7 @@ object DestructiveValidationCandidateInspectors {
             minSdk = null,
             targetSdk = null,
             buildPurposeObserved = null,
+            buildPurposeStatus = buildPurposeStatus,
             aapt2Available = aapt2Available,
             detail = detail,
         )

@@ -18,6 +18,10 @@ object DestructiveValidationCandidateEvidence {
     const val CANDIDATE_APK_PROPERTY = "sentinel.destructiveValidationCandidateApk"
     const val GENERATE_TASK_PATH = ":app:generateDestructiveValidationCandidateEvidence"
     const val UNSIGNED_PROOF_TASK_PATH = ":app:checkUnsignedDestructiveValidationCandidateEvidence"
+    const val DISPOSABLE_VALIDATION_PROOF_TASK_PATH =
+        ":app:checkUnsignedDisposableValidationBuildPurposeEvidence"
+    const val DISPOSABLE_PURPOSE_REPORT_RELATIVE_PATH =
+        "app/build/reports/destructive-validation-disposable-purpose.txt"
     const val SNAPSHOT_FILE_NAME = "immutable-candidate-snapshot.apk"
 
     enum class Signing {
@@ -51,6 +55,11 @@ object DestructiveValidationCandidateEvidence {
         val minSdk: String?,
         val targetSdk: String?,
         val buildPurposeObserved: String? = null,
+        val buildPurposeStatus: String = if (buildPurposeObserved != null) {
+            DestructiveValidationBuildPurposeParser.STATUS_OBSERVED
+        } else {
+            DestructiveValidationBuildPurposeParser.STATUS_UNAVAILABLE
+        },
         val aapt2Available: Boolean,
         val detail: String,
     )
@@ -101,6 +110,7 @@ object DestructiveValidationCandidateEvidence {
         val artifactEmbeddedRevision: String,
         val buildPurposeExpected: String,
         val buildPurposeObserved: String?,
+        val buildPurposeStatus: String,
         val expectedCertificateConfigured: Boolean,
         val signerCount: Int,
         val signerCountReliable: Boolean,
@@ -153,6 +163,7 @@ object DestructiveValidationCandidateEvidence {
                 appendLine(
                     "build_purpose_matches=${buildPurposeObserved != null && buildPurposeObserved == buildPurposeExpected}",
                 )
+                appendLine("build_purpose_status=$buildPurposeStatus")
                 appendLine("expected_certificate_configured=$expectedCertificateConfigured")
                 appendLine("signer_count=$signerCount")
                 appendLine("signer_count_reliable=$signerCountReliable")
@@ -395,10 +406,20 @@ object DestructiveValidationCandidateEvidence {
         } else if (identity.targetSdk != expected.targetSdk.toString()) {
             reasons += "target_sdk_mismatch"
         }
-        if (identity.buildPurposeObserved.isNullOrBlank()) {
-            reasons += "build_purpose_unavailable"
-        } else if (identity.buildPurposeObserved != expected.buildPurpose) {
-            reasons += "build_purpose_mismatch"
+        when (identity.buildPurposeStatus) {
+            DestructiveValidationBuildPurposeParser.STATUS_DUPLICATE ->
+                reasons += "build_purpose_duplicate"
+            DestructiveValidationBuildPurposeParser.STATUS_MALFORMED ->
+                reasons += "build_purpose_malformed"
+            DestructiveValidationBuildPurposeParser.STATUS_UNINSPECTABLE ->
+                reasons += "build_purpose_uninspectable"
+            else -> {
+                if (identity.buildPurposeObserved.isNullOrBlank()) {
+                    reasons += "build_purpose_unavailable"
+                } else if (identity.buildPurposeObserved != expected.buildPurpose) {
+                    reasons += "build_purpose_mismatch"
+                }
+            }
         }
         if (!identity.aapt2Available) {
             reasons += "aapt2_unavailable"
@@ -440,6 +461,7 @@ object DestructiveValidationCandidateEvidence {
             artifactEmbeddedRevision = git.artifactEmbeddedRevision,
             buildPurposeExpected = expected.buildPurpose,
             buildPurposeObserved = identity.buildPurposeObserved,
+            buildPurposeStatus = identity.buildPurposeStatus,
             expectedCertificateConfigured = !expected.expectedCertificateSha256.isNullOrBlank(),
             signerCount = signing.signerCount,
             signerCountReliable = signing.signerCountReliable,
@@ -483,6 +505,54 @@ object DestructiveValidationCandidateEvidence {
         }
     }
 
+    fun assertDisposableValidationUnsignedIneligibleProof(
+        report: CandidateEvidenceReport,
+    ) {
+        check(report.authority == AUTHORITY) {
+            "candidate authority must remain $AUTHORITY"
+        }
+        check(!report.runtimeAuthorization) {
+            "candidate evidence must not become runtime authorization"
+        }
+        check(!report.trustedExpectationMinted) {
+            "candidate evidence must not mint a trusted expectation"
+        }
+        check(!report.productionSigningEnabled) {
+            "candidate evidence must not enable production signing"
+        }
+        check(!report.hardwareValidationApproved) {
+            "candidate evidence must not approve hardware validation"
+        }
+        check(report.candidateStatus == "INELIGIBLE") {
+            "disposable-validation candidate must remain INELIGIBLE"
+        }
+        check(report.signing == Signing.UNSIGNED) {
+            "disposable-validation candidate signing must be UNSIGNED"
+        }
+        check(!report.expectedCertificateConfigured) {
+            "candidate inspection must not configure an expected production certificate"
+        }
+        check(
+            report.buildPurposeObserved ==
+                DestructiveValidationExpectedIdentity.BUILD_PURPOSE_DISPOSABLE_DEVICE_VALIDATION,
+        ) {
+            "disposable-validation APK must expose the observed build purpose"
+        }
+        check(
+            report.buildPurposeStatus == DestructiveValidationBuildPurposeParser.STATUS_OBSERVED,
+        ) {
+            "disposable-validation build purpose must be independently observed"
+        }
+        check(
+            report.buildPurposeObserved == report.buildPurposeExpected,
+        ) {
+            "disposable-validation observed purpose must match the expected contract value"
+        }
+        check(!report.inspectionRevisionProvesApkOrigin) {
+            "inspection checkout revision must not be claimed as APK origin"
+        }
+    }
+
     fun findUnsignedReleaseApk(directory: File): File {
         val apks = directory.walkTopDown()
             .filter { it.isFile && it.extension.equals("apk", ignoreCase = true) }
@@ -493,6 +563,24 @@ object DestructiveValidationCandidateEvidence {
                 "found ${apks.map { it.name }}"
         }
         val apk = unsigned.single()
+        acceptCandidateFile(apk)
+        rejectSymlinkPath(apk)
+        return apk
+    }
+
+    fun findUnsignedDisposableValidationApk(directory: File): File {
+        val apks = directory.walkTopDown()
+            .filter { it.isFile && it.extension.equals("apk", ignoreCase = true) }
+            .toList()
+        val dedicated = apks.filter { apk ->
+            val name = apk.name.lowercase()
+            "disposablevalidation" in name && "unsigned" in name
+        }
+        check(dedicated.size == 1 && dedicated.single().isFile) {
+            "Disposable-validation proof requires exactly one unsigned " +
+                "disposableValidation APK; found ${apks.map { it.name }}"
+        }
+        val apk = dedicated.single()
         acceptCandidateFile(apk)
         rejectSymlinkPath(apk)
         return apk

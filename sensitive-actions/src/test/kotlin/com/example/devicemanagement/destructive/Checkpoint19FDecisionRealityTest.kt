@@ -80,6 +80,7 @@ class Checkpoint19FDecisionRealityTest {
         ).readText()
         listOf(
             "Checkpoint19FDecision",
+            "Checkpoint19GDecision",
             "DestructiveValidationCandidateEvidence",
             "destructive-validation-candidate.txt",
             "sentinel.destructiveValidationCandidateApk",
@@ -102,6 +103,7 @@ class Checkpoint19FDecisionRealityTest {
             .filter { it.isFile && it.extension == "kt" }
             .joinToString("\n") { it.readText() }
         assertTrue(sources.contains("Checkpoint19FDecision"))
+        assertTrue(sources.contains("Checkpoint19GDecision"))
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("import android.app." + "admin.DevicePolicyManager"))

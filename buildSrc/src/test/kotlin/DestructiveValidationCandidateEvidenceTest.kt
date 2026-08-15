@@ -51,6 +51,7 @@ class DestructiveValidationCandidateEvidenceTest {
         assertTrue(rendered.contains("build_purpose_expected=DISPOSABLE_DEVICE_VALIDATION"))
         assertTrue(rendered.contains("build_purpose_observed=UNAVAILABLE"))
         assertTrue(rendered.contains("build_purpose_matches=false"))
+        assertTrue(rendered.contains("build_purpose_status=UNAVAILABLE"))
         assertFalse(rendered.contains("\nbuild_purpose=DISPOSABLE_DEVICE_VALIDATION"))
         assertTrue(rendered.contains("inspection_git_revision=UNAVAILABLE"))
         assertTrue(rendered.contains("inspection_worktree=UNAVAILABLE"))
@@ -227,6 +228,39 @@ class DestructiveValidationCandidateEvidenceTest {
         assertEquals("INELIGIBLE", mismatched.candidateStatus)
         assertTrue(mismatched.ineligibilityReasons.contains("build_purpose_mismatch"))
         assertTrue(mismatched.render().contains("build_purpose_matches=false"))
+        assertEquals("SOMETHING_ELSE", mismatched.buildPurposeObserved)
+        assertEquals(
+            "DISPOSABLE_DEVICE_VALIDATION",
+            mismatched.buildPurposeExpected,
+        )
+
+        val duplicate = evaluateFullyMatchingFixture(
+            identity = matchingIdentity().copy(
+                buildPurposeObserved = null,
+                buildPurposeStatus = DestructiveValidationBuildPurposeParser.STATUS_DUPLICATE,
+            ),
+        )
+        assertEquals("INELIGIBLE", duplicate.candidateStatus)
+        assertTrue(duplicate.ineligibilityReasons.contains("build_purpose_duplicate"))
+        assertNull(duplicate.buildPurposeObserved)
+
+        val malformed = evaluateFullyMatchingFixture(
+            identity = matchingIdentity().copy(
+                buildPurposeObserved = null,
+                buildPurposeStatus = DestructiveValidationBuildPurposeParser.STATUS_MALFORMED,
+            ),
+        )
+        assertEquals("INELIGIBLE", malformed.candidateStatus)
+        assertTrue(malformed.ineligibilityReasons.contains("build_purpose_malformed"))
+
+        val uninspectable = evaluateFullyMatchingFixture(
+            identity = matchingIdentity().copy(
+                buildPurposeObserved = null,
+                buildPurposeStatus = DestructiveValidationBuildPurposeParser.STATUS_UNINSPECTABLE,
+            ),
+        )
+        assertEquals("INELIGIBLE", uninspectable.candidateStatus)
+        assertTrue(uninspectable.ineligibilityReasons.contains("build_purpose_uninspectable"))
     }
 
     @Test
@@ -247,7 +281,9 @@ class DestructiveValidationCandidateEvidenceTest {
         assertTrue(report.signerCountReliable)
         assertEquals(1, report.signerCount)
         assertEquals("DISPOSABLE_DEVICE_VALIDATION", report.buildPurposeObserved)
+        assertEquals(DestructiveValidationBuildPurposeParser.STATUS_OBSERVED, report.buildPurposeStatus)
         assertTrue(report.render().contains("build_purpose_matches=true"))
+        assertTrue(report.render().contains("build_purpose_status=OBSERVED"))
         assertFalse(report.inspectionRevisionProvesApkOrigin)
         assertEquals("CHECKOUT", report.inspectionRevisionSource)
         assertEquals("UNAVAILABLE", report.artifactEmbeddedRevision)
@@ -543,19 +579,51 @@ class DestructiveValidationCandidateEvidenceTest {
     }
 
     @Test
-    fun `observed build purpose is read only from an inspectable apk marker`() {
-        val root = Files.createTempDirectory("candidate-purpose").toFile()
+    fun `loose zip marker is not treated as observed build purpose`() {
+        val xmltree = """
+            E: application (line=4)
+              E: meta-data (line=10)
+                A: android:name(0x01010003)="android.app.device_admin" (Raw: "android.app.device_admin")
+        """.trimIndent()
+        val parsed = DestructiveValidationCandidateInspectors.inspectObservedBuildPurpose(xmltree)
+        assertEquals(DestructiveValidationBuildPurposeParser.STATUS_UNAVAILABLE, parsed.status)
+        assertNull(parsed.observed)
+        assertFalse(parsed.observed == "DISPOSABLE_DEVICE_VALIDATION")
+    }
+
+    @Test
+    fun `unsigned matching purpose remains ineligible without a certificate or trust`() {
+        val report = inspect(
+            signing = unsignedSigning(),
+            identity = matchingIdentity().copy(
+                buildPurposeObserved = "DISPOSABLE_DEVICE_VALIDATION",
+                buildPurposeStatus = DestructiveValidationBuildPurposeParser.STATUS_OBSERVED,
+            ),
+        )
+        assertEquals("INELIGIBLE", report.candidateStatus)
+        assertEquals(DestructiveValidationCandidateEvidence.Signing.UNSIGNED, report.signing)
+        assertEquals("DISPOSABLE_DEVICE_VALIDATION", report.buildPurposeObserved)
+        assertTrue(report.render().contains("build_purpose_matches=true"))
+        assertFalse(report.expectedCertificateConfigured)
+        assertFalse(report.trustedExpectationMinted)
+        assertFalse(report.runtimeAuthorization)
+        assertTrue(report.ineligibilityReasons.contains("expected_certificate_unconfigured"))
+        assertTrue(report.ineligibilityReasons.contains("signing=UNSIGNED"))
+        DestructiveValidationCandidateEvidence.assertDisposableValidationUnsignedIneligibleProof(report)
+    }
+
+    @Test
+    fun `findUnsignedDisposableValidationApk accepts only the dedicated unsigned apk`() {
+        val root = Files.createTempDirectory("candidate-disposable").toFile()
         try {
-            val unmarked = writeZipApk(File(root, "unmarked.apk"))
-            assertNull(DestructiveValidationCandidateInspectors.inspectObservedBuildPurpose(unmarked))
-            val marked = writeZipApk(
-                File(root, "marked.apk"),
-                extraEntry = "META-INF/sentinel-destructive-build-purpose" to
-                    "DISPOSABLE_DEVICE_VALIDATION",
-            )
+            writeZipApk(File(root, "app-release-unsigned.apk"))
+            assertFailsWith<IllegalStateException> {
+                DestructiveValidationCandidateEvidence.findUnsignedDisposableValidationApk(root)
+            }
+            val dedicated = writeZipApk(File(root, "app-disposableValidation-unsigned.apk"))
             assertEquals(
-                "DISPOSABLE_DEVICE_VALIDATION",
-                DestructiveValidationCandidateInspectors.inspectObservedBuildPurpose(marked),
+                dedicated.name,
+                DestructiveValidationCandidateEvidence.findUnsignedDisposableValidationApk(root).name,
             )
         } finally {
             root.deleteRecursively()
@@ -625,6 +693,7 @@ class DestructiveValidationCandidateEvidenceTest {
         identity: DestructiveValidationCandidateEvidence.CandidateApkIdentity =
             matchingIdentity().copy(
                 buildPurposeObserved = "DISPOSABLE_DEVICE_VALIDATION",
+                buildPurposeStatus = DestructiveValidationBuildPurposeParser.STATUS_OBSERVED,
             ),
         git: DestructiveValidationCandidateEvidence.GitProvenance =
             DestructiveValidationCandidateEvidence.GitProvenance(

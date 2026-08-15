@@ -130,6 +130,9 @@ class Checkpoint19EIndependentCiFreezeTest {
             source.contains("com/example/devicemanagement/destructive/Checkpoint19FDecision"),
         )
         assertTrue(
+            source.contains("com/example/devicemanagement/destructive/Checkpoint19GDecision"),
+        )
+        assertTrue(
             source.contains("com/example/devicemanagement/destructive/Checkpoint19DDecision"),
         )
         val allowlistBlock = source

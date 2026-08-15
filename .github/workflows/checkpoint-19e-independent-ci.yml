@@ -124,6 +124,7 @@ jobs:
             assembleDebug \
             assembleRelease \
             :app:checkUnsignedDestructiveValidationCandidateEvidence \
+            :app:checkUnsignedDisposableValidationBuildPurposeEvidence \
             bundleRelease \
             checkReleaseProductionSecurity \
             checkReleaseBundleProductionSecurity \
@@ -154,3 +155,22 @@ jobs:
           grep -qx 'trusted_expectation_minted=false' "${candidate_report}"
           grep -qx 'production_signing_enabled=false' "${candidate_report}"
           grep -qx 'hardware_validation_approved=false' "${candidate_report}"
+          grep -qx 'build_purpose_observed=UNAVAILABLE' "${candidate_report}"
+
+      - name: Prove the disposable-validation APK exposes purpose and stays ineligible
+        run: |
+          set -eu
+          purpose_report=app/build/reports/destructive-validation-disposable-purpose.txt
+          test -f "${purpose_report}"
+          grep -qx 'authority=UNTRUSTED_CANDIDATE_ONLY' "${purpose_report}"
+          grep -qx 'candidate_status=INELIGIBLE' "${purpose_report}"
+          grep -qx 'signing=UNSIGNED' "${purpose_report}"
+          grep -qx 'runtime_authorization=false' "${purpose_report}"
+          grep -qx 'trusted_expectation_minted=false' "${purpose_report}"
+          grep -qx 'expected_certificate_configured=false' "${purpose_report}"
+          grep -qx 'production_signing_enabled=false' "${purpose_report}"
+          grep -qx 'hardware_validation_approved=false' "${purpose_report}"
+          grep -qx 'build_purpose_expected=DISPOSABLE_DEVICE_VALIDATION' "${purpose_report}"
+          grep -qx 'build_purpose_observed=DISPOSABLE_DEVICE_VALIDATION' "${purpose_report}"
+          grep -qx 'build_purpose_matches=true' "${purpose_report}"
+          test ! -e app/build/tmp/destructive-validation-disposable-purpose-snapshot/immutable-candidate-snapshot.apk

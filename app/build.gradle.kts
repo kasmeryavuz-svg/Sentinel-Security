@@ -145,6 +145,27 @@ android {
                 signingConfig = signingConfigs.getByName("production")
             }
         }
+        create(DestructiveValidationExpectedIdentity.DISPOSABLE_VALIDATION_BUILD_TYPE) {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            signingConfig = null
+            isDebuggable = false
+            isJniDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isProfileable = false
+        }
+    }
+
+    val disposableValidationSigning = buildTypes
+        .getByName(DestructiveValidationExpectedIdentity.DISPOSABLE_VALIDATION_BUILD_TYPE)
+        .signingConfig
+    check(disposableValidationSigning == null) {
+        "disposableValidation must remain unsigned even if production-signing " +
+            "environment variables are present"
+    }
+    check(signingConfigs.findByName("debug") !== disposableValidationSigning) {
+        "disposableValidation must not use the Android debug signing key"
     }
 
     compileOptions {
@@ -757,12 +778,42 @@ androidComponents {
                     "Effective $variantName DeviceAdmin receiver actions changed: " +
                         enableActions
                 }
+                val purposeMetadata = manifest.getElementsByTagName("meta-data")
+                    .elements()
+                    .filter {
+                        it.getAttributeNS(androidNamespace, "name") ==
+                            DestructiveValidationExpectedIdentity.BUILD_PURPOSE_METADATA_NAME
+                    }
+                if (
+                    variantName ==
+                    DestructiveValidationExpectedIdentity.DISPOSABLE_VALIDATION_BUILD_TYPE
+                ) {
+                    check(purposeMetadata.size == 1) {
+                        "Effective $variantName manifest must contain exactly one " +
+                            "disposable-validation build-purpose metadata entry; " +
+                            "found ${purposeMetadata.size}"
+                    }
+                    check(
+                        purposeMetadata.single().getAttributeNS(androidNamespace, "value") ==
+                            DestructiveValidationExpectedIdentity
+                                .BUILD_PURPOSE_DISPOSABLE_DEVICE_VALIDATION,
+                    ) {
+                        "Effective $variantName build-purpose metadata value changed"
+                    }
+                } else {
+                    check(purposeMetadata.isEmpty()) {
+                        "Effective $variantName manifest must not claim the " +
+                            "disposable-validation build purpose"
+                    }
+                }
                 verifyProvisioningManifest(manifest, androidNamespace, variantName)
                 val hardeningViolations = EffectiveManifestSecurityVerifier.verify(
                     manifest = manifest,
                     androidNamespace = androidNamespace,
                     variantName = variantName,
-                    requireNonDebuggable = variantName == "release",
+                    requireNonDebuggable = variantName == "release" ||
+                        variantName ==
+                        DestructiveValidationExpectedIdentity.DISPOSABLE_VALIDATION_BUILD_TYPE,
                 )
                 check(hardeningViolations.isEmpty()) {
                     hardeningViolations.joinToString("\n")
@@ -965,6 +1016,33 @@ androidComponents {
             }
             tasks.matching { it.name == "bundleRelease" }.configureEach {
                 dependsOn(bundleSecurity)
+            }
+        }
+
+        if (
+            variantName ==
+            DestructiveValidationExpectedIdentity.DISPOSABLE_VALIDATION_BUILD_TYPE
+        ) {
+            tasks.register<CheckUnsignedDisposableValidationBuildPurposeEvidenceTask>(
+                "checkUnsignedDisposableValidationBuildPurposeEvidence",
+            ) {
+                group = "verification"
+                description =
+                    "Prove the dedicated unsigned disposable-validation APK exposes an " +
+                        "observed build purpose and remains an ineligible untrusted candidate."
+                apkDirectory.set(variant.artifacts.get(SingleArtifact.APK))
+                androidSdkDirectory.set(android.sdkDirectory.absolutePath)
+                projectRootPath.set(rootProject.layout.projectDirectory.asFile.absolutePath)
+                reportFile.set(
+                    layout.buildDirectory.file(
+                        "reports/destructive-validation-disposable-purpose.txt",
+                    ),
+                )
+                snapshotDirectory.set(
+                    layout.buildDirectory.dir(
+                        "tmp/destructive-validation-disposable-purpose-snapshot",
+                    ),
+                )
             }
         }
     }
