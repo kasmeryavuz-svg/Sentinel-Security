@@ -41,6 +41,7 @@ class Checkpoint19BWipeBoundaryFreezeTest {
         assertFalse(appSources.contains("Checkpoint19BDecision"))
         assertFalse(appSources.contains("Checkpoint19CDecision"))
         assertFalse(appSources.contains("Checkpoint19DDecision"))
+        assertFalse(appSources.contains("Checkpoint19EDecision"))
         assertFalse(appSources.contains("ProductionDestructiveRealChainOrchestrator"))
         assertFalse(appSources.contains("assembleAlreadyBoundDeviceFactoryReset"))
         assertFalse(appSources.contains("AndroidFutureDestructiveExecutor"))

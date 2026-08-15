@@ -578,6 +578,7 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/Checkpoint19BDecision",
         "com/example/devicemanagement/destructive/Checkpoint19CDecision",
         "com/example/devicemanagement/destructive/Checkpoint19DDecision",
+        "com/example/devicemanagement/destructive/Checkpoint19EDecision",
         "com/example/devicemanagement/destructive/UnwiredFutureDestructiveExecutor",
         "com/example/devicemanagement/destructive/IssuedRuntimeDurablePreExecutionCommitProof",
         "com/example/devicemanagement/destructive/AuthorizedFactoryResetPort",

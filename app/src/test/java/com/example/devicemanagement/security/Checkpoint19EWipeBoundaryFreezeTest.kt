@@ -5,44 +5,40 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-class Checkpoint19DWipeBoundaryFreezeTest {
+class Checkpoint19EWipeBoundaryFreezeTest {
     @Test
-    fun `Checkpoint 19D document records assembly without runtime availability`() {
+    fun `Checkpoint 19E document records CI without later destructive states`() {
         val docs = File(requireNotNull(System.getProperty("repoRoot")), "docs")
-        val decision = File(docs, "WIPE_19D_REAL_CHAIN_ASSEMBLY.md").readText()
-        val checkpoint19C = File(docs, "WIPE_19C_HARDWARE_VALIDATION_READINESS.md").readText()
+        val decision = File(docs, "WIPE_19E_INDEPENDENT_CI.md").readText()
 
-        assertTrue(decision.contains("REAL_CHAIN_ASSEMBLY_IMPLEMENTATION_APPROVED = YES"))
-        assertTrue(decision.contains("REAL_CHAIN_ASSEMBLY_PATH_PRESENT = true"))
-        assertTrue(decision.contains("19D_REAL_CHAIN_STRUCTURAL_ASSEMBLY_COMPLETE = YES"))
+        assertTrue(decision.contains("19E_INDEPENDENT_CI_WORKFLOW_PRESENT = true"))
+        assertTrue(decision.contains("19E_GITHUB_CI_RUN_OBSERVED = false"))
+        assertTrue(decision.contains("19E_BRANCH_PROTECTION_REQUIRED_CHECK_CONFIGURED = false"))
         assertTrue(decision.contains("REAL_DESTRUCTIVE_CHAIN_RUNTIME_AVAILABLE = false"))
-        assertTrue(decision.contains("19D_CURRENT_REPOSITORY_CAN_COMPLETE_FACTORY_RESET = NO"))
-        assertTrue(decision.contains("TRUSTED_DESTRUCTIVE_ARTIFACT_DIGEST_RECORDED = false"))
-        assertTrue(decision.contains("PER_ATTEMPT_REAL_CONFIRMATION_AVAILABLE = false"))
+        assertTrue(decision.contains("CURRENT_REPOSITORY_CAN_COMPLETE_FACTORY_RESET = NO"))
         assertTrue(decision.contains("DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED = false"))
         assertTrue(decision.contains("DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED = false"))
         assertTrue(decision.contains("DESTRUCTIVE_HARDWARE_TEST_PERFORMED = false"))
         assertTrue(decision.contains("GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED = false"))
-        assertTrue(decision.contains("1. Implementation approval"))
-        assertTrue(decision.contains("2. Structural assembly present"))
-        assertTrue(decision.contains("3. Runtime destructive availability"))
-        assertTrue(decision.contains("4. Trusted artifact / signing readiness"))
-        assertTrue(decision.contains("5. Per-attempt hardware confirmation readiness"))
-        assertTrue(decision.contains("6. Hardware-test approval"))
+        assertTrue(decision.contains("1. CI workflow present"))
+        assertTrue(decision.contains("2. Actual GitHub CI run observed"))
+        assertTrue(decision.contains("3. Branch-protection required check configured"))
+        assertTrue(decision.contains("4. Production signing enabled"))
+        assertTrue(decision.contains("5. Hardware-validation preparation ready"))
+        assertTrue(decision.contains("6. Hardware-test approval granted"))
         assertTrue(decision.contains("7. Hardware test performed"))
-        assertTrue(decision.contains("8. GrapheneOS result verification"))
-        assertTrue(decision.contains("Checkpoint 19D implements **state 2 only**"))
+        assertTrue(decision.contains("8. GrapheneOS behavior verified"))
+        assertTrue(decision.contains("must **never** be inferred"))
         assertTrue(decision.contains("NO NEW WIPE SCOPE ADDED"))
         assertTrue(decision.contains("NO HARDWARE WIPE PERFORMED"))
         assertTrue(decision.contains("DO NOT MERGE"))
-        assertTrue(checkpoint19C.contains("REAL_DESTRUCTIVE_CHAIN_ASSEMBLED = false"))
-        assertFalse(decision.contains("REAL_DESTRUCTIVE_CHAIN_RUNTIME_AVAILABLE = true"))
-        assertFalse(decision.contains("19D_CURRENT_REPOSITORY_CAN_COMPLETE_FACTORY_RESET = YES"))
+        assertFalse(decision.contains("19E_GITHUB_CI_RUN_OBSERVED = true"))
+        assertFalse(decision.contains("CURRENT_REPOSITORY_CAN_COMPLETE_FACTORY_RESET = YES"))
         assertFalse(HEX_SHA256.containsMatchIn(decision))
     }
 
     @Test
-    fun `app production sources still have no destructive DPM real-chain or 19D trigger`() {
+    fun `app production sources still have no destructive DPM real-chain or 19E trigger`() {
         val appSources = File(
             requireNotNull(System.getProperty("appMainSourceDir")),
             "java",
@@ -56,9 +52,8 @@ class Checkpoint19DWipeBoundaryFreezeTest {
         assertFalse(appSources.contains("FutureDestructiveRealChainBoundary"))
         assertFalse(appSources.contains("assembleAndHandoff"))
         assertFalse(appSources.contains("assembleAlreadyBoundDeviceFactoryReset"))
-        assertFalse(appSources.contains("Checkpoint19DDecision"))
         assertFalse(appSources.contains("Checkpoint19EDecision"))
-        assertFalse(appSources.contains("Checkpoint19CDecision"))
+        assertFalse(appSources.contains("Checkpoint19DDecision"))
         assertFalse(appSources.contains("ProductionDestructiveRealChainOrchestrator"))
         assertFalse(appSources.contains("ProductionDestructiveHumanConfirmationSource"))
         assertFalse(appSources.contains("AndroidFutureDestructiveExecutor"))
@@ -71,10 +66,30 @@ class Checkpoint19DWipeBoundaryFreezeTest {
     }
 
     @Test
-    fun `19D freeze tests do not invoke the platform whole-device call`() {
+    fun `independent CI workflow does not upload artifacts or grant write permissions`() {
+        val workflow = File(
+            requireNotNull(System.getProperty("repoRoot")),
+            ".github/workflows/checkpoint-19e-independent-ci.yml",
+        ).readText()
+        assertTrue(workflow.contains("pull_request:"))
+        assertFalse(workflow.contains("pull_request_target"))
+        assertTrue(workflow.contains("contents: read"))
+        assertFalse(Regex(":\\s*write\\b").containsMatchIn(workflow.substringAfter("permissions:").substringBefore("concurrency:")))
+        assertFalse(workflow.contains("upload-artifact"))
+        assertFalse(workflow.contains("\${{ secrets"))
+        assertTrue(workflow.contains("assembleDebug"))
+        assertTrue(workflow.contains("assembleRelease"))
+        assertTrue(workflow.contains("signing=UNSIGNED"))
+        assertFalse(workflow.contains("checkProductionDistributionSigning"))
+        assertFalse(Regex("\\bemulator\\b").containsMatchIn(workflow))
+        assertFalse(Regex("\\badb\\b").containsMatchIn(workflow))
+    }
+
+    @Test
+    fun `19E freeze tests do not invoke the platform whole-device call`() {
         val thisFile = File(
             requireNotNull(System.getProperty("repoRoot")),
-            "app/src/test/java/com/example/devicemanagement/security/Checkpoint19DWipeBoundaryFreezeTest.kt",
+            "app/src/test/java/com/example/devicemanagement/security/Checkpoint19EWipeBoundaryFreezeTest.kt",
         ).readText()
         assertFalse(thisFile.contains("manager." + "wipeDevice"))
         assertFalse(thisFile.contains("import android.app.admin." + "DevicePolicyManager"))

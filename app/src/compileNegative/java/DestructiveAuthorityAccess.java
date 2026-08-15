@@ -50,6 +50,7 @@ import com.example.devicemanagement.destructive.Checkpoint19ADecision;
 import com.example.devicemanagement.destructive.Checkpoint19BDecision;
 import com.example.devicemanagement.destructive.Checkpoint19CDecision;
 import com.example.devicemanagement.destructive.Checkpoint19DDecision;
+import com.example.devicemanagement.destructive.Checkpoint19EDecision;
 import com.example.devicemanagement.destructive.UnwiredFutureDestructiveExecutor;
 import com.example.devicemanagement.destructive.AuthorizedFactoryResetPort;
 import com.example.devicemanagement.destructive.AndroidFutureDestructiveExecutor;
@@ -115,6 +116,7 @@ final class DestructiveAuthorityAccess {
     Checkpoint19BDecision checkpoint19BDecision;
     Checkpoint19CDecision checkpoint19CDecision;
     Checkpoint19DDecision checkpoint19DDecision;
+    Checkpoint19EDecision checkpoint19EDecision;
     UnwiredFutureDestructiveExecutor unwiredFutureExecutor;
     AuthorizedFactoryResetPort authorizedFactoryResetPort;
     AndroidFutureDestructiveExecutor androidFutureDestructiveExecutor;

@@ -231,6 +231,7 @@ class Checkpoint19DRealChainAssemblyTest {
             "assembleAlreadyBoundDeviceFactoryReset",
             "ProductionDestructiveRealChainOrchestrator",
             "Checkpoint19DDecision",
+            "Checkpoint19EDecision",
             "issueFromTrustedConfirmationSource",
         ).forEach { token ->
             assertFalse(token, composition.contains(token))
