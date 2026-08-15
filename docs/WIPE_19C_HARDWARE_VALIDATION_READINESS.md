@@ -392,6 +392,7 @@ PRODUCTION_REACHABLE_SIMULATION = false
 Readiness decisions:
 
 ```text
+19C_READINESS_MODEL_NON_CIRCULAR = YES
 19C_REAL_CHAIN_ASSEMBLY_APPROVAL_REQUEST_READY = YES
 19C_HARDWARE_VALIDATION_PREPARATION_READY = NO
 ```
@@ -406,8 +407,16 @@ YES does **not** mean assembly is approved.
 YES does **not** mean signing is approved.
 YES does **not** mean a hardware wipe is approved.
 
-NO on hardware-validation preparation readiness because the next
-hardware-test approval **must not** be requested yet. Blockers:
+`19C_HARDWARE_VALIDATION_PREPARATION_READY` means **only** that all
+technical, device, and artifact prerequisites are complete so a human
+may then be asked for the **separate** destructive hardware-test
+approval. It is not that approval. It is not a performed-test claim.
+It is not a GrapheneOS wipe-behavior claim.
+
+NO on hardware-validation preparation readiness because genuine
+preparation prerequisites are still missing today. The next
+hardware-test approval **must not** be requested yet. Current genuine
+preparation blockers:
 
 1. Device serial is not identified.
 2. Expected OS / build is not recorded.
@@ -418,17 +427,41 @@ hardware-test approval **must not** be requested yet. Blockers:
 7. Battery / USB / ADB state is not recorded.
 8. Destructive recovery / provisioning procedure is not prepared.
 9. Factory-reset consequence is not acknowledged for a named device.
-10. GrapheneOS wipe behavior is not verified.
-11. 17B `ENFORCED` flags remain false because production is not wired.
+10. 17B `REAL_DESTRUCTIVE_CHAIN_*_ENFORCED` runtime gates remain false
+    because production is not wired.
+
+Those missing items are the **current** blockers. They are not an
+invitation to assemble, sign, record a digest, or wipe.
+
+Later states that are **not** preparation blockers. Approval, execution, and result verification happen **after** preparation readiness:
+
+```text
+HARDWARE_TEST_APPROVAL_GRANTED = NO
+DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED = false
+DESTRUCTIVE_HARDWARE_TEST_PERFORMED = false
+GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED = false
+```
+
+The readiness model is not circular
+(`19C_READINESS_MODEL_NON_CIRCULAR = YES`): a future
+`PREPARATION_READY = YES` must be logically possible while those four
+later flags remain `NO` / `false`. Hardware-test approval, a performed
+test, and GrapheneOS wipe-behavior verification are therefore not
+prerequisites of preparation readiness. The current verdict stays
+`19C_HARDWARE_VALIDATION_PREPARATION_READY = NO` only because the
+genuine preparation list above is still incomplete.
 
 ## Verdict
 
 ```text
+19C_READINESS_MODEL_NON_CIRCULAR = YES
 19C_REAL_CHAIN_ASSEMBLY_APPROVAL_REQUEST_READY = YES
 19C_HARDWARE_VALIDATION_PREPARATION_READY = NO
 REAL_DESTRUCTIVE_CHAIN_ASSEMBLED = false
 DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED = false
+DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED = false
 DESTRUCTIVE_HARDWARE_TEST_PERFORMED = false
+GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED = false
 ```
 
 **NO NEW DESTRUCTIVE SCOPE ADDED**

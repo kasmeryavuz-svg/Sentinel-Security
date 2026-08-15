@@ -1,8 +1,46 @@
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class Checkpoint19CDecisionTest {
+    @Test
+    fun `19C remaining preparation blockers exclude later approval execution and verification`() {
+        val source = File(
+            "../sensitive-actions/src/main/kotlin/com/example/devicemanagement/destructive/Checkpoint19CDecision.kt",
+        ).readText()
+        val blockers = source
+            .substringAfter("val remainingHardwarePreparationBlockers = listOf(")
+            .substringBefore(")")
+        val later = source
+            .substringAfter("val laterHardwareValidationStates = listOf(")
+            .substringBefore(")")
+        assertTrue(source.contains("READINESS_MODEL_NON_CIRCULAR = \"YES\""))
+        assertTrue(source.contains("HARDWARE_VALIDATION_PREPARATION_READY = \"NO\""))
+        assertTrue(blockers.contains("REAL_DESTRUCTIVE_CHAIN_ASSEMBLED"))
+        assertTrue(blockers.contains("PER_ATTEMPT_HUMAN_CONFIRMATION_WIRED"))
+        assertTrue(blockers.contains("TRUSTED_DESTRUCTIVE_ARTIFACT_DIGEST_RECORDED"))
+        assertTrue(blockers.contains("DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED"))
+        assertTrue(blockers.contains("DISPOSABLE_DEVICE_SERIAL_IDENTIFIED"))
+        assertTrue(blockers.contains("EXPECTED_OS_BUILD_RECORDED"))
+        assertTrue(blockers.contains("FACTORY_RESET_CONSEQUENCE_ACKNOWLEDGED"))
+        assertTrue(blockers.contains("DESTRUCTIVE_RECOVERY_PROCEDURE_PREPARED"))
+        assertTrue(blockers.contains("BATTERY_USB_ADB_STATE_RECORDED"))
+        assertTrue(blockers.contains("REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED"))
+        assertTrue(blockers.contains("REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED"))
+        assertTrue(blockers.contains("REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED"))
+        assertTrue(blockers.contains("REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED"))
+        assertTrue(blockers.contains("REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED"))
+        assertFalse(blockers.contains("HARDWARE_TEST_APPROVAL_GRANTED"))
+        assertFalse(blockers.contains("DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED"))
+        assertFalse(blockers.contains("DESTRUCTIVE_HARDWARE_TEST_PERFORMED"))
+        assertFalse(blockers.contains("GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED"))
+        assertTrue(later.contains("HARDWARE_TEST_APPROVAL_GRANTED"))
+        assertTrue(later.contains("DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED"))
+        assertTrue(later.contains("DESTRUCTIVE_HARDWARE_TEST_PERFORMED"))
+        assertTrue(later.contains("GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED"))
+    }
+
     @Test
     fun `19B wipeDevice origin and wipeData hard-block stay unchanged`() {
         val source = File("src/main/kotlin/ProductionBytecodePolicyVerifier.kt").readText()

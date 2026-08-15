@@ -11,6 +11,7 @@ class Checkpoint19CDecisionRealityTest {
     @Test
     fun `readiness flags keep the chain unassembled and do not invent hashes`() {
         assertEquals("YES", Checkpoint19CDecision.ARCHITECTURE_READY_RECONFIRMED)
+        assertEquals("YES", Checkpoint19CDecision.READINESS_MODEL_NON_CIRCULAR)
         assertEquals("YES", Checkpoint19CDecision.REAL_CHAIN_ASSEMBLY_APPROVAL_REQUEST_READY)
         assertEquals("NO", Checkpoint19CDecision.HARDWARE_VALIDATION_PREPARATION_READY)
         assertEquals("NO", Checkpoint19CDecision.REAL_CHAIN_ASSEMBLY_APPROVED)
@@ -148,14 +149,82 @@ class Checkpoint19CDecisionRealityTest {
         ).forEach { item ->
             assertTrue(item, item in Checkpoint19CDecision.disposableDeviceChecklist)
         }
-        Checkpoint19CDecision.remainingHardwarePreparationBlockers.forEach { name ->
-            assertTrue(name, name in Checkpoint19CDecision.remainingHardwarePreparationBlockers)
+        assertEquals(
+            listOf(
+                "REAL_DESTRUCTIVE_CHAIN_ASSEMBLED",
+                "PER_ATTEMPT_HUMAN_CONFIRMATION_WIRED",
+                "TRUSTED_DESTRUCTIVE_ARTIFACT_DIGEST_RECORDED",
+                "DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED",
+                "DISPOSABLE_DEVICE_SERIAL_IDENTIFIED",
+                "EXPECTED_OS_BUILD_RECORDED",
+                "FACTORY_RESET_CONSEQUENCE_ACKNOWLEDGED",
+                "DESTRUCTIVE_RECOVERY_PROCEDURE_PREPARED",
+                "BATTERY_USB_ADB_STATE_RECORDED",
+                "REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED",
+                "REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED",
+                "REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED",
+                "REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED",
+                "REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED",
+            ),
+            Checkpoint19CDecision.remainingHardwarePreparationBlockers,
+        )
+        assertEquals(
+            listOf(
+                "HARDWARE_TEST_APPROVAL_GRANTED",
+                "DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED",
+                "DESTRUCTIVE_HARDWARE_TEST_PERFORMED",
+                "GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED",
+            ),
+            Checkpoint19CDecision.laterHardwareValidationStates,
+        )
+    }
+
+    @Test
+    fun `readiness model is not circular later states are not preparation blockers`() {
+        assertEquals("YES", Checkpoint19CDecision.READINESS_MODEL_NON_CIRCULAR)
+        assertEquals("NO", Checkpoint19CDecision.HARDWARE_VALIDATION_PREPARATION_READY)
+        assertEquals("NO", Checkpoint19CDecision.HARDWARE_TEST_APPROVAL_GRANTED)
+        assertFalse(Checkpoint19CDecision.DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED)
+        assertFalse(Checkpoint19CDecision.DESTRUCTIVE_HARDWARE_TEST_PERFORMED)
+        assertFalse(Checkpoint19CDecision.GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED)
+        assertTrue(Checkpoint19CDecision.remainingHardwarePreparationBlockers.isNotEmpty())
+        Checkpoint19CDecision.laterHardwareValidationStates.forEach { later ->
+            assertFalse(
+                later,
+                later in Checkpoint19CDecision.remainingHardwarePreparationBlockers,
+            )
         }
+        assertTrue(
+            Checkpoint19CDecision.remainingHardwarePreparationBlockers
+                .intersect(Checkpoint19CDecision.laterHardwareValidationStates.toSet())
+                .isEmpty(),
+        )
+        assertTrue(
+            Checkpoint19CDecision.remainingHardwarePreparationBlockers.containsAll(
+                listOf(
+                    "REAL_DESTRUCTIVE_CHAIN_ASSEMBLED",
+                    "PER_ATTEMPT_HUMAN_CONFIRMATION_WIRED",
+                    "TRUSTED_DESTRUCTIVE_ARTIFACT_DIGEST_RECORDED",
+                    "DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED",
+                    "DISPOSABLE_DEVICE_SERIAL_IDENTIFIED",
+                    "EXPECTED_OS_BUILD_RECORDED",
+                    "FACTORY_RESET_CONSEQUENCE_ACKNOWLEDGED",
+                    "DESTRUCTIVE_RECOVERY_PROCEDURE_PREPARED",
+                    "BATTERY_USB_ADB_STATE_RECORDED",
+                    "REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED",
+                    "REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED",
+                    "REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED",
+                    "REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED",
+                    "REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED",
+                ),
+            ),
+        )
     }
 
     @Test
     fun `decision document separates states and refuses assembly signing and hardware`() {
         val docs = File("../docs/WIPE_19C_HARDWARE_VALIDATION_READINESS.md").readText()
+        assertTrue(docs.contains("19C_READINESS_MODEL_NON_CIRCULAR = YES"))
         assertTrue(docs.contains("19C_REAL_CHAIN_ASSEMBLY_APPROVAL_REQUEST_READY = YES"))
         assertTrue(docs.contains("19C_HARDWARE_VALIDATION_PREPARATION_READY = NO"))
         assertTrue(docs.contains("REAL_DESTRUCTIVE_CHAIN_ASSEMBLED = false"))
@@ -183,6 +252,12 @@ class Checkpoint19CDecisionRealityTest {
         assertTrue(docs.contains("Do **not** run the hardware test in this checkpoint."))
         assertTrue(docs.contains("NO NEW DESTRUCTIVE SCOPE ADDED"))
         assertTrue(docs.contains("DO NOT MERGE"))
+        assertTrue(docs.contains("The readiness model is not circular"))
+        assertTrue(docs.contains("PREPARATION_READY = YES"))
+        assertTrue(docs.contains("HARDWARE_TEST_APPROVAL_GRANTED = NO"))
+        assertTrue(docs.contains("Approval, execution, and result verification happen **after** preparation"))
+        assertTrue(docs.contains("Later states that are **not** preparation blockers"))
+        assertFalse(docs.contains("10. GrapheneOS wipe behavior is not verified."))
         assertFalse(docs.contains("REAL_DESTRUCTIVE_CHAIN_ASSEMBLED = true"))
         assertFalse(docs.contains("PER_ATTEMPT_HUMAN_CONFIRMATION_WIRED = true"))
         assertFalse(docs.contains("TRUSTED_DESTRUCTIVE_ARTIFACT_DIGEST_RECORDED = true"))

@@ -16,7 +16,14 @@ internal object Checkpoint19CDecision {
     const val ARCHITECTURE_READY_RECONFIRMED = "YES"
     const val DESTRUCTIVE_IMPLEMENTATION_PRESENT = true
     const val REAL_CHAIN_ASSEMBLY_APPROVAL_REQUEST_READY = "YES"
+    /**
+     * Technical / device / artifact prerequisites only. A later YES would
+     * mean a human may then be asked for the separate hardware-test
+     * approval. Approval, execution, and GrapheneOS result verification
+     * are later states and are not required for this flag.
+     */
     const val HARDWARE_VALIDATION_PREPARATION_READY = "NO"
+    const val READINESS_MODEL_NON_CIRCULAR = "YES"
 
     const val REAL_DESTRUCTIVE_CHAIN_ASSEMBLED = false
     const val REAL_DESTRUCTIVE_CHAIN_ASSEMBLED_IN_PRODUCTION = false
@@ -158,14 +165,16 @@ internal object Checkpoint19CDecision {
         "abort_criteria_defined",
     )
 
+    /**
+     * Technical, device, artifact, and runtime-gate gaps that still block
+     * [HARDWARE_VALIDATION_PREPARATION_READY]. Later approval, execution,
+     * and result-verification flags are not members of this list.
+     */
     val remainingHardwarePreparationBlockers = listOf(
         "REAL_DESTRUCTIVE_CHAIN_ASSEMBLED",
         "PER_ATTEMPT_HUMAN_CONFIRMATION_WIRED",
         "TRUSTED_DESTRUCTIVE_ARTIFACT_DIGEST_RECORDED",
         "DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED",
-        "DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED",
-        "DESTRUCTIVE_HARDWARE_TEST_PERFORMED",
-        "GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED",
         "DISPOSABLE_DEVICE_SERIAL_IDENTIFIED",
         "EXPECTED_OS_BUILD_RECORDED",
         "FACTORY_RESET_CONSEQUENCE_ACKNOWLEDGED",
@@ -176,6 +185,18 @@ internal object Checkpoint19CDecision {
         "REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED",
         "REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED",
         "REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED",
+    )
+
+    /**
+     * States that happen after preparation readiness. They must stay out
+     * of [remainingHardwarePreparationBlockers] so a later
+     * PREPARATION_READY = YES can exist while these remain false / NO.
+     */
+    val laterHardwareValidationStates = listOf(
+        "HARDWARE_TEST_APPROVAL_GRANTED",
+        "DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED",
+        "DESTRUCTIVE_HARDWARE_TEST_PERFORMED",
+        "GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED",
     )
 
     val gatesRequiringExplicitModification = listOf(
