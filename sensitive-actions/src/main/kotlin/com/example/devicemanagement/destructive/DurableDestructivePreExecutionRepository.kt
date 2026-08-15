@@ -5,7 +5,8 @@ package com.example.devicemanagement.destructive
  *
  * Append success is evidence that the pipeline intended to proceed. It is
  * never authorization, never a resume token, and never a permit. Production
- * bytecode allows [append] only from [PreExecutionEvidenceCommitAuthority.commit].
+ * Production bytecode allows [append] only from the simulation commit
+ * authority and the exact runtime commit-after-consume authority.
  *
  * Isolated from production `sentinel_audit.db` schema v1 so reversible audit
  * and dashboard recovery cannot treat these rows as `APPLIED` or replay them.
@@ -55,7 +56,12 @@ internal class DurableDestructivePreExecutionRepository(
         ) {
             return false
         }
-        if (record.actionName != DestructiveSimulationActionNames.FACTORY_RESET_SIMULATION) {
+        if (
+            record.actionName !in setOf(
+                DestructiveSimulationActionNames.FACTORY_RESET_SIMULATION,
+                DestructiveRuntimeActionNames.FUTURE_REAL_CHAIN_FACTORY_RESET,
+            )
+        ) {
             return false
         }
         if (record.boundScope != DestructiveScope.DEVICE_FACTORY_RESET) {

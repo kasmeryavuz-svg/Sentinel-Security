@@ -12,7 +12,7 @@ class Checkpoint18WipeBoundaryFreezeTest {
         val decision = File(docs, "WIPE_18_DESTRUCTIVE_BOUNDARY_DECISION.md").readText()
         val entryReview = File(docs, "WIPE_17B_ENTRY_REVIEW.md").readText()
 
-        assertTrue(decision.contains("18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL = NO"))
+        assertTrue(decision.contains("18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL = YES"))
         assertTrue(decision.contains("A. architecture readiness"))
         assertTrue(decision.contains("B. Android API implementation approval"))
         assertTrue(decision.contains("C. metadata approval"))
@@ -30,7 +30,7 @@ class Checkpoint18WipeBoundaryFreezeTest {
         assertTrue(decision.contains("DESTRUCTIVE_EXECUTOR_CONTRACT_PRESENT = true"))
         assertTrue(decision.contains("REAL_CHAIN_UNFORGEABLE_HANDOFF_PRESENT = true"))
         assertTrue(decision.contains("REAL_CHAIN_PRE_EXECUTION_APPEND_AFTER_CONSUME_REQUIRED = true"))
-        assertTrue(decision.contains("REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED = false"))
+        assertTrue(decision.contains("REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED = true"))
         assertTrue(decision.contains("REAL_CHAIN_RUNTIME_DURABILITY_REQUIRED = true"))
         assertTrue(decision.contains("REAL_DESTRUCTIVE_EXECUTOR_PRESENT = false"))
         assertTrue(decision.contains("DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED = false"))

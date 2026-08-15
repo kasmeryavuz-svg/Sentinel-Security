@@ -398,7 +398,7 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/Checkpoint18Decision",
         "com/example/devicemanagement/destructive/UnwiredFutureDestructiveExecutor",
-        "com/example/devicemanagement/destructive/UnwiredRuntimeDurablePreExecutionCommitSource",
+        "com/example/devicemanagement/destructive/IssuedRuntimeDurablePreExecutionCommitProof",
     )
 
     private val recoveryForbiddenMethods = setOf(
@@ -492,6 +492,17 @@ internal object ProductionBytecodePolicyVerifier {
             "Lcom/example/devicemanagement/destructive/PreExecutionEvidenceCommitResult;",
     )
 
+    private val trustedRuntimeDestructivePreExecutionRepositoryOrigin = InvocationOrigin(
+        "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority",
+        "commitAfterConsumedAuthorization",
+        "(Lcom/example/devicemanagement/destructive/ConsumedDestructiveAuthorizationProof;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveArmingToken;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveAuthorizationAuthority;)" +
+            "Lcom/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitResult;",
+    )
+
     private val trustedDestructivePreExecutionCommitOrigin = InvocationOrigin(
         "com/example/devicemanagement/destructive/SimulatedDestructiveExecutor",
         "execute",
@@ -552,6 +563,7 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitProof",
         "com/example/devicemanagement/destructive/IssuedFutureDestructiveExecutionBundle",
         "com/example/devicemanagement/destructive/IssuedRealChainFinalLiveValidationPermit",
+        "com/example/devicemanagement/destructive/IssuedRuntimeDurablePreExecutionCommitProof",
         "$realChainBoundaryOwner\$FutureDestructiveExecutionBundle",
         "$realChainBoundaryOwner\$RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/" +
@@ -1391,9 +1403,18 @@ internal object ProductionBytecodePolicyVerifier {
                 methodName(location),
                 methodDescriptor(location),
             )
+            val runtimePreExecutionAppend =
+                invocation ==
+                    "com/example/devicemanagement/destructive/" +
+                    "DurableDestructivePreExecutionRepository." +
+                    "append(Lcom/example/devicemanagement/destructive/" +
+                    "DestructivePreExecutionDurableRecord;)" +
+                    "Lcom/example/devicemanagement/destructive/" +
+                    "DestructiveEvidenceAppendResult;" &&
+                    actualOrigin == trustedRuntimeDestructivePreExecutionRepositoryOrigin
             if (
                 target.artifactPath != ":sensitive-actions" ||
-                actualOrigin != approvedOrigin
+                actualOrigin != approvedOrigin && !runtimePreExecutionAppend
             ) {
                 violation(
                     "$location invokes destructive-safety persistence mutation " +

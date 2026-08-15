@@ -199,22 +199,22 @@ registered and cannot reach `onAuthorizedHandoff`.
 REAL_CHAIN_UNFORGEABLE_HANDOFF_PRESENT = true
 ```
 
-Checkpoint 18 does **not** add an issuer that writes a runtime-durable
-pre-execution row. `UnwiredRuntimeDurablePreExecutionCommitSource`
-returns null. That keeps this checkpoint from recording fake durable
-evidence. The boundary still **invokes**
-`commitAfterConsumedAuthorization` after capability consumption. Append
-failure means no permit, no bundle, and no executor call. A surviving
-durable row, if a later approved issuer writes one, remains evidence
-only.
+Checkpoint 18 pairs the runtime-durable pre-execution append with the
+exact pending consumed authorization. The authority reaches the store
+only through `RuntimeDestructiveSafetyDurability`, writes an exact-
+binding `PRE_EXECUTION_COMMITTED` row, and only then registers a
+single-use process-local proof. A caller cannot supply or bank that
+proof. Append failure means no permit, no bundle, and no executor call.
+A surviving durable row remains evidence only and cannot reconstruct
+authorization after restart.
 
 ```text
 REAL_CHAIN_PRE_EXECUTION_APPEND_AFTER_CONSUME_REQUIRED = true
-REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED = false
+REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED = true
 ```
 
-Because the production runtime issuer remains unwired, durable-append
-pairing is not complete. Architecture verdict remains **NO**.
+The append path is structurally paired. Production composition still
+does not construct the boundary or a future executor.
 
 ## 3. Runtime durability pairing
 
@@ -236,9 +236,9 @@ and in-memory stores cannot be assigned to that type.
 REAL_CHAIN_RUNTIME_DURABILITY_REQUIRED = true
 ```
 
-ENFORCED stays false: production is unwired, no trusted-store-backed
-issuer exists, and no real executor consumes the capability. Component
-presence alone did not flip ENFORCED.
+ENFORCED stays false: production does not wire the boundary and no real
+executor consumes the capability. Structural append pairing alone does
+not flip an ENFORCED flag.
 
 ## 4. Artifact identity pairing
 
@@ -319,12 +319,9 @@ boot recovery. The permit and bundle are never returned to the caller.
 REAL_CHAIN_FINAL_LIVE_VALIDATION_REQUIRED = true
 ```
 
-Because the runtime-durable proof issuer is unwired, the method fail-
-closes at the append step, before permit issue. That is the honest
-Checkpoint 18 state: the order is encoded; a later approved issuer can
-complete the append without redesigning the graph. A pre-created or
-pre-banked proof cannot satisfy the boundary because the proof is not
-an input.
+The runtime-durable proof is issued only after the append succeeds.
+A pre-created or pre-banked proof cannot satisfy the boundary because
+the proof is not an input and unregistered implementations are rejected.
 
 ## Machine-readable Checkpoint 18 flags
 
@@ -339,12 +336,12 @@ REAL_CHAIN_HUMAN_APPROVAL_REQUIRED = true
 REAL_CHAIN_WIPE_OPTION_POLICY_REQUIRED = true
 REAL_CHAIN_FINAL_LIVE_VALIDATION_REQUIRED = true
 REAL_CHAIN_PRE_EXECUTION_APPEND_AFTER_CONSUME_REQUIRED = true
+REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED = true
 ```
 
 Remain false:
 
 ```text
-REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED = false
 REAL_DESTRUCTIVE_EXECUTOR_PRESENT = false
 DESTRUCTIVE_POLICY_WRAPPER_PRESENT = false
 DESTRUCTIVE_METADATA_PRESENT = false
@@ -366,13 +363,13 @@ REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED = false
 ## Verdict
 
 ```text
-18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL = NO
+18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL = YES
 ```
 
-NO because the production runtime-durable pre-execution issuer remains
-unwired. The unforgeable-handoff and append-after-consume *order* are
-structurally encoded, but actual durable-append pairing is not complete.
-A YES would mean **only**:
+YES because the non-Android boundary now structurally pairs consumed
+authorization, the trusted runtime-durable append, a single-use proof,
+fresh live validation, the final permit, and the immediate executor
+handoff. YES means **only**:
 
 > the non-Android architecture is ready to request a new explicit
 > approval
@@ -401,10 +398,8 @@ B–E, plus production wiring):
 11. `WIPE_DATA_METADATA_REVIEW_APPROVED` is false.
 12. `DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED` is false.
 13. `DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED` is false.
-14. Runtime-durable pre-execution **issuer** is still unwired (type required; no fake row).
-15. `REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED` is false — append-after-consume is encoded, but no trusted issuer writes a row.
-16. 17B ENFORCED flags remain false because production is not wired.
-17. Same-UID arbitrary code remains out of scope for local persistence integrity.
+14. 17B ENFORCED flags remain false because production is not wired.
+15. Same-UID arbitrary code remains out of scope for local persistence integrity.
 
 **NO REAL WIPE IMPLEMENTED**
 **NO WIPE-DATA METADATA ADDED**

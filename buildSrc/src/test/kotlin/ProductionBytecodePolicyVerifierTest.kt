@@ -1696,6 +1696,89 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `rogue caller cannot append runtime pre-execution evidence`() {
+        val classes = compileJava(
+            *runtimePreExecutionAppendStubs(),
+            "attack/RogueRuntimePreExecutionAppend.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.DurableDestructivePreExecutionRepository;
+                public final class RogueRuntimePreExecutionAppend {
+                    void forge(DurableDestructivePreExecutionRepository repository) {
+                        repository.append(null);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "destructive-safety persistence mutation" in it })
+        assertTrue(violations.any { "DurableDestructivePreExecutionRepository.append" in it })
+    }
+
+    @Test
+    fun `runtime authority may append only from exact consumed-authorization method`() {
+        val classes = compileJava(
+            *runtimePreExecutionAppendStubs(),
+            "com/example/devicemanagement/destructive/ConsumedDestructiveAuthorizationProof.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class ConsumedDestructiveAuthorizationProof {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveTargetBinding.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveTargetBinding {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveAttemptLease.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveAttemptLease {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveArmingToken.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveArmingToken {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveAuthorizationAuthority.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveAuthorizationAuthority {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class RuntimeDurablePreExecutionCommitResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class RuntimeDurablePreExecutionCommitAuthority {
+                    public RuntimeDurablePreExecutionCommitResult commitAfterConsumedAuthorization(
+                        ConsumedDestructiveAuthorizationProof proof,
+                        DestructiveTargetBinding binding,
+                        DestructiveAttemptLease lease,
+                        DestructiveArmingToken arm,
+                        DestructiveAuthorizationAuthority authority
+                    ) {
+                        new DurableDestructivePreExecutionRepository().append(null);
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none {
+                "DurableDestructivePreExecutionRepository.append" in it &&
+                    "destructive-safety persistence mutation" in it
+            },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
     fun `recovery class cannot reference durable destructive evidence store`() {
         val classes = compileJava(
             destructivePreExecutionStoreStub(),
@@ -2795,6 +2878,32 @@ class ProductionBytecodePolicyVerifierTest {
             package com.example.devicemanagement.destructive;
             public final class DestructivePreExecutionDurableRecord {}
             """.trimIndent()
+    }
+
+    private fun runtimePreExecutionAppendStubs(): Array<Pair<String, String>> {
+        return arrayOf(
+            "com/example/devicemanagement/destructive/DestructivePreExecutionDurableRecord.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructivePreExecutionDurableRecord {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DestructiveEvidenceAppendResult.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DestructiveEvidenceAppendResult {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/DurableDestructivePreExecutionRepository.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class DurableDestructivePreExecutionRepository {
+                    public DestructiveEvidenceAppendResult append(
+                        DestructivePreExecutionDurableRecord record
+                    ) {
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
     }
 
     private fun markerWriteResultStub(): Pair<String, String> {

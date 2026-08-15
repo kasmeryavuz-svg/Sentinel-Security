@@ -47,7 +47,6 @@ import com.example.devicemanagement.destructive.RuntimeDurablePreExecutionCommit
 import com.example.devicemanagement.destructive.RealChainFinalLiveValidationPermit
 import com.example.devicemanagement.destructive.Checkpoint18Decision
 import com.example.devicemanagement.destructive.UnwiredFutureDestructiveExecutor
-import com.example.devicemanagement.destructive.UnwiredRuntimeDurablePreExecutionCommitSource
 
 class DestructiveAuthorityAccess(
     val arming: DestructiveArmingAuthority,
@@ -97,5 +96,4 @@ class DestructiveAuthorityAccess(
     val realChainPermit: RealChainFinalLiveValidationPermit,
     val checkpoint18Decision: Checkpoint18Decision,
     val unwiredFutureExecutor: UnwiredFutureDestructiveExecutor,
-    val unwiredRuntimePreExecutionSource: UnwiredRuntimeDurablePreExecutionCommitSource,
 )

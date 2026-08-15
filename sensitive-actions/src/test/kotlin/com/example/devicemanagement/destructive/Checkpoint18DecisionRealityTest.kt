@@ -19,8 +19,8 @@ class Checkpoint18DecisionRealityTest {
         assertTrue(Checkpoint18Decision.REAL_CHAIN_WIPE_OPTION_POLICY_REQUIRED)
         assertTrue(Checkpoint18Decision.REAL_CHAIN_FINAL_LIVE_VALIDATION_REQUIRED)
         assertTrue(Checkpoint18Decision.REAL_CHAIN_PRE_EXECUTION_APPEND_AFTER_CONSUME_REQUIRED)
-        assertFalse(Checkpoint18Decision.REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED)
-        assertEquals("NO", Checkpoint18Decision.ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL)
+        assertTrue(Checkpoint18Decision.REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED)
+        assertEquals("YES", Checkpoint18Decision.ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL)
 
         val handoff = FutureDestructiveRealChainBoundary::class.java.declaredMethods
             .single { it.name == "assembleAndHandoff" }
@@ -81,7 +81,11 @@ class Checkpoint18DecisionRealityTest {
             },
         )
         val docs = File("../docs/WIPE_18_DESTRUCTIVE_BOUNDARY_DECISION.md").readText()
-        assertTrue(docs.contains("18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL = NO"))
+        assertTrue(docs.contains("18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL = YES"))
+        assertFalse(
+            "REAL_CHAIN_RUNTIME_DURABLE_APPEND_PAIRED" in
+                Checkpoint18Decision.remainingSeparateApprovalBlockers,
+        )
         assertTrue(docs.contains("NO REAL WIPE IMPLEMENTED"))
         assertTrue(docs.contains("DO NOT MERGE"))
         assertTrue(docs.contains("A. architecture readiness"))

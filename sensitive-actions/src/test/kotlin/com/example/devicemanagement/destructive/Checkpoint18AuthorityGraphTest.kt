@@ -62,7 +62,6 @@ class Checkpoint18AuthorityGraphTest {
             "DestructiveWipeOptionPolicyAuthority",
             "Checkpoint18Decision",
             "UnwiredFutureDestructiveExecutor",
-            "UnwiredRuntimeDurablePreExecutionCommitSource",
             "RealChainHandoffRegistry",
             "HandoffRegistry",
             "IssuedRealChainFinalLiveValidationPermit",
@@ -137,11 +136,11 @@ class Checkpoint18AuthorityGraphTest {
         assertFalse(controller.contains("RuntimeDestructiveSafetyDurabilityMint"))
         assertFalse(controller.contains("assembleAndHandoff"))
         assertFalse(controller.contains("FutureDestructiveRealChainBoundary"))
-        assertTrue(UnwiredRuntimeDurablePreExecutionCommitSource.commitAfterConsumedAuthorization(
-            reflectRuntimeDurabilityForRejectPathTests(),
-            ConsumedDestructiveAuthorizationProof.create(),
-            verifiedBinding(),
-            DestructiveAttemptLease.create(),
-        ) == null)
+        val runtimeCommit = File(
+            "src/main/kotlin/com/example/devicemanagement/destructive/" +
+                "RuntimeDurablePreExecutionCommitProof.kt",
+        ).readText()
+        assertFalse(runtimeCommit.contains("UnwiredRuntimeDurablePreExecutionCommitSource"))
+        assertTrue(runtimeCommit.contains("durableRepository.append(durableRecord)"))
     }
 }

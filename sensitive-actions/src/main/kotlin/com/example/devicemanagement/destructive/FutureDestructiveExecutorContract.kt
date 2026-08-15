@@ -126,10 +126,10 @@ private class IssuedFutureDestructiveExecutionBundle private constructor() :
  * [RuntimeDurablePreExecutionCommitAuthority.commitAfterConsumedAuthorization].
  * It does not accept a caller-supplied runtime pre-execution proof.
  *
- * [assembleAndHandoff] cannot complete in this checkpoint because
- * [RuntimeDurablePreExecutionCommitAuthority] has no issuer. That is
- * intentional: no fake durable evidence is recorded. Append failure
- * means no permit, no bundle, and no executor call.
+ * [RuntimeDurablePreExecutionCommitAuthority] performs the paired append
+ * through the trusted runtime durability capability. Production still
+ * does not wire this boundary or an executor. Append failure means no
+ * permit, no bundle, and no executor call.
  */
 internal class FutureDestructiveRealChainBoundary(
     private val durability: RuntimeDestructiveSafetyDurability,

@@ -47,7 +47,6 @@ import com.example.devicemanagement.destructive.RuntimeDurablePreExecutionCommit
 import com.example.devicemanagement.destructive.RealChainFinalLiveValidationPermit;
 import com.example.devicemanagement.destructive.Checkpoint18Decision;
 import com.example.devicemanagement.destructive.UnwiredFutureDestructiveExecutor;
-import com.example.devicemanagement.destructive.UnwiredRuntimeDurablePreExecutionCommitSource;
 
 final class DestructiveAuthorityAccess {
     DestructiveArmingAuthority arming;
@@ -97,5 +96,4 @@ final class DestructiveAuthorityAccess {
     RealChainFinalLiveValidationPermit realChainPermit;
     Checkpoint18Decision checkpoint18Decision;
     UnwiredFutureDestructiveExecutor unwiredFutureExecutor;
-    UnwiredRuntimeDurablePreExecutionCommitSource unwiredRuntimePreExecutionSource;
 }

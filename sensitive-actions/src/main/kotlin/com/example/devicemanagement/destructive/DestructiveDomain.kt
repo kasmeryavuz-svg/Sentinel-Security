@@ -337,6 +337,10 @@ internal object DestructiveSimulationActionNames {
     const val FACTORY_RESET_SIMULATION = "destructive_factory_reset_simulation"
 }
 
+internal object DestructiveRuntimeActionNames {
+    const val FUTURE_REAL_CHAIN_FACTORY_RESET = "future_real_chain_factory_reset"
+}
+
 internal fun closedSimulationStatus(
     outcome: DestructiveSimulationOutcome,
     reason: String,

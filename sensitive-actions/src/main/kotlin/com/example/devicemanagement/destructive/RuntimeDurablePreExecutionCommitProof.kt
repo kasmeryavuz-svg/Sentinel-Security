@@ -1,6 +1,7 @@
 package com.example.devicemanagement.destructive
 
 import java.util.IdentityHashMap
+import java.util.UUID
 
 /**
  * Distinct real-chain proof that a PRE_EXECUTION_COMMITTED append happened
@@ -8,12 +9,14 @@ import java.util.IdentityHashMap
  * destructive capability. This is not [PreExecutionEvidenceCommitProof].
  *
  * No companion mint. Caller-constructed instances are not registered.
- * Checkpoint 18 does not add a production issuer that writes durable
- * rows: [UnwiredRuntimeDurablePreExecutionCommitSource] returns null so
- * this checkpoint cannot mint fake durable evidence.
+ * The proof is minted only after [RuntimeDurablePreExecutionCommitAuthority]
+ * successfully appends an exact-binding row through the trusted runtime
+ * durability capability.
  */
-internal typealias RuntimeDurablePreExecutionCommitProof =
-    RuntimeDurablePreExecutionCommitAuthority.RuntimeDurablePreExecutionCommitProof
+internal sealed interface RuntimeDurablePreExecutionCommitProof
+
+private class IssuedRuntimeDurablePreExecutionCommitProof :
+    RuntimeDurablePreExecutionCommitProof
 
 internal sealed interface RuntimeDurablePreExecutionCommitResult {
     data class Committed(val proof: RuntimeDurablePreExecutionCommitProof) :
@@ -40,16 +43,20 @@ internal sealed interface RuntimeDurablePreExecutionCheck {
  * authorization, binding, lease, and arm token. A pre-created or
  * pre-banked proof cannot be supplied to the real-chain boundary.
  *
- * [commitAfterConsumedAuthorization] does not append and does not issue a
- * proof while the issuer is unwired: no fake durable evidence is recorded
- * in this checkpoint. Append failure means no proof.
+ * [commitAfterConsumedAuthorization] issues a proof only after the exact
+ * runtime pre-execution row has been durably appended. Append failure means
+ * no proof.
  */
 internal class RuntimeDurablePreExecutionCommitAuthority(
     private val durability: RuntimeDestructiveSafetyDurability,
+    private val presentationWallClockMillis: () -> Long = { System.currentTimeMillis() },
+    private val eventIdGenerator: () -> String = { UUID.randomUUID().toString() },
 ) {
-    class RuntimeDurablePreExecutionCommitProof private constructor()
-
     private val issued = IdentityHashMap<RuntimeDurablePreExecutionCommitProof, CommitRecord>()
+    private val committedConsumptions =
+        IdentityHashMap<ConsumedDestructiveAuthorizationProof, Unit>()
+    private val durableRepository =
+        DurableDestructivePreExecutionRepository(durability.preExecution.durableStore())
 
     @Synchronized
     fun commitAfterConsumedAuthorization(
@@ -85,20 +92,44 @@ internal class RuntimeDurablePreExecutionCommitAuthority(
         if (consumedProof.javaClass != ConsumedDestructiveAuthorizationProof::class.java) {
             return RuntimeDurablePreExecutionCommitResult.Failed("runtime_pre_execution_consumed_proof_type")
         }
-        val minted = UnwiredRuntimeDurablePreExecutionCommitSource.commitAfterConsumedAuthorization(
-            durability = durability,
-            consumedProof = consumedProof,
+        if (committedConsumptions.containsKey(consumedProof)) {
+            return RuntimeDurablePreExecutionCommitResult.Failed(
+                "runtime_pre_execution_consumption_already_committed",
+            )
+        }
+        val proof = IssuedRuntimeDurablePreExecutionCommitProof()
+        val durableRecord = try {
+            DestructivePreExecutionDurableRecord(
+                eventId = eventIdGenerator(),
+                correlationId = expectedBinding.correlationId.value,
+                actionName = DestructiveRuntimeActionNames.FUTURE_REAL_CHAIN_FACTORY_RESET,
+                phase = DestructiveEvidencePhase.PRE_EXECUTION_COMMITTED,
+                presentationWallClockMillis = presentationWallClockMillis(),
+                boundPackage = expectedBinding.runningPackage,
+                boundAdminComponent = expectedBinding.expectedAdminComponent,
+                boundScope = expectedBinding.scope,
+                reasonCode = null,
+            )
+        } catch (_: Throwable) {
+            return RuntimeDurablePreExecutionCommitResult.Failed(
+                "runtime_pre_execution_append_failed",
+            )
+        }
+        when (durableRepository.append(durableRecord)) {
+            DestructiveEvidenceAppendResult.Failed -> {
+                return RuntimeDurablePreExecutionCommitResult.Failed(
+                    "runtime_pre_execution_append_failed",
+                )
+            }
+            is DestructiveEvidenceAppendResult.Recorded -> Unit
+        }
+        committedConsumptions[consumedProof] = Unit
+        issued[proof] = CommitRecord(
             binding = expectedBinding,
             attemptLease = expectedLease,
-        ) ?: return RuntimeDurablePreExecutionCommitResult.Failed(
-            "runtime_pre_execution_issuer_unwired",
-        )
-        issued[minted] = CommitRecord(
-            binding = expectedBinding,
-            attemptLease = expectedLease,
             consumedProof = consumedProof,
         )
-        return RuntimeDurablePreExecutionCommitResult.Committed(minted)
+        return RuntimeDurablePreExecutionCommitResult.Committed(proof)
     }
 
     @Synchronized
@@ -140,32 +171,4 @@ internal class RuntimeDurablePreExecutionCommitAuthority(
         val attemptLease: DestructiveAttemptLease,
         val consumedProof: ConsumedDestructiveAuthorizationProof,
     )
-}
-
-/**
- * Production issuer for runtime-durable pre-execution proofs. Not invoked
- * by DeviceManagement. Always returns null so no disposable-device or
- * fake durable evidence can be recorded here. A surviving durable row,
- * if a later approved issuer writes one, remains evidence only.
- */
-internal object UnwiredRuntimeDurablePreExecutionCommitSource {
-    fun commitAfterConsumedAuthorization(
-        durability: RuntimeDestructiveSafetyDurability,
-        consumedProof: ConsumedDestructiveAuthorizationProof,
-        binding: DestructiveTargetBinding,
-        attemptLease: DestructiveAttemptLease,
-    ): RuntimeDurablePreExecutionCommitProof? {
-        durability.cooldown
-        durability.preExecution
-        if (binding.scope != DestructiveScope.DEVICE_FACTORY_RESET) {
-            return null
-        }
-        if (attemptLease.javaClass != DestructiveAttemptLease::class.java) {
-            return null
-        }
-        if (consumedProof.javaClass != ConsumedDestructiveAuthorizationProof::class.java) {
-            return null
-        }
-        return null
-    }
 }
