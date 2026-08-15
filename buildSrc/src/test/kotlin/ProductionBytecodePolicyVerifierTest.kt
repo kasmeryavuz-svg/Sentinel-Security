@@ -152,6 +152,25 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `wipeDevice remains non-allowlisted even in an authorized DPM class`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/management/AndroidDevicePolicyCameraService.java" to
+                """
+                package com.example.devicemanagement.management;
+                import android.app.admin.DevicePolicyManager;
+                public final class AndroidDevicePolicyCameraService {
+                    void apply(DevicePolicyManager manager) {
+                        manager.wipeDevice(0);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "non-allowlisted" in it && "wipeDevice" in it })
+    }
+
+    @Test
     fun `allowlisted setter fails from an extra infrastructure method`() {
         val classes = compileJava(
             "com/example/devicemanagement/management/AndroidDevicePolicyCameraService.java" to
@@ -2037,6 +2056,7 @@ class ProductionBytecodePolicyVerifierTest {
                 public boolean getScreenCaptureDisabled(ComponentName admin) { return false; }
                 public boolean isStatusBarDisabled() { return false; }
                 public void wipeData(int flags) {}
+                public void wipeDevice(int flags) {}
             }
             """.trimIndent(),
     )
