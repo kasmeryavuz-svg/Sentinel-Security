@@ -85,6 +85,13 @@ Interrupted / Outcome unknown, and audit health becomes degraded.
 Wall-clock time stored on events is presentation metadata only. It is never
 used for authorization, freshness, cooldowns, or replay protection.
 
+Checkpoint 17A does **not** change this schema and does not overload
+`APPLIED` for destruction. Simulated destructive evidence lives in a
+separate in-process store (`DestructiveEvidencePhase`). A later 17B
+additive schema review may introduce evidence-only phases such as
+`EXECUTION_COMMITTED` and `EXECUTION_INITIATED`; those must not decode
+as `APPLIED`. See `docs/WIPE_17A_PREFLIGHT.md`.
+
 ## Schema
 
 - Database: `sentinel_audit.db`

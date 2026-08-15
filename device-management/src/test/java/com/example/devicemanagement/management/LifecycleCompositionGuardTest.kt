@@ -33,6 +33,13 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("wipeDevice"))
         assertFalse(composition.contains("ApprovalAuthority"))
         assertFalse(composition.contains("ActionExecutor"))
+        assertFalse(composition.contains("DestructiveArmingAuthority"))
+        assertFalse(composition.contains("DestructiveAuthorizationAuthority"))
+        assertFalse(composition.contains("DestructiveCapability"))
+        assertFalse(composition.contains("FinalExecutionPermit"))
+        assertFalse(composition.contains("SimulatedDestructiveExecutor"))
+        assertFalse(composition.contains("Checkpoint17ASimulationSink"))
+        assertFalse(composition.contains("DenyOnlyCooldownMarkerStore"))
     }
 
     @Test

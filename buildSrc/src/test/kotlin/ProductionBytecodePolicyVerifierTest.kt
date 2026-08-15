@@ -149,6 +149,7 @@ class ProductionBytecodePolicyVerifierTest {
 
         val violations = verify(":device-management-impl", classes)
         assertTrue(violations.any { "non-allowlisted" in it && "wipeData" in it })
+        assertTrue(violations.any { "Checkpoint 17B-blocked" in it && "wipeData" in it })
     }
 
     @Test
@@ -168,6 +169,7 @@ class ProductionBytecodePolicyVerifierTest {
 
         val violations = verify(":device-management-impl", classes)
         assertTrue(violations.any { "non-allowlisted" in it && "wipeDevice" in it })
+        assertTrue(violations.any { "Checkpoint 17B-blocked" in it && "wipeDevice" in it })
     }
 
     @Test

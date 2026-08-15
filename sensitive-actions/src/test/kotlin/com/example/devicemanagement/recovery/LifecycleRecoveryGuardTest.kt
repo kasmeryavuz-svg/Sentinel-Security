@@ -35,6 +35,12 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("ActionRequest"))
         assertFalse(sources.contains("SharedPreferences"))
         assertFalse(sources.contains("BOOT_COMPLETED"))
+        assertFalse(sources.contains("DestructiveArmingAuthority"))
+        assertFalse(sources.contains("DestructiveAuthorizationAuthority"))
+        assertFalse(sources.contains("DestructiveCapability"))
+        assertFalse(sources.contains("FinalExecutionPermit"))
+        assertFalse(sources.contains("SimulatedDestructiveExecutor"))
+        assertFalse(sources.contains("Checkpoint17ASimulationSink"))
     }
 
     @Test

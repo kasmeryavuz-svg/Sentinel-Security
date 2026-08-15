@@ -34,6 +34,11 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/management/AndroidDevicePolicyStatusBarService",
     )
 
+    private val checkpoint17BForbiddenDpmMethodNames = setOf(
+        "wipeData",
+        "wipeDevice",
+    )
+
     private val allowedDpmInvocations = mapOf(
         "isDeviceOwnerApp(Ljava/lang/String;)Z" to origins(InvocationOrigin(
             "com/example/devicemanagement/management/AndroidDevicePolicyReadService",
@@ -629,6 +634,11 @@ internal object ProductionBytecodePolicyVerifier {
             }
             if (invocation !in allowedDpmInvocations.keys) {
                 violation("$location invokes non-allowlisted $DPM.$invocation")
+            }
+            if (name in checkpoint17BForbiddenDpmMethodNames) {
+                violation(
+                    "$location invokes Checkpoint 17B-blocked $DPM.$invocation",
+                )
             }
         }
 

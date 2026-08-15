@@ -16,7 +16,9 @@ Its `DeviceAdminReceiver` declares only Android's `disable-camera` metadata
 policy. Provisioning completion is log-only and does not mutate policy. The
 only wipe-shaped action is `SafeMockWipeAction`; it is
 isolated to fail-safe simulation mode, logs `WIPE WOULD EXECUTE`, and returns a
-simulated result.
+simulated result. Checkpoint 17A adds a separate non-production destructive
+simulation pipeline that ends at `DESTRUCTIVE ACTION WOULD EXECUTE` and still
+cannot call a destructive Android policy API.
 
 All sensitive-action requests follow one controlled path:
 
@@ -82,6 +84,9 @@ tamper-evidence
 limits, `docs/RELEASE_SECURITY.md` for Checkpoint 15 production/release
 hardening, `docs/WIPE_THREAT_MODEL.md` and `docs/WIPE_DESIGN.md` for
 Checkpoint 16 wipe design and threat assessment (no real wipe),
+`docs/WIPE_17A_PREFLIGHT.md` and `docs/WIPE_PLATFORM_PREFLIGHT.md` for
+Checkpoint 17A non-destructive preflight and simulation (still no real
+wipe),
 `docs/GRAPHENEOS_ENROLLMENT.md` for GrapheneOS enrollment status (QR is
 standards-ready, not yet confirmed on GrapheneOS SetupWizard2),
 `docs/QR_PROVISIONING.md` for local QR JSON generation,

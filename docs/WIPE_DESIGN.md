@@ -821,6 +821,19 @@ is allowed. Partial completion is not permission to add
 Until that checklist is complete, the application must remain
 **incapable** of performing a real wipe.
 
+## 14. Checkpoint 17A status
+
+Checkpoint 17A implements the non-destructive machinery above and a
+simulated executor whose final sink records
+`DESTRUCTIVE ACTION WOULD EXECUTE`. It does **not** complete the
+destructive-API, metadata, or hardware-test rows.
+
+See `docs/WIPE_17A_PREFLIGHT.md` and `docs/WIPE_PLATFORM_PREFLIGHT.md`.
+
+**NO REAL WIPE IS IMPLEMENTED.** A later Checkpoint 17B would still have
+to change the explicit 17B hard-block gates before any real DPM wipe
+wrapper or `<wipe-data>` metadata may exist.
+
 ## 13. Checkpoint 16 freeze
 
 After this checkpoint the production security boundary is unchanged:

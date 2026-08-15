@@ -1,0 +1,48 @@
+package com.example.devicemanagement.security
+
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.File
+
+class Checkpoint17AWipeBoundaryFreezeTest {
+    @Test
+    fun `Checkpoint 17A documents exist and keep the no-wipe contract`() {
+        val docs = File(requireNotNull(System.getProperty("repoRoot")), "docs")
+        val preflight = File(docs, "WIPE_17A_PREFLIGHT.md").readText()
+        val platform = File(docs, "WIPE_PLATFORM_PREFLIGHT.md").readText()
+
+        assertTrue(preflight.contains("NO REAL WIPE IS IMPLEMENTED"))
+        assertTrue(preflight.contains("NO WIPE-DATA METADATA WAS ADDED"))
+        assertTrue(preflight.contains("NO DESTRUCTIVE HARDWARE TEST WAS PERFORMED"))
+        assertTrue(preflight.contains("Entry-criteria matrix"))
+        assertTrue(preflight.contains("17A versus 17B"))
+        assertTrue(preflight.contains("setScreenCaptureDisabled"))
+        assertTrue(preflight.contains("disable-camera"))
+        assertTrue(preflight.contains("checkpoint17BForbiddenDpmMethodNames"))
+        assertTrue(platform.contains("VERIFIED_ANDROID"))
+        assertTrue(platform.contains("VERIFIED_GRAPHENEOS"))
+        assertTrue(platform.contains("REPO_PROVEN"))
+        assertTrue(platform.contains("UNRESOLVED_REQUIRES_DEVICE_TEST"))
+        assertTrue(platform.contains("wipeDevice"))
+        assertTrue(platform.contains("USES_POLICY_WIPE_DATA"))
+        assertFalse(platform.contains("forum posts are authoritative"))
+    }
+
+    @Test
+    fun `app production sources still have no destructive DPM invocation or 17A authorities`() {
+        val appSources = File(
+            requireNotNull(System.getProperty("appMainSourceDir")),
+            "java",
+        ).walkTopDown()
+            .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
+            .joinToString("\n") { it.readText() }
+
+        assertFalse(appSources.contains("wipeData"))
+        assertFalse(appSources.contains("wipeDevice"))
+        assertFalse(appSources.contains("DevicePolicyManager"))
+        assertFalse(appSources.contains("DestructiveArmingAuthority"))
+        assertFalse(appSources.contains("SimulatedDestructiveExecutor"))
+        assertFalse(appSources.contains("FinalExecutionPermit"))
+    }
+}

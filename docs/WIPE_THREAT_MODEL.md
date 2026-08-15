@@ -428,3 +428,12 @@ exists**:
 
 Those residuals become blocking for Checkpoint 17 where marked in
 `docs/WIPE_DESIGN.md`. They do not justify adding wipe capability now.
+
+## Checkpoint 17A
+
+Checkpoint 17A implements the separate destructive domain, arming,
+authorization, target binding, deny-only cooldown, and a simulated
+executor chain. The narrow destructive DPM service remains absent.
+`SafeMockWipeAction` is still not a prototype executor.
+
+See `docs/WIPE_17A_PREFLIGHT.md`. **NO REAL WIPE IS IMPLEMENTED.**
