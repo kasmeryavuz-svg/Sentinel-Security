@@ -19,6 +19,9 @@ data class DestructiveValidationExpectedIdentity(
         const val REPOSITORY_ADMIN_COMPONENT =
             "com.example.devicemanagement/com.example.devicemanagement.management.SentinelDeviceAdminReceiver"
         const val BUILD_PURPOSE_DISPOSABLE_DEVICE_VALIDATION = "DISPOSABLE_DEVICE_VALIDATION"
+        const val BUILD_PURPOSE_METADATA_NAME =
+            "com.example.devicemanagement.DESTRUCTIVE_VALIDATION_BUILD_PURPOSE"
+        const val DISPOSABLE_VALIDATION_BUILD_TYPE = "disposableValidation"
 
         fun repositoryContract(): DestructiveValidationExpectedIdentity {
             return DestructiveValidationExpectedIdentity(

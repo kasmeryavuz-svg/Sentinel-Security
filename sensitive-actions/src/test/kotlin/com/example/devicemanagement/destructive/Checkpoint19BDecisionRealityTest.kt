@@ -103,6 +103,7 @@ class Checkpoint19BDecisionRealityTest {
         assertTrue(sources.contains("Checkpoint19DDecision"))
         assertTrue(sources.contains("Checkpoint19EDecision"))
         assertTrue(sources.contains("Checkpoint19FDecision"))
+        assertTrue(sources.contains("Checkpoint19GDecision"))
         assertTrue(sources.contains("ProductionDestructiveRealChainOrchestrator"))
     }
 

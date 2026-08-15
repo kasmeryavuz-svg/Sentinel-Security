@@ -102,3 +102,51 @@ abstract class CheckUnsignedDestructiveValidationCandidateEvidenceTask : Default
         DestructiveValidationCandidateEvidence.assertUnsignedIneligibleProof(report)
     }
 }
+
+/**
+ * Prove the dedicated unsigned disposable-validation APK exposes an
+ * independently observed build purpose and still remains ineligible.
+ * This is not production signing and does not upload or trust the report.
+ */
+abstract class CheckUnsignedDisposableValidationBuildPurposeEvidenceTask : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val apkDirectory: DirectoryProperty
+
+    @get:Input
+    @get:Optional
+    abstract val androidSdkDirectory: Property<String>
+
+    @get:Input
+    @get:Optional
+    abstract val projectRootPath: Property<String>
+
+    @get:OutputFile
+    abstract val reportFile: RegularFileProperty
+
+    @get:Internal
+    abstract val snapshotDirectory: DirectoryProperty
+
+    @TaskAction
+    fun proveObservedPurposeStillIneligible() {
+        val apk = DestructiveValidationCandidateEvidence.findUnsignedDisposableValidationApk(
+            apkDirectory.get().asFile,
+        )
+        val report = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+            apk = apk,
+            androidSdkDir = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File),
+            projectRoot = projectRootPath.orNull?.takeIf { it.isNotBlank() }?.let(::File),
+            snapshotDirectory = snapshotDirectory.orNull?.asFile,
+        )
+        val out = reportFile.get().asFile
+        out.parentFile.mkdirs()
+        out.writeText(report.render())
+        logger.lifecycle(report.statusLinesWithoutDigest().trim())
+        DestructiveValidationCandidateEvidence.assertDisposableValidationUnsignedIneligibleProof(
+            report,
+        )
+        check(!DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDirectory.get().asFile)) {
+            "disposable-validation snapshot must be deleted after inspection"
+        }
+    }
+}

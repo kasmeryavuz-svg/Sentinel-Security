@@ -39,6 +39,9 @@ class Checkpoint19FDecisionTest {
         assertTrue(
             verifier.contains("com/example/devicemanagement/destructive/Checkpoint19FDecision"),
         )
+        assertTrue(
+            verifier.contains("com/example/devicemanagement/destructive/Checkpoint19GDecision"),
+        )
     }
 
     private companion object {

@@ -33,6 +33,8 @@ class Checkpoint19FValidationEvidenceFreezeTest {
         assertFalse(inspectors.contains("PRODUCTION_SIGNED"))
         assertTrue(inspectors.contains("classifyOfficialApksignerOutput"))
         assertTrue(inspectors.contains("inspectObservedBuildPurpose"))
+        assertTrue(File("src/main/kotlin/DestructiveValidationBuildPurposeParser.kt").isFile)
+        assertFalse(inspectors.contains("META-INF/sentinel-destructive-build-purpose"))
         assertTrue(tasks.contains("supplied explicitly"))
         assertTrue(tasks.contains("never auto-selects a build output"))
         assertTrue(tasks.contains("statusLinesWithoutDigest"))
@@ -148,6 +150,9 @@ class Checkpoint19FValidationEvidenceFreezeTest {
         val source = File("src/main/kotlin/ProductionBytecodePolicyVerifier.kt").readText()
         assertTrue(
             source.contains("com/example/devicemanagement/destructive/Checkpoint19FDecision"),
+        )
+        assertTrue(
+            source.contains("com/example/devicemanagement/destructive/Checkpoint19GDecision"),
         )
         val allowlistBlock = source
             .substringAfter("private val allowedDpmInvocations = mapOf(")
