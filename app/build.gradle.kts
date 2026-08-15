@@ -354,11 +354,11 @@ android {
     check(buildTypes.getByName("release").signingConfig !== signingConfigs.findByName("debug")) {
         "release must never use the Android debug signing key"
     }
-    check(
-        buildTypes.getByName("release").signingConfig !==
-            signingConfigs.findByName("validationOnly"),
-    ) {
-        "release must never use the validation-only signing key"
+    val validationOnlySigning = signingConfigs.findByName("validationOnly")
+    if (validationOnlySigning != null) {
+        check(buildTypes.getByName("release").signingConfig !== validationOnlySigning) {
+            "release must never use the validation-only signing key"
+        }
     }
 
     compileOptions {
