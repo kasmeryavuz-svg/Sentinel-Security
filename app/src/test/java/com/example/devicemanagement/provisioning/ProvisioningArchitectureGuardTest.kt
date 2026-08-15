@@ -37,6 +37,7 @@ class ProvisioningArchitectureGuardTest {
         assertFalse(sources.contains("setCameraDisabled"))
         assertFalse(sources.contains("setStatusBarDisabled"))
         assertFalse(sources.contains("wipeData"))
+        assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("lockNow"))
         assertFalse(sources.contains("reboot"))
         assertFalse(sources.contains("resetPassword"))

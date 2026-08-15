@@ -80,7 +80,9 @@ See `docs/LIFECYCLE.md` for process-death, interrupted-audit, and reboot
 semantics, `docs/AUDIT.md` for durable local audit persistence and its
 tamper-evidence
 limits, `docs/RELEASE_SECURITY.md` for Checkpoint 15 production/release
-hardening, `docs/GRAPHENEOS_ENROLLMENT.md` for GrapheneOS enrollment status (QR is
+hardening, `docs/WIPE_THREAT_MODEL.md` and `docs/WIPE_DESIGN.md` for
+Checkpoint 16 wipe design and threat assessment (no real wipe),
+`docs/GRAPHENEOS_ENROLLMENT.md` for GrapheneOS enrollment status (QR is
 standards-ready, not yet confirmed on GrapheneOS SetupWizard2),
 `docs/QR_PROVISIONING.md` for local QR JSON generation,
 `docs/DEVICE_OWNER_TEST_DEVICE.md` for the development-only disposable

@@ -26,6 +26,7 @@ class DeviceAdminReceiverProvisioningGuardTest {
         assertFalse(source.contains("setCameraDisabled"))
         assertFalse(source.contains("setStatusBarDisabled"))
         assertFalse(source.contains("wipeData"))
+        assertFalse(source.contains("wipeDevice"))
         assertFalse(source.contains("lockNow"))
         assertFalse(source.contains("reboot"))
         assertFalse(source.contains("resetPassword"))

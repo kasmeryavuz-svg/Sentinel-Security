@@ -229,3 +229,27 @@ metadata allowlist is incomplete, tests or the build must fail closed.
 The verified-mutation completeness test reflects the sealed variant set and
 behaviorally exercises final validation, setter, getter, successful equality,
 and mismatch failure for every variant.
+
+## Checkpoint 16: future wipe is design-only
+
+A future destructive wipe is **not** a seventh reversible capability.
+It is not added by registering a name, promoting `MOCK_WIPE`, widening
+the DPM allowlist, or declaring `wipe-data` in DeviceAdmin metadata.
+
+Checkpoint 16 freezes the current production mutation boundary exactly
+as listed above and records the security contract for a later
+Checkpoint 17:
+
+- `docs/WIPE_THREAT_MODEL.md` — assets, trust boundaries, and
+  threat → invariant → mitigation → DENY / NO WIPE
+- `docs/WIPE_DESIGN.md` — explicit destructive state machine, target
+  binding, separate authorization domain, arming, audit commitment
+  then live final validation in one synchronous trusted chain,
+  lifecycle, deny-only cooldown (not same-UID code containment),
+  researched Android API limits, and the Checkpoint 17 entry checklist
+
+Until every Checkpoint 17 entry criterion is satisfied and explicitly
+approved, Sentinel must remain incapable of performing a real wipe. A
+trigger must never call a wipe executor. The reversible
+`ApprovalAuthority` / `VerifiedPolicyMutation` path must not gain
+destructive authority.
