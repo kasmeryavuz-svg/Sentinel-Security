@@ -12,6 +12,10 @@ import com.example.devicemanagement.logging.StructuredLogger
  * Pre-execution evidence is committed durably before live validation. The
  * in-process simulation log is a secondary fail-closed mirror. There is no
  * Android policy-service call and no reusable Boolean allow.
+ *
+ * This is the simulation executor only. It does not consume
+ * [RuntimeDestructiveSafetyDurability] and is not a real destructive
+ * chain.
  */
 internal class SimulatedDestructiveExecutor(
     private val authorizationAuthority: DestructiveAuthorizationAuthority,

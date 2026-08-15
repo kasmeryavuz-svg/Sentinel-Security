@@ -9,6 +9,12 @@ package com.example.devicemanagement.destructive
  *
  * Isolated from production `sentinel_audit.db` schema v1 so reversible audit
  * and dashboard recovery cannot treat these rows as `APPLIED` or replay them.
+ *
+ * The generic [DestructivePreExecutionDurableStore] parameter is the
+ * TEST/SIMULATION persistence surface. In-memory stores may back this
+ * repository in 17A/17B tests. They cannot satisfy
+ * [RuntimeDestructivePreExecutionStore]. A future real destructive chain
+ * must require [RuntimeDestructiveSafetyDurability].
  */
 internal class DurableDestructivePreExecutionRepository(
     private val store: DestructivePreExecutionDurableStore,

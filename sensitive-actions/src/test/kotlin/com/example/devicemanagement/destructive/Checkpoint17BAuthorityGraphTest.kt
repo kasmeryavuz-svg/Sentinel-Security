@@ -95,6 +95,9 @@ class Checkpoint17BAuthorityGraphTest {
             "TrustedRuntimeDenyOnlyCooldownMarkerStore",
             "DurableDestructivePreExecutionRepository",
             "DestructivePreExecutionDurableStore",
+            "RuntimeDenyOnlyCooldownStore",
+            "RuntimeDestructivePreExecutionStore",
+            "RuntimeDestructiveSafetyDurability",
             "SimulatedDestructiveExecutor",
             "FinalExecutionPermit",
             "PreExecutionEvidenceCommitProof",
@@ -134,6 +137,9 @@ class Checkpoint17BAuthorityGraphTest {
             PreExecutionEvidenceCommitProof::class.java,
             FinalExecutionPermit::class.java,
             TrustedRuntimeDenyOnlyCooldownMarkerStore::class.java,
+            RuntimeDenyOnlyCooldownStore::class.java,
+            RuntimeDestructivePreExecutionStore::class.java,
+            RuntimeDestructiveSafetyDurability::class.java,
         )
         types.forEach { type ->
             assertFalse(Serializable::class.java.isAssignableFrom(type))

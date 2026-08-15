@@ -29,6 +29,9 @@ class DestructiveDomainIsolationTest {
             DurableDestructivePreExecutionRepository::class.java,
             FrozenAdminSet::class.java,
             SimulatedDestructiveExecutor::class.java,
+            RuntimeDenyOnlyCooldownStore::class.java,
+            RuntimeDestructivePreExecutionStore::class.java,
+            RuntimeDestructiveSafetyDurability::class.java,
         )
         types.forEach { type ->
             assertFalse(Serializable::class.java.isAssignableFrom(type))
@@ -91,6 +94,7 @@ class DestructiveDomainIsolationTest {
         assertTrue(sources.contains("PreExecutionEvidenceCommitProof"))
         assertTrue(sources.contains("CountedAttemptProof"))
         assertTrue(sources.contains("DurableDestructivePreExecutionRepository"))
+        assertTrue(sources.contains("RuntimeDestructiveSafetyDurability"))
         assertFalse(sources.contains("java.nio.file.Files"))
     }
 

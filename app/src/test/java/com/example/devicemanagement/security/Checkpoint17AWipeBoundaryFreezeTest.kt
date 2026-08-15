@@ -24,6 +24,8 @@ class Checkpoint17AWipeBoundaryFreezeTest {
         assertTrue(entryReview.contains("17B_DESTRUCTIVE_BOUNDARY_READY = NO"))
         assertTrue(entryReview.contains("NO REAL WIPE IMPLEMENTED"))
         assertTrue(entryReview.contains("DO NOT MERGE"))
+        assertTrue(entryReview.contains("REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED = false"))
+        assertTrue(entryReview.contains("REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED = false"))
         assertTrue(platform.contains("VERIFIED_ANDROID"))
         assertTrue(platform.contains("VERIFIED_GRAPHENEOS"))
         assertTrue(platform.contains("REPO_PROVEN"))

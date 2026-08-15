@@ -21,6 +21,10 @@ internal data class PersistedDestructivePreExecutionRow(
  * Shared [SharedDestructivePreExecutionDurableState] survives repository
  * reconstruction the same way a database file survives process restart.
  * Surviving rows are evidence only and cannot reconstruct authorization.
+ *
+ * This is TEST/SIMULATION persistence only. It cannot satisfy
+ * [RuntimeDestructivePreExecutionStore] or
+ * [RuntimeDestructiveSafetyDurability].
  */
 internal class InMemoryDestructivePreExecutionDurableStore(
     private val state: SharedDestructivePreExecutionDurableState = SharedDestructivePreExecutionDurableState(),

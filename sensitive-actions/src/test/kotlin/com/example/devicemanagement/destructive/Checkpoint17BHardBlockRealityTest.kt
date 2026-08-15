@@ -19,6 +19,8 @@ class Checkpoint17BHardBlockRealityTest {
         assertFalse(Checkpoint17BHardBlock.WIPE_DATA_METADATA_REVIEW_APPROVED)
         assertFalse(Checkpoint17BHardBlock.DPM_DESTRUCTIVE_ALLOWLIST_REVIEW_APPROVED)
         assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
 
         val production = File("src/main/kotlin")
             .walkTopDown()
@@ -64,6 +66,14 @@ class Checkpoint17BHardBlockRealityTest {
 
     @Test
     fun `remaining blockers are machine-visible`() {
+        assertTrue(
+            "REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED" in
+                Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
+        )
+        assertTrue(
+            "REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED" in
+                Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers,
+        )
         Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers.forEach { name ->
             assertTrue(name, name in Checkpoint17BHardBlock.remainingDestructiveBoundaryBlockers)
         }
@@ -82,5 +92,34 @@ class Checkpoint17BHardBlockRealityTest {
         assertFalse(controller.contains("DestructiveSimulationPipeline"))
         assertFalse(controller.contains("AndroidDestructiveSafetyPersistence"))
         assertFalse(controller.contains("TrustedRuntimeDenyOnlyCooldownMarkerStore"))
+        assertFalse(controller.contains("RuntimeDestructiveSafetyDurability"))
+        assertFalse(controller.contains("issueRuntimeDurability"))
+    }
+
+    @Test
+    fun `enforced flags stay false because no real chain requires runtime durability`() {
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
+        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
+        assertTrue(
+            SimulatedDestructiveExecutor::class.java.declaredConstructors.none { constructor ->
+                constructor.parameterTypes.any {
+                    it == RuntimeDestructiveSafetyDurability::class.java ||
+                        it == RuntimeDenyOnlyCooldownStore::class.java ||
+                        it == RuntimeDestructivePreExecutionStore::class.java
+                }
+            },
+        )
+        assertTrue(
+            DestructiveDenyOnlyCooldown::class.java.declaredConstructors.any { constructor ->
+                constructor.parameterTypes.any { it == DenyOnlyCooldownMarkerStore::class.java }
+            },
+        )
+        assertTrue(
+            PreExecutionEvidenceCommitAuthority::class.java.declaredConstructors.any { constructor ->
+                constructor.parameterTypes.any {
+                    it == DurableDestructivePreExecutionRepository::class.java
+                }
+            },
+        )
     }
 }

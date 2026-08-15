@@ -22,6 +22,9 @@ import com.example.devicemanagement.persistence.TrustedRuntimeDenyOnlyCooldownMa
 import com.example.devicemanagement.persistence.SqliteDenyOnlyMarkerStore
 import com.example.devicemanagement.persistence.SqliteDestructivePreExecutionStore
 import com.example.devicemanagement.persistence.AndroidDestructiveSafetyPersistence
+import com.example.devicemanagement.destructive.RuntimeDenyOnlyCooldownStore
+import com.example.devicemanagement.destructive.RuntimeDestructivePreExecutionStore
+import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability
 
 class DestructiveAuthorityAccess(
     val arming: DestructiveArmingAuthority,
@@ -46,4 +49,7 @@ class DestructiveAuthorityAccess(
     val sqliteMarkerStore: SqliteDenyOnlyMarkerStore,
     val sqliteEvidenceStore: SqliteDestructivePreExecutionStore,
     val androidSafetyPersistence: AndroidDestructiveSafetyPersistence,
+    val runtimeCooldown: RuntimeDenyOnlyCooldownStore,
+    val runtimePreExecution: RuntimeDestructivePreExecutionStore,
+    val runtimeDurability: RuntimeDestructiveSafetyDurability,
 )

@@ -162,8 +162,12 @@ Distinguish these two contracts:
 | **RUNTIME PERSISTENCE IMPLEMENTATION** | **Not implemented in 17A.** 17A uses an in-memory deny-only store and an in-memory simulation evidence writer. The 17B entry review adds the purpose-specific trusted runtime adapter. There is still no generic filesystem write primitive in `sensitive-actions` main sources. |
 
 17A left those adapters unimplemented. The 17B entry review implements
-them as safe prerequisites and may set the two advisory flags true only
-when the adapters exist and are tested. See `docs/WIPE_17B_ENTRY_REVIEW.md`.
+them as safe prerequisites and may set the two advisory PRESENT flags
+true only when the adapters exist and are tested. Simulation and test
+stores remain on a separate generic persistence surface and cannot
+satisfy the runtime-durable capability types. The ENFORCED flags stay
+false until a future real chain is structurally paired to those
+runtime types. See `docs/WIPE_17B_ENTRY_REVIEW.md`.
 17A simulation evidence still proves ordering and fail-closed behavior.
 Do not treat the 17B adapters as a wipe authorization.
 

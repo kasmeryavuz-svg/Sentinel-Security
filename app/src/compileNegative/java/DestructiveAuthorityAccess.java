@@ -22,6 +22,9 @@ import com.example.devicemanagement.persistence.TrustedRuntimeDenyOnlyCooldownMa
 import com.example.devicemanagement.persistence.SqliteDenyOnlyMarkerStore;
 import com.example.devicemanagement.persistence.SqliteDestructivePreExecutionStore;
 import com.example.devicemanagement.persistence.AndroidDestructiveSafetyPersistence;
+import com.example.devicemanagement.destructive.RuntimeDenyOnlyCooldownStore;
+import com.example.devicemanagement.destructive.RuntimeDestructivePreExecutionStore;
+import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability;
 
 final class DestructiveAuthorityAccess {
     DestructiveArmingAuthority arming;
@@ -46,4 +49,7 @@ final class DestructiveAuthorityAccess {
     SqliteDenyOnlyMarkerStore sqliteMarkerStore;
     SqliteDestructivePreExecutionStore sqliteEvidenceStore;
     AndroidDestructiveSafetyPersistence androidSafetyPersistence;
+    RuntimeDenyOnlyCooldownStore runtimeCooldown;
+    RuntimeDestructivePreExecutionStore runtimePreExecution;
+    RuntimeDestructiveSafetyDurability runtimeDurability;
 }

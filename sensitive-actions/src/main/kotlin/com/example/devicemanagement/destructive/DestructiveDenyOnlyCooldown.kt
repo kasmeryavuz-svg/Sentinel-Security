@@ -10,10 +10,17 @@ import com.example.devicemanagement.integration.MonotonicTimeSource
  * cooldown. Same-UID arbitrary code remains application compromise and is
  * out of scope.
  *
- * TESTED PERSISTENCE SEMANTICS remain in this state machine. The purpose-
- * specific trusted RUNTIME PERSISTENCE IMPLEMENTATION is
+ * TESTED PERSISTENCE SEMANTICS remain in this state machine. Simulation
+ * and 17A/17B tests may supply a generic [DenyOnlyCooldownMarkerStore],
+ * including in-memory stores. That generic type is not a runtime
+ * destructive prerequisite. A future real destructive chain must require
+ * [RuntimeDenyOnlyCooldownStore] / [RuntimeDestructiveSafetyDurability]
+ * and cannot accept in-memory or reconstructable stores.
+ *
+ * The purpose-specific trusted RUNTIME PERSISTENCE IMPLEMENTATION is
  * TrustedRuntimeDenyOnlyCooldownMarkerStore plus a
- * DenyOnlyMarkerDurableMedium. The persisted marker may only deny.
+ * DenyOnlyMarkerDurableMedium. Wrapping a reconstructable test medium
+ * does not mint runtime durability. The persisted marker may only deny.
  */
 internal object DenyOnlyCooldownMarker {
     const val MAGIC = "SENTINEL_DENY_ONLY_COOLDOWN_REQUIRED_V1"
@@ -52,6 +59,11 @@ internal sealed interface MarkerWriteResult {
     data object Failed : MarkerWriteResult
 }
 
+/**
+ * Generic deny-only marker store used by simulation and tests.
+ * In-memory implementations may satisfy this type. They cannot satisfy
+ * [RuntimeDenyOnlyCooldownStore].
+ */
 internal interface DenyOnlyCooldownMarkerStore {
     fun writeMarker(bytes: ByteArray): MarkerWriteResult
 
@@ -62,6 +74,7 @@ internal class SharedDenyOnlyMarkerState {
     var bytes: ByteArray? = null
 }
 
+/** TEST/SIMULATION persistence only. Cannot satisfy [RuntimeDenyOnlyCooldownStore]. */
 internal class InMemoryDenyOnlyCooldownMarkerStore(
     private val state: SharedDenyOnlyMarkerState = SharedDenyOnlyMarkerState(),
 ) : DenyOnlyCooldownMarkerStore {

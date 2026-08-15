@@ -264,5 +264,7 @@ metadata, and controlled registry are unchanged.
 Checkpoint 17B adds purpose-specific deny-only cooldown persistence and
 a separate durable pre-execution evidence store. Those adapters are not
 wired into `DeviceManagement.create`, cannot authorize wipe, and do not
-add `<wipe-data>` or a DPM wrapper. See `docs/WIPE_17A_PREFLIGHT.md` and
-`docs/WIPE_17B_ENTRY_REVIEW.md`.
+add `<wipe-data>` or a DPM wrapper. Simulation/test stores remain on a
+generic persistence surface and cannot satisfy the runtime-durable
+capability required by any future real destructive chain. See
+`docs/WIPE_17A_PREFLIGHT.md` and `docs/WIPE_17B_ENTRY_REVIEW.md`.

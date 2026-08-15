@@ -442,5 +442,7 @@ See `docs/WIPE_17A_PREFLIGHT.md` and `docs/WIPE_17B_ENTRY_REVIEW.md`.
 Checkpoint 17B adds the trusted runtime deny-only persistence adapter
 and a separate durable pre-execution evidence path. Those artifacts can
 only deny or record evidence. They do not authorize wipe, add
-`<wipe-data>`, or make simulation production-reachable. GrapheneOS
-destructive API behavior remains unresolved.
+`<wipe-data>`, or make simulation production-reachable. In-memory and
+reconstructable test stores cannot satisfy the runtime-durable
+capability a future real chain must require. GrapheneOS destructive
+API behavior remains unresolved.

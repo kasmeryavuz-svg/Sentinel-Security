@@ -355,6 +355,9 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/persistence/DenyOnlyMarkerDurableMedium",
         "com/example/devicemanagement/persistence/SqliteDenyOnlyMarkerStore",
         "com/example/devicemanagement/persistence/SqliteDestructivePreExecutionStore",
+        "com/example/devicemanagement/destructive/RuntimeDenyOnlyCooldownStore",
+        "com/example/devicemanagement/destructive/RuntimeDestructivePreExecutionStore",
+        "com/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability",
     )
 
     private val recoveryForbiddenMethods = setOf(
@@ -371,6 +374,8 @@ internal object ProductionBytecodePolicyVerifier {
         "setScreenCaptureDisabled",
         "setCameraDisabled",
         "setStatusBarDisabled",
+        "issueFromTrustedAndroidStores",
+        "issueRuntimeDurability",
     )
 
     private val trustedAuditStoreMutationOrigins = mapOf(
@@ -436,6 +441,20 @@ internal object ProductionBytecodePolicyVerifier {
             "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;)" +
             "Lcom/example/devicemanagement/destructive/DestructiveSimulationStatus;",
     )
+
+    private val trustedRuntimeDurabilityIssueOrigin = InvocationOrigin(
+        "com/example/devicemanagement/persistence/AndroidDestructiveSafetyPersistence",
+        "issueRuntimeDurability",
+        "(Landroid/content/Context;Lcom/example/devicemanagement/logging/StructuredLogger;)" +
+            "Lcom/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability;",
+    )
+
+    private val trustedRuntimeDurabilityIssueInvocation =
+        "com/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability." +
+            "issueFromTrustedAndroidStores(" +
+            "Lcom/example/devicemanagement/persistence/DenyOnlyMarkerDurableMedium;" +
+            "Lcom/example/devicemanagement/destructive/DestructivePreExecutionDurableStore;)" +
+            "Lcom/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability;"
 
     private val trustedDestructiveSafetyMutationOrigins = mapOf(
         "com/example/devicemanagement/destructive/DenyOnlyCooldownMarkerStore." +
@@ -632,6 +651,7 @@ internal object ProductionBytecodePolicyVerifier {
                 checkTrustedAuditAppendInvocation(owner, name, descriptor, location)
                 checkTrustedAuditStoreMutationInvocation(owner, name, descriptor, location)
                 checkTrustedDestructiveSafetyMutationInvocation(owner, name, descriptor, location)
+                checkTrustedRuntimeDurabilityIssueInvocation(owner, name, descriptor, location)
                 checkRecoveryIsolation(owner, name, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
                 checkContextDatabaseInvocation(owner, name, location)
@@ -706,6 +726,12 @@ internal object ProductionBytecodePolicyVerifier {
                 "$location method handle",
             )
             checkTrustedDestructiveSafetyMutationInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
+            checkTrustedRuntimeDurabilityIssueInvocation(
                 handle.owner,
                 handle.name,
                 handle.desc,
@@ -847,6 +873,32 @@ internal object ProductionBytecodePolicyVerifier {
                 violation(
                     "$location invokes audit store mutation $invocation outside " +
                         "DurableAuditRepository",
+                )
+            }
+        }
+
+        private fun checkTrustedRuntimeDurabilityIssueInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            val invocation = "$owner.$name$descriptor"
+            if (invocation != trustedRuntimeDurabilityIssueInvocation) {
+                return
+            }
+            val actualOrigin = InvocationOrigin(
+                className,
+                methodName(location),
+                methodDescriptor(location),
+            )
+            if (
+                target.artifactPath != ":device-management-impl" ||
+                actualOrigin != trustedRuntimeDurabilityIssueOrigin
+            ) {
+                violation(
+                    "$location invokes runtime durability issuance $invocation outside " +
+                        "AndroidDestructiveSafetyPersistence",
                 )
             }
         }

@@ -41,6 +41,9 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("SimulatedDestructiveExecutor"))
         assertFalse(composition.contains("Checkpoint17ASimulationSink"))
         assertFalse(composition.contains("DenyOnlyCooldownMarkerStore"))
+        assertFalse(composition.contains("RuntimeDestructiveSafetyDurability"))
+        assertFalse(composition.contains("issueRuntimeDurability"))
+        assertFalse(composition.contains("AndroidDestructiveSafetyPersistence"))
     }
 
     @Test

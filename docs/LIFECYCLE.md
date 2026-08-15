@@ -105,5 +105,7 @@ deny or provide evidence. Process death and reboot still destroy every
 positive authority. Crash after a durable pre-execution row and before
 invocation is evidence / outcome-unknown only; it never automatically
 replays or invokes. There is still no `BOOT_COMPLETED` path and no
-recovery execution. See `docs/WIPE_17A_PREFLIGHT.md` and
+recovery execution. Runtime-durable capabilities are a separate type
+from simulation/test stores and are not wired into production
+composition. See `docs/WIPE_17A_PREFLIGHT.md` and
 `docs/WIPE_17B_ENTRY_REVIEW.md`.

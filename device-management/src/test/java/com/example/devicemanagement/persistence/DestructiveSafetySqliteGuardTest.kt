@@ -39,7 +39,13 @@ class DestructiveSafetySqliteGuardTest {
         assertFalse(composition.contains("AndroidDestructiveSafetyPersistence"))
         assertFalse(composition.contains("SqliteDenyOnlyMarkerStore"))
         assertFalse(composition.contains("SqliteDestructivePreExecutionStore"))
+        assertFalse(composition.contains("issueRuntimeDurability"))
+        assertFalse(composition.contains("RuntimeDestructiveSafetyDurability"))
         assertFalse(implementation.contains("AndroidDestructiveSafetyPersistence"))
+        assertFalse(implementation.contains("issueRuntimeDurability"))
         assertTrue(source.contains("Not invoked by"))
+        assertTrue(source.contains("fun issueRuntimeDurability"))
+        assertTrue(source.contains("issueFromTrustedAndroidStores"))
+        assertTrue(source.contains("RuntimeDestructiveSafetyDurability"))
     }
 }

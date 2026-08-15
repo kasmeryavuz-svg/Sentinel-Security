@@ -96,6 +96,42 @@ Properties:
 The Android store is **not** constructed by `DeviceManagement.create`.
 Simulation remains non-production-reachable.
 
+### Runtime-durable vs simulation persistence
+
+Component existence is not the same as a future real destructive chain
+being forced to use those components. 17B now separates the two:
+
+| Surface | Who may use it | Satisfies a future real chain? |
+| --- | --- | --- |
+| `DenyOnlyCooldownMarkerStore` / `InMemoryDenyOnlyCooldownMarkerStore` / `ReconstructableDenyOnlyMarkerMedium` | 17A/17B simulation and tests | **No** |
+| `DestructivePreExecutionDurableStore` / `InMemoryDestructivePreExecutionDurableStore` | 17A/17B simulation and tests | **No** |
+| `RuntimeDenyOnlyCooldownStore` | runtime prerequisite only | **Yes**, if minted |
+| `RuntimeDestructivePreExecutionStore` | runtime prerequisite only | **Yes**, if minted |
+| `RuntimeDestructiveSafetyDurability` | paired runtime prerequisite | **Yes**, if minted |
+
+`RuntimeDestructiveSafetyDurability` is an opaque paired capability.
+It is not an interface. In-memory, reconstructable, unavailable, and
+any other caller-supplied persistence cannot implement it or be
+assigned to it. The only mint path is
+`RuntimeDestructiveSafetyDurability.issueFromTrustedAndroidStores`,
+which accepts only the exact Android classes
+`SqliteDenyOnlyMarkerStore` and `SqliteDestructivePreExecutionStore`.
+Production bytecode allows that mint only from
+`AndroidDestructiveSafetyPersistence.issueRuntimeDurability`.
+
+That factory remains **unwired** from `DeviceManagement.create` and
+production UI/composition. There is still no real destructive executor
+that consumes the runtime capability, so:
+
+```text
+REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED = false
+REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED = false
+```
+
+A later real chain must take `RuntimeDestructiveSafetyDurability` (or
+the two runtime store types) and must not accept the generic simulation
+stores. Until that pairing exists, the ENFORCED flags stay false.
+
 ## 2. Real durable destructive pre-execution audit
 
 17A simulation evidence was in-process and not the production durable
@@ -258,6 +294,8 @@ REAL_DESTRUCTIVE_EXECUTOR_PRESENT = false
 DESTRUCTIVE_POLICY_WRAPPER_PRESENT = false
 DESTRUCTIVE_METADATA_PRESENT = false
 PRODUCTION_REACHABLE_SIMULATION = false
+REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED = false
+REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED = false
 DESTRUCTIVE_PRODUCTION_SIGNING_ENABLED = false
 DESTRUCTIVE_HARDWARE_VALIDATION_APPROVED = false
 DESTRUCTIVE_HUMAN_APPROVAL_RECORDED = false
@@ -274,6 +312,11 @@ implemented and tested:
 TRUSTED_RUNTIME_COOLDOWN_PERSISTENCE_ADAPTER_PRESENT = true
 REAL_DURABLE_DESTRUCTIVE_PRE_EXECUTION_AUDIT_PRESENT = true
 ```
+
+The two PRESENT flags prove **component existence** only. They do not
+prove that a future real destructive chain is forced to use those
+runtime-durable components. The two ENFORCED flags stay false until
+that structural pairing exists.
 
 Do not change any flag just because this document says the architecture
 is closer. Tests prove the flags match reality.
@@ -314,6 +357,10 @@ Remaining blockers:
 17. Operator challenge is still optional / unimplemented.
 18. Same-UID arbitrary code remains out of scope for local persistence
     integrity.
+19. `REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED` is false — no
+    real destructive chain requires `RuntimeDenyOnlyCooldownStore`.
+20. `REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED` is false — no real
+    destructive chain requires `RuntimeDestructivePreExecutionStore`.
 
 A later YES would mean only:
 

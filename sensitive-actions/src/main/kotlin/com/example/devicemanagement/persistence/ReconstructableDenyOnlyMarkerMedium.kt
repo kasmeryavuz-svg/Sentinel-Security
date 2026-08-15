@@ -8,6 +8,10 @@ import com.example.devicemanagement.destructive.SharedDenyOnlyMarkerState
  * Shared [SharedDenyOnlyMarkerState] survives adapter reconstruction the same
  * way a durable marker file survives process restart. This is not a general
  * filesystem API and is not an Android Context store.
+ *
+ * TEST/SIMULATION only. This medium cannot become
+ * [com.example.devicemanagement.destructive.RuntimeDenyOnlyCooldownStore]
+ * or [com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability].
  */
 internal class ReconstructableDenyOnlyMarkerMedium(
     private val state: SharedDenyOnlyMarkerState = SharedDenyOnlyMarkerState(),

@@ -9,6 +9,11 @@ package com.example.devicemanagement.destructive
  * [DurableDestructivePreExecutionRepository.append].
  *
  * This store is isolated from production `sentinel_audit.db` schema v1.
+ *
+ * TEST/SIMULATION implementations may satisfy this interface. They cannot
+ * satisfy [RuntimeDestructivePreExecutionStore] or
+ * [RuntimeDestructiveSafetyDurability]. A future real destructive chain
+ * must require the runtime capability, not this generic interface.
  */
 interface DestructivePreExecutionDurableStore {
     fun insert(record: DestructivePreExecutionDurableRecord): Long

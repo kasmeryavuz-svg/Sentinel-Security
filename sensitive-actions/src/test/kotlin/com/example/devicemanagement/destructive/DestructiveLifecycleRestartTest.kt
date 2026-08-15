@@ -103,6 +103,10 @@ class DestructiveLifecycleRestartTest {
         assertTrue(!source.contains("TrustedRuntimeDenyOnlyCooldownMarkerStore"))
         assertTrue(!source.contains("DurableDestructivePreExecutionRepository"))
         assertTrue(!source.contains("DestructivePreExecutionDurableStore"))
+        assertTrue(!source.contains("RuntimeDenyOnlyCooldownStore"))
+        assertTrue(!source.contains("RuntimeDestructivePreExecutionStore"))
+        assertTrue(!source.contains("RuntimeDestructiveSafetyDurability"))
+        assertTrue(!source.contains("AndroidDestructiveSafetyPersistence"))
     }
 
     @Test

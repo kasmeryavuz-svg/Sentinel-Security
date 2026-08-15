@@ -48,6 +48,11 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("DurableDestructivePreExecutionRepository"))
         assertFalse(sources.contains("DestructivePreExecutionDurableStore"))
         assertFalse(sources.contains("AndroidDestructiveSafetyPersistence"))
+        assertFalse(sources.contains("RuntimeDenyOnlyCooldownStore"))
+        assertFalse(sources.contains("RuntimeDestructivePreExecutionStore"))
+        assertFalse(sources.contains("RuntimeDestructiveSafetyDurability"))
+        assertFalse(sources.contains("issueFromTrustedAndroidStores"))
+        assertFalse(sources.contains("issueRuntimeDurability"))
     }
 
     @Test

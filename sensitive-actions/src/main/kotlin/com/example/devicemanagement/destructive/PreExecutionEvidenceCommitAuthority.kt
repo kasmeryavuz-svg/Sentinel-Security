@@ -18,10 +18,16 @@ internal class PreExecutionEvidenceCommitProof private constructor() {
 }
 
 /**
- * Paired durable pre-execution append authority. The only issuer of
- * [PreExecutionEvidenceCommitProof]. A failed durable append creates no proof
- * and makes destructive execution impossible. Simulation-log mirroring is
- * secondary and also fail-closed.
+ * Paired durable pre-execution append authority for the simulation chain.
+ * The only issuer of [PreExecutionEvidenceCommitProof]. A failed durable
+ * append creates no proof and makes destructive execution impossible.
+ * Simulation-log mirroring is secondary and also fail-closed.
+ *
+ * This authority accepts a generic [DurableDestructivePreExecutionRepository]
+ * so 17A/17B simulation tests can use in-memory stores. That generic path
+ * is not a runtime destructive prerequisite. A future real destructive
+ * chain must require [RuntimeDestructivePreExecutionStore] /
+ * [RuntimeDestructiveSafetyDurability] and cannot accept in-memory stores.
  */
 internal class PreExecutionEvidenceCommitAuthority(
     private val durableRepository: DurableDestructivePreExecutionRepository,

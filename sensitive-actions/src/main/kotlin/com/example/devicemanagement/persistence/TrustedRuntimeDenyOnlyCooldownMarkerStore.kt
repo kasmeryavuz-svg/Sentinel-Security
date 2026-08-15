@@ -16,6 +16,11 @@ import com.example.devicemanagement.destructive.MarkerWriteResult
  * This adapter is not a general filesystem or database capability. It has no
  * path, query, or arbitrary-write API. Production composition must not wire
  * it into a reachable destructive executor.
+ *
+ * Wrapping a reconstructable or other test medium does not mint
+ * [com.example.devicemanagement.destructive.RuntimeDenyOnlyCooldownStore].
+ * Only [com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability]
+ * issued from the trusted Android SQLite medium is the runtime prerequisite.
  */
 internal class TrustedRuntimeDenyOnlyCooldownMarkerStore(
     private val medium: DenyOnlyMarkerDurableMedium,

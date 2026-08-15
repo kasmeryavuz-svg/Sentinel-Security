@@ -1718,6 +1718,89 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `rogue caller cannot mint runtime durability`() {
+        val classes = compileJava(
+            denyOnlyMarkerMediumStub(),
+            destructivePreExecutionStoreStub(),
+            destructivePreExecutionRecordStub(),
+            runtimeDestructiveSafetyDurabilityStub(),
+            "attack/RogueRuntimeDurabilityMint.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.DestructivePreExecutionDurableStore;
+                import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability;
+                import com.example.devicemanagement.persistence.DenyOnlyMarkerDurableMedium;
+                public final class RogueRuntimeDurabilityMint {
+                    void forge(DenyOnlyMarkerDurableMedium medium, DestructivePreExecutionDurableStore store) {
+                        RuntimeDestructiveSafetyDurability.issueFromTrustedAndroidStores(medium, store);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "runtime durability issuance" in it })
+        assertTrue(violations.any { "issueFromTrustedAndroidStores" in it })
+    }
+
+    @Test
+    fun `authorized Android factory may mint runtime durability`() {
+        val classes = compileJava(
+            denyOnlyMarkerMediumStub(),
+            destructivePreExecutionStoreStub(),
+            destructivePreExecutionRecordStub(),
+            runtimeDestructiveSafetyDurabilityStub(),
+            structuredLoggerStub(),
+            "com/example/devicemanagement/persistence/AndroidDestructiveSafetyPersistence.java" to
+                """
+                package com.example.devicemanagement.persistence;
+                import android.content.Context;
+                import com.example.devicemanagement.destructive.DestructivePreExecutionDurableStore;
+                import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability;
+                import com.example.devicemanagement.logging.StructuredLogger;
+                public final class AndroidDestructiveSafetyPersistence {
+                    public RuntimeDestructiveSafetyDurability issueRuntimeDurability(
+                        Context context,
+                        StructuredLogger logger
+                    ) {
+                        DenyOnlyMarkerDurableMedium medium = null;
+                        DestructivePreExecutionDurableStore store = null;
+                        return RuntimeDestructiveSafetyDurability.issueFromTrustedAndroidStores(medium, store);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(
+            violations.none { "runtime durability issuance" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
+    @Test
+    fun `recovery class cannot reference runtime durability capability`() {
+        val classes = compileJava(
+            denyOnlyMarkerMediumStub(),
+            destructivePreExecutionStoreStub(),
+            destructivePreExecutionRecordStub(),
+            runtimeDestructiveSafetyDurabilityStub(),
+            "com/example/devicemanagement/recovery/RogueRecoveryRuntimeDurability.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability;
+                public final class RogueRecoveryRuntimeDurability {
+                    RuntimeDestructiveSafetyDurability capability;
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "RuntimeDestructiveSafetyDurability" in it })
+    }
+
+    @Test
     fun `authorized TrustedRuntime adapter may persist through the deny-only medium`() {
         val classes = compileJava(
             denyOnlyMarkerMediumStub(),
@@ -1955,6 +2038,30 @@ class ProductionBytecodePolicyVerifierTest {
             """
             package com.example.devicemanagement.destructive;
             public interface MarkerWriteResult {}
+            """.trimIndent()
+    }
+
+    private fun runtimeDestructiveSafetyDurabilityStub(): Pair<String, String> {
+        return "com/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability.java" to
+            """
+            package com.example.devicemanagement.destructive;
+            import com.example.devicemanagement.persistence.DenyOnlyMarkerDurableMedium;
+            public final class RuntimeDestructiveSafetyDurability {
+                public static RuntimeDestructiveSafetyDurability issueFromTrustedAndroidStores(
+                    DenyOnlyMarkerDurableMedium cooldownMedium,
+                    DestructivePreExecutionDurableStore preExecutionStore
+                ) {
+                    return null;
+                }
+            }
+            """.trimIndent()
+    }
+
+    private fun structuredLoggerStub(): Pair<String, String> {
+        return "com/example/devicemanagement/logging/StructuredLogger.java" to
+            """
+            package com.example.devicemanagement.logging;
+            public interface StructuredLogger {}
             """.trimIndent()
     }
 

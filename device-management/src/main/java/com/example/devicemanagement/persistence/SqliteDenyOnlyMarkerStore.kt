@@ -295,15 +295,30 @@ internal class SqliteDestructivePreExecutionStore(
 }
 
 /**
- * Android factory for Checkpoint 17B safety persistence. Not invoked by
- * DeviceManagement composition. Constructing these stores does not arm,
- * authorize, or execute anything.
+ * Android factory for Checkpoint 17B runtime-durable safety persistence.
+ * Not invoked by DeviceManagement composition. Issuing the runtime
+ * capability does not arm, authorize, or execute anything.
+ *
+ * This is the only production mint path for
+ * [com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability].
+ * Open or schema failure returns null (fail closed). Unavailable test
+ * stand-ins are not runtime durability.
  */
 internal object AndroidDestructiveSafetyPersistence {
-    fun denyOnlyMarkerMedium(
+    fun issueRuntimeDurability(
         context: Context,
         logger: StructuredLogger,
-    ): DenyOnlyMarkerDurableMedium {
+    ): com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability? {
+        val medium = openDenyOnlyMedium(context, logger) ?: return null
+        val store = openPreExecutionStore(context, logger) ?: return null
+        return com.example.devicemanagement.destructive.RuntimeDestructiveSafetyDurability
+            .issueFromTrustedAndroidStores(medium, store)
+    }
+
+    private fun openDenyOnlyMedium(
+        context: Context,
+        logger: StructuredLogger,
+    ): SqliteDenyOnlyMarkerStore? {
         return try {
             val store = SqliteDenyOnlyMarkerStore(context)
             store.loadEncodedMarker()
@@ -313,14 +328,14 @@ internal object AndroidDestructiveSafetyPersistence {
                 event = "deny_only_cooldown_store_unavailable",
                 fields = mapOf("error_type" to "open_or_schema_failure"),
             )
-            UnavailableDenyOnlyMarkerMedium
+            null
         }
     }
 
-    fun preExecutionStore(
+    private fun openPreExecutionStore(
         context: Context,
         logger: StructuredLogger,
-    ): com.example.devicemanagement.destructive.DestructivePreExecutionDurableStore {
+    ): SqliteDestructivePreExecutionStore? {
         return try {
             val store = SqliteDestructivePreExecutionStore(context)
             store.count()
@@ -330,7 +345,7 @@ internal object AndroidDestructiveSafetyPersistence {
                 event = "destructive_pre_execution_store_unavailable",
                 fields = mapOf("error_type" to "open_or_schema_failure"),
             )
-            com.example.devicemanagement.destructive.UnavailableDestructivePreExecutionDurableStore()
+            null
         }
     }
 }
