@@ -177,7 +177,7 @@ class Checkpoint19CDecisionRealityTest {
         assertTrue(docs.contains("6. Destructive hardware-test approval"))
         assertTrue(docs.contains("7. Destructive hardware test"))
         assertTrue(docs.contains("8. GrapheneOS validation"))
-        assertTrue(docs.contains("Do not assemble it in this checkpoint."))
+        assertTrue(docs.contains("Do **not** assemble it in this checkpoint."))
         assertTrue(docs.contains("This checkpoint does not mint or record a real confirmation."))
         assertTrue(docs.contains("Do not invent hashes."))
         assertTrue(docs.contains("Do **not** run the hardware test in this checkpoint."))
@@ -253,7 +253,7 @@ class Checkpoint19CDecisionRealityTest {
             .joinToString("\n") { it.readText() }
         assertTrue(nineteenC.contains("Checkpoint19CDecision"))
         assertFalse(nineteenC.contains("manager." + "wipeDevice"))
-        assertFalse(nineteenC.contains("android.app.admin"))
+        assertFalse(nineteenC.contains("android.app." + "admin"))
     }
 
     private companion object {
