@@ -52,6 +52,12 @@ class Checkpoint17AEntryCriteriaTest {
         assertTrue(decision.contains("18_ARCHITECTURE_READY_FOR_SEPARATE_DESTRUCTIVE_APPROVAL"))
         assertTrue(decision.contains("NO REAL WIPE IMPLEMENTED"))
         assertTrue(decision.contains("DO NOT MERGE"))
+        val approvalReview = File(docs, "WIPE_19A_DESTRUCTIVE_IMPLEMENTATION_APPROVAL.md").readText()
+        assertTrue(approvalReview.contains("19_DESTRUCTIVE_IMPLEMENTATION_APPROVAL_REQUEST_READY"))
+        assertTrue(approvalReview.contains("DESTRUCTIVE_IMPLEMENTATION_APPROVED = NO"))
+        assertTrue(approvalReview.contains("NO REAL WIPE IMPLEMENTED"))
+        assertTrue(approvalReview.contains("NO DESTRUCTIVE APPROVAL RECORDED"))
+        assertTrue(approvalReview.contains("DO NOT MERGE"))
     }
 
     @Test

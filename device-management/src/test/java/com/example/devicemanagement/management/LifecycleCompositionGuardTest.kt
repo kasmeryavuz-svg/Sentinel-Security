@@ -56,6 +56,9 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("assembleAndHandoff"))
         assertFalse(composition.contains("FutureDestructiveExecutorContract"))
         assertFalse(composition.contains("Checkpoint18Decision"))
+        assertFalse(composition.contains("Checkpoint19ADecision"))
+        assertFalse(composition.contains("AndroidFutureDestructiveExecutor"))
+        assertFalse(composition.contains("AndroidDevicePolicyFactoryResetService"))
     }
 
     @Test

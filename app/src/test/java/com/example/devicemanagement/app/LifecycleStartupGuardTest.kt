@@ -49,6 +49,10 @@ class LifecycleStartupGuardTest {
         assertFalse(container.contains("FutureDestructiveRealChainBoundary"))
         assertFalse(app.contains("assembleAndHandoff"))
         assertFalse(container.contains("assembleAndHandoff"))
+        assertFalse(app.contains("Checkpoint19ADecision"))
+        assertFalse(container.contains("Checkpoint19ADecision"))
+        assertFalse(app.contains("AndroidFutureDestructiveExecutor"))
+        assertFalse(container.contains("AndroidFutureDestructiveExecutor"))
     }
 
     @Test

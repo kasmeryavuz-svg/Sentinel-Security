@@ -397,6 +397,7 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority\$RuntimeDurablePreExecutionCommitProof",
         "com/example/devicemanagement/destructive/RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/Checkpoint18Decision",
+        "com/example/devicemanagement/destructive/Checkpoint19ADecision",
         "com/example/devicemanagement/destructive/UnwiredFutureDestructiveExecutor",
         "com/example/devicemanagement/destructive/IssuedRuntimeDurablePreExecutionCommitProof",
     )
