@@ -35,4 +35,16 @@ class Checkpoint17BHardBlockTest {
         assertTrue(!allowlistBlock.contains("wipeData"))
         assertTrue(!allowlistBlock.contains("wipeDevice"))
     }
+
+    @Test
+    fun `destructive-safety SQLite and mutation bindings exist without widening DPM`() {
+        val source = File("src/main/kotlin/ProductionBytecodePolicyVerifier.kt").readText()
+        assertTrue(source.contains("authorizedDestructiveSafetySqliteClasses"))
+        assertTrue(source.contains("trustedDestructiveSafetyMutationOrigins"))
+        assertTrue(source.contains("sentinel_deny_only_cooldown.db"))
+        assertTrue(source.contains("sentinel_destructive_pre_execution_evidence.db"))
+        assertTrue(source.contains("SqliteDenyOnlyMarkerStore"))
+        assertTrue(source.contains("SqliteDestructivePreExecutionStore"))
+        assertTrue(!source.contains("allowedDpmInvocations") || !source.substringAfter("allowedDpmInvocations").substringBefore("forbiddenLoaderOwners").contains("wipeDevice"))
+    }
 }

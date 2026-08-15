@@ -89,7 +89,8 @@ internal class FrozenAdminSet private constructor(
 
 /**
  * Exact target context available to Sentinel today. Does not invent hardware
- * identifiers. Signing-certificate binding is intentionally absent.
+ * identifiers. Signing-certificate and artifact-digest binding live in
+ * [DestructiveArtifactIdentity], not on this target snapshot.
  *
  * Not a data class: the constructor is private and every factory / wither
  * re-snapshots collection fields. There is no copy path that can retain a

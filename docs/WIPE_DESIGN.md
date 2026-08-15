@@ -832,13 +832,18 @@ destructive-API, metadata, or hardware-test rows.
 **TESTED PERSISTENCE SEMANTICS** via a test-only reconstruction adapter.
 It does **not** ship a trusted **RUNTIME PERSISTENCE IMPLEMENTATION**.
 17A simulation evidence proves ordering and fail-closed behavior only.
-Real durable destructive pre-execution evidence remains a 17B blocker.
+Real durable destructive pre-execution evidence remains a 17B blocker
+until a future real chain is structurally paired to the runtime-durable
+capability types. Simulation/test stores must not satisfy that
+prerequisite.
 
-See `docs/WIPE_17A_PREFLIGHT.md` and `docs/WIPE_PLATFORM_PREFLIGHT.md`.
+See `docs/WIPE_17A_PREFLIGHT.md`, `docs/WIPE_17B_ENTRY_REVIEW.md`, and
+`docs/WIPE_PLATFORM_PREFLIGHT.md`.
 
-**NO REAL WIPE IS IMPLEMENTED.** A later Checkpoint 17B would still have
-to change the explicit 17B hard-block gates before any real DPM wipe
-wrapper or `<wipe-data>` metadata may exist.
+**NO REAL WIPE IS IMPLEMENTED.** Checkpoint 17B is an entry review only.
+A later destructive implementation would still have to change the
+explicit 17B hard-block gates before any real DPM wipe wrapper or
+`<wipe-data>` metadata may exist.
 
 ## 13. Checkpoint 16 freeze
 

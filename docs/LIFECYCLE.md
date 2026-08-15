@@ -98,7 +98,15 @@ process-local and die with the process. Reconstruction cannot resume an
 armed or authorized simulation request. The only persisted
 destructive-adjacent state is a deny-only cooldown marker, which can
 never authorize, arm, resume, execute, or become a lease. 17A tests
-those persistence semantics with a test-only reconstruction adapter; a
-trusted runtime persistence adapter remains a 17B blocker. There is
-still no `BOOT_COMPLETED` path and no recovery execution. See
-`docs/WIPE_17A_PREFLIGHT.md`.
+those persistence semantics with a test-only reconstruction adapter.
+Checkpoint 17B adds the trusted runtime deny-only adapter and a
+separate durable pre-execution evidence path. Persisted data can only
+deny or provide evidence. Process death and reboot still destroy every
+positive authority. Crash after a durable pre-execution row and before
+invocation is evidence / outcome-unknown only; it never automatically
+replays or invokes. There is still no `BOOT_COMPLETED` path and no
+recovery execution. Runtime-durable capabilities are a separate type
+from simulation/test stores and are not wired into production
+composition. Artifact-identity match proofs and destructive human
+approvals are process-local and die with the process. See
+`docs/WIPE_17A_PREFLIGHT.md` and `docs/WIPE_17B_ENTRY_REVIEW.md`.

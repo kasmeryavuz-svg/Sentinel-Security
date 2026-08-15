@@ -100,6 +100,74 @@ class DestructiveLifecycleRestartTest {
         assertTrue(!source.contains("SimulatedDestructiveExecutor"))
         assertTrue(!source.contains("Checkpoint17ASimulationSink"))
         assertTrue(!source.contains("DenyOnlyCooldownMarkerStore"))
+        assertTrue(!source.contains("TrustedRuntimeDenyOnlyCooldownMarkerStore"))
+        assertTrue(!source.contains("DurableDestructivePreExecutionRepository"))
+        assertTrue(!source.contains("DestructivePreExecutionDurableStore"))
+        assertTrue(!source.contains("RuntimeDenyOnlyCooldownStore"))
+        assertTrue(!source.contains("RuntimeDestructivePreExecutionStore"))
+        assertTrue(!source.contains("RuntimeDestructiveSafetyDurability"))
+        assertTrue(!source.contains("AndroidDestructiveSafetyPersistence"))
+        assertTrue(!source.contains("DestructiveArtifactIdentityAuthority"))
+        assertTrue(!source.contains("DestructiveHumanApprovalAuthority"))
+        assertTrue(!source.contains("DestructiveWipeOptionPolicy"))
+    }
+
+    @Test
+    fun `crash after durable pre-execution append cannot replay or invoke`() {
+        val state = SharedDestructivePreExecutionDurableState()
+        val first = DestructiveSimulationComposition.create(
+            durableStore = InMemoryDestructivePreExecutionDurableStore(state),
+        )
+        val binding = verifiedBinding()
+        val authorized = first.admitBindAuthorize(binding)
+        val consumed = first.authorizationAuthority.consume(
+            authorized.capability,
+            binding,
+            authorized.attemptLease,
+        ) as DestructiveCapabilityConsumption.Accepted
+        val committed = first.preExecutionAuthority.commit(
+            evidence = simulationEvidence(
+                correlationId = binding.correlationId.value,
+                phase = DestructiveEvidencePhase.PRE_EXECUTION_COMMITTED,
+                presentationWallClockMillis = 0L,
+                binding = binding,
+            ),
+            binding = binding,
+            attemptLease = consumed.attemptLease,
+        )
+        assertTrue(committed is PreExecutionEvidenceCommitResult.Committed)
+        assertTrue(state.rows.isNotEmpty())
+
+        val reconstructed = DestructiveSimulationComposition.create(
+            durableStore = InMemoryDestructivePreExecutionDurableStore(state),
+        )
+        assertEquals(0, reconstructed.sink.invocationCount())
+        val replay = reconstructed.executor.execute(
+            authorized.capability,
+            binding,
+            authorized.attemptLease,
+        )
+        assertEquals(DestructiveSimulationOutcome.REJECTED, replay.outcome)
+        assertEquals(0, reconstructed.sink.invocationCount())
+    }
+
+    @Test
+    fun `successful simulation does not automatically invoke a second time after reconstruction`() {
+        val state = SharedDestructivePreExecutionDurableState()
+        val first = DestructiveSimulationComposition.create(
+            durableStore = InMemoryDestructivePreExecutionDurableStore(state),
+        )
+        assertEquals(
+            DestructiveSimulationOutcome.SIMULATED_WOULD_EXECUTE,
+            first.pipeline.submit(validRequest()).outcome,
+        )
+        assertEquals(1, first.sink.invocationCount())
+
+        val reconstructed = DestructiveSimulationComposition.create(
+            durableStore = InMemoryDestructivePreExecutionDurableStore(state),
+        )
+        assertEquals(0, reconstructed.sink.invocationCount())
+        assertTrue(state.rows.isNotEmpty())
     }
 
     @Test

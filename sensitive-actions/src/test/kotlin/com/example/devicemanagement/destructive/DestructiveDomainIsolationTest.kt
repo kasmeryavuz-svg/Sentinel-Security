@@ -26,8 +26,21 @@ class DestructiveDomainIsolationTest {
             DestructiveAttemptAdmissionAuthority::class.java,
             DestructiveFinalExecutionGate::class.java,
             PreExecutionEvidenceCommitAuthority::class.java,
+            DurableDestructivePreExecutionRepository::class.java,
             FrozenAdminSet::class.java,
             SimulatedDestructiveExecutor::class.java,
+            RuntimeDenyOnlyCooldownStore::class.java,
+            RuntimeDestructivePreExecutionStore::class.java,
+            RuntimeDestructiveSafetyDurability::class.java,
+            DestructiveArtifactIdentity::class.java,
+            DestructiveArtifactIdentityMatchProof::class.java,
+            DestructiveArtifactIdentityExpectation::class.java,
+            DestructiveHumanApproval::class.java,
+            DestructiveHumanConfirmation::class.java,
+            DestructiveOperatorChallenge::class.java,
+            DestructiveChallengeIdentity::class.java,
+            DestructiveHumanApprovalAuthority::class.java,
+            DestructiveHumanConfirmationAuthority::class.java,
         )
         types.forEach { type ->
             assertFalse(Serializable::class.java.isAssignableFrom(type))
@@ -73,7 +86,7 @@ class DestructiveDomainIsolationTest {
         assertFalse(sources.contains("DevicePolicyManager"))
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
-        assertFalse(sources.contains("ApprovalAuthority"))
+        assertFalse(sources.contains("com.example.devicemanagement.action.ApprovalAuthority"))
         assertFalse(sources.contains("ActionExecutor"))
         assertFalse(sources.contains("VerifiedPolicyMutation"))
         assertFalse(sources.contains("SafeMockWipeAction"))
@@ -89,6 +102,19 @@ class DestructiveDomainIsolationTest {
         assertFalse(sources.contains("FinalExecutionPermitConsumer"))
         assertTrue(sources.contains("PreExecutionEvidenceCommitProof"))
         assertTrue(sources.contains("CountedAttemptProof"))
+        assertTrue(sources.contains("DurableDestructivePreExecutionRepository"))
+        assertTrue(sources.contains("RuntimeDestructiveSafetyDurability"))
+        assertTrue(sources.contains("DestructiveArtifactIdentity"))
+        assertTrue(sources.contains("TrustedDestructiveArtifactExpectationMint"))
+        assertTrue(sources.contains("issueFromTrustedValidationSource"))
+        assertTrue(sources.contains("RuntimeDestructiveSafetyDurabilityMint"))
+        assertFalse(sources.contains("TrustedDestructiveArtifactExpectationFactory"))
+        assertTrue(sources.contains("DestructiveHumanApproval"))
+        assertTrue(sources.contains("DestructiveHumanConfirmationAuthority"))
+        assertTrue(sources.contains("issueFromTrustedConfirmationSource"))
+        assertTrue(sources.contains("DestructiveWipeOptionPolicy"))
+        assertFalse(sources.contains("fromTrustedSnapshot"))
+        assertFalse(sources.contains("java.nio.file.Files"))
     }
 
     @Test

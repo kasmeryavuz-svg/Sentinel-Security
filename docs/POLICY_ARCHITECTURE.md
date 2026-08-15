@@ -258,6 +258,16 @@ Checkpoint 17A adds a **separate**, non-production-wired destructive
 simulation domain (`DestructiveAttemptAdmissionAuthority`,
 `DestructiveArmingAuthority`, `DestructiveAuthorizationAuthority`,
 deny-only cooldown, `SimulatedDestructiveExecutor`). App/UI may see only
-request/status/evidence types. Simulation evidence is in-process and not
-durable. The production DPM allowlist, DeviceAdmin metadata, and
-controlled registry are unchanged. See `docs/WIPE_17A_PREFLIGHT.md`.
+request/status/evidence types. The production DPM allowlist, DeviceAdmin
+metadata, and controlled registry are unchanged.
+
+Checkpoint 17B adds purpose-specific deny-only cooldown persistence and
+a separate durable pre-execution evidence store. Those adapters are not
+wired into `DeviceManagement.create`, cannot authorize wipe, and do not
+add `<wipe-data>` or a DPM wrapper. Simulation/test stores remain on a
+generic persistence surface and cannot satisfy the runtime-durable
+capability required by any future real destructive chain. 17B also adds
+unwired artifact-identity and destructive human-approval prerequisites
+plus decision-domain wipe-option defaults. None of those open a real
+destructive path. See `docs/WIPE_17A_PREFLIGHT.md` and
+`docs/WIPE_17B_ENTRY_REVIEW.md`.

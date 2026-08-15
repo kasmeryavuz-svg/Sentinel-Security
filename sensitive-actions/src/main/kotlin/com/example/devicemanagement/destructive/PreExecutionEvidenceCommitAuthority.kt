@@ -2,12 +2,14 @@ package com.example.devicemanagement.destructive
 
 import com.example.devicemanagement.integration.MonotonicTimeSource
 import java.util.IdentityHashMap
+import java.util.UUID
 
 /**
  * Opaque process-local proof that [DestructiveEvidencePhase.PRE_EXECUTION_COMMITTED]
- * was appended by this authority. Evidence records themselves are never
- * authorization. Caller-constructed tokens are not registered and cannot
- * pass the final gate.
+ * was appended by this authority to the paired durable store. Evidence records
+ * themselves are never authorization. Caller-constructed tokens are not
+ * registered and cannot pass the final gate. Proofs are not serializable and
+ * die with the process.
  */
 internal class PreExecutionEvidenceCommitProof private constructor() {
     companion object {
@@ -16,13 +18,23 @@ internal class PreExecutionEvidenceCommitProof private constructor() {
 }
 
 /**
- * Paired pre-execution evidence writer. The only issuer of
- * [PreExecutionEvidenceCommitProof]. A failed append creates no proof.
+ * Paired durable pre-execution append authority for the simulation chain.
+ * The only issuer of [PreExecutionEvidenceCommitProof]. A failed durable
+ * append creates no proof and makes destructive execution impossible.
+ * Simulation-log mirroring is secondary and also fail-closed.
+ *
+ * This authority accepts a generic [DurableDestructivePreExecutionRepository]
+ * so 17A/17B simulation tests can use in-memory stores. That generic path
+ * is not a runtime destructive prerequisite. A future real destructive
+ * chain must require [RuntimeDestructivePreExecutionStore] /
+ * [RuntimeDestructiveSafetyDurability] and cannot accept in-memory stores.
  */
 internal class PreExecutionEvidenceCommitAuthority(
+    private val durableRepository: DurableDestructivePreExecutionRepository,
     private val writer: DestructiveSimulationEvidenceWriter,
     private val monotonicTimeSource: MonotonicTimeSource,
     private val maxAgeMillis: Long = MAX_PROOF_AGE_MILLIS,
+    private val eventIdGenerator: () -> String = { UUID.randomUUID().toString() },
 ) {
     private val issued = IdentityHashMap<PreExecutionEvidenceCommitProof, CommitRecord>()
 
@@ -38,7 +50,26 @@ internal class PreExecutionEvidenceCommitAuthority(
         if (evidence.correlationId != binding.correlationId.value) {
             return PreExecutionEvidenceCommitResult.Failed("pre_execution_correlation_mismatch")
         }
-        return when (writer.append(evidence)) {
+        val eventId = evidence.eventId.ifBlank { eventIdGenerator() }
+        val durable = DestructivePreExecutionDurableRecord(
+            eventId = eventId,
+            correlationId = binding.correlationId.value,
+            actionName = evidence.actionName,
+            phase = evidence.phase,
+            presentationWallClockMillis = evidence.presentationWallClockMillis,
+            boundPackage = binding.runningPackage,
+            boundAdminComponent = binding.expectedAdminComponent,
+            boundScope = binding.scope,
+            reasonCode = evidence.reasonCode,
+        )
+        when (durableRepository.append(durable)) {
+            DestructiveEvidenceAppendResult.Failed -> {
+                return PreExecutionEvidenceCommitResult.Failed("audit_persistence_unavailable")
+            }
+            is DestructiveEvidenceAppendResult.Recorded -> Unit
+        }
+        val mirrored = evidence.copy(eventId = eventId)
+        return when (writer.append(mirrored)) {
             DestructiveEvidenceAppendResult.Failed -> {
                 PreExecutionEvidenceCommitResult.Failed("audit_persistence_unavailable")
             }

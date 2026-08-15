@@ -7,13 +7,13 @@ import java.util.UUID
  * durable audit schema and must never authorize, arm, create a capability
  * or permit, replay, or invoke the simulation sink.
  *
- * 17A evidence proves ordering and fail-closed behavior only. It is not a
- * runtime persistence implementation. Real durable destructive
- * pre-execution evidence remains a Checkpoint 17B blocker.
+ * 17A in-process evidence still proves ordering. Checkpoint 17B adds a
+ * separate durable pre-execution store
+ * ([DurableDestructivePreExecutionRepository]) that is not production
+ * `sentinel_audit.db` schema v1 and cannot authorize or resume execution.
  *
  * Production [com.example.devicemanagement.audit.AuditEventPhase.APPLIED]
- * is never used here. A later 17B schema change is reserved in
- * docs/WIPE_17A_PREFLIGHT.md.
+ * is never used here.
  */
 internal sealed interface DestructiveEvidenceAppendResult {
     data class Recorded(val eventId: String) : DestructiveEvidenceAppendResult

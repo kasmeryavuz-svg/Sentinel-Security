@@ -41,6 +41,17 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("SimulatedDestructiveExecutor"))
         assertFalse(composition.contains("Checkpoint17ASimulationSink"))
         assertFalse(composition.contains("DenyOnlyCooldownMarkerStore"))
+        assertFalse(composition.contains("RuntimeDestructiveSafetyDurability"))
+        assertFalse(composition.contains("issueRuntimeDurability"))
+        assertFalse(composition.contains("AndroidDestructiveSafetyPersistence"))
+        assertFalse(composition.contains("DestructiveArtifactIdentityAuthority"))
+        assertFalse(composition.contains("DestructiveHumanApprovalAuthority"))
+        assertFalse(composition.contains("DestructiveHumanConfirmationAuthority"))
+        assertFalse(composition.contains("issueChallenge"))
+        assertFalse(composition.contains("issueFromTrustedConfirmationSource"))
+        assertFalse(composition.contains("issueFromTrustedValidationSource"))
+        assertFalse(composition.contains("RuntimeDestructiveSafetyDurabilityMint"))
+        assertFalse(composition.contains("TrustedDestructiveArtifactExpectationMint"))
     }
 
     @Test

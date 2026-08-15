@@ -123,6 +123,8 @@ internal class DestructiveSimulationComposition(
     val preExecutionAuthority: PreExecutionEvidenceCommitAuthority,
     val cleanup: DestructiveTerminalCleanup,
     val markerStore: InMemoryDenyOnlyCooldownMarkerStore?,
+    val durableStore: InMemoryDestructivePreExecutionDurableStore,
+    val durableRepository: DurableDestructivePreExecutionRepository,
 ) {
     fun admitBindAuthorize(
         binding: DestructiveTargetBinding,
@@ -174,6 +176,8 @@ internal class DestructiveSimulationComposition(
             logger: StructuredLogger = RecordingLogger(),
             evidenceWriter: InMemoryDestructiveSimulationEvidenceWriter =
                 InMemoryDestructiveSimulationEvidenceWriter(),
+            durableStore: InMemoryDestructivePreExecutionDurableStore =
+                InMemoryDestructivePreExecutionDurableStore(),
         ): DestructiveSimulationComposition {
             val clock = MutableMonotonicClock(nowMonotonicMillis)
             val liveFacts = MutableDestructiveLiveFactsSource(facts)
@@ -191,7 +195,9 @@ internal class DestructiveSimulationComposition(
                 monotonicTimeSource = clock,
                 admissionAuthority = admissionAuthority,
             )
+            val durableRepository = DurableDestructivePreExecutionRepository(durableStore)
             val preExecutionAuthority = PreExecutionEvidenceCommitAuthority(
+                durableRepository = durableRepository,
                 writer = evidenceWriter,
                 monotonicTimeSource = clock,
             )
@@ -247,6 +253,8 @@ internal class DestructiveSimulationComposition(
                 preExecutionAuthority = preExecutionAuthority,
                 cleanup = cleanup,
                 markerStore = store as? InMemoryDenyOnlyCooldownMarkerStore,
+                durableStore = durableStore,
+                durableRepository = durableRepository,
             )
         }
     }
