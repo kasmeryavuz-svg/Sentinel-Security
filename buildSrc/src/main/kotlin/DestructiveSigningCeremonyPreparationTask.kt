@@ -1,11 +1,16 @@
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import org.gradle.work.DisableCachingByDefault
 import java.io.File
 
 /**
@@ -13,7 +18,12 @@ import java.io.File
  * safely NOT_READY. This task never signs, never reads production secrets,
  * never selects a signed artifact, and never mints runtime trust.
  */
+@DisableCachingByDefault(because = DestructiveProofTaskSemantics.REASON)
 abstract class CheckDestructiveSigningCeremonyPreparationTask : DefaultTask() {
+    init {
+        DestructiveProofTaskSemantics.neverReuseOutputs(this)
+    }
+
     @get:Input
     abstract val disposableValidationRemainsUnsigned: Property<Boolean>
 
@@ -25,6 +35,10 @@ abstract class CheckDestructiveSigningCeremonyPreparationTask : DefaultTask() {
 
     @get:Input
     abstract val filledCeremonyRecordPath: Property<String>
+
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val filledCeremonyRecord: ConfigurableFileCollection
 
     @get:OutputFile
     abstract val reportFile: RegularFileProperty
@@ -58,7 +72,7 @@ abstract class CheckDestructiveSigningCeremonyPreparationTask : DefaultTask() {
                 "expectedCertificateSha256 must remain null"
             }
             val filled = File(filledCeremonyRecordPath.get())
-            check(!filled.exists()) {
+            check(!filled.exists() && filledCeremonyRecord.files.none { it.exists() }) {
                 "Filled signing-ceremony record must not exist in this checkpoint"
             }
             val evaluation = DestructiveSigningCeremonyPreparation.evaluateRepositoryDefault()

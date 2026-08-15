@@ -32,7 +32,10 @@ class Checkpoint19GDecisionTest {
             verifier.contains("com/example/devicemanagement/destructive/Checkpoint19HDecision"),
         )
         assertTrue(
-            verifier.contains("com/example/devicemanagement/destructive/Checkpoint19JDecision"),
+            verifier.contains("com/example/devicemanagement/destructive/Checkpoint19JDecision") &&
+                verifier.contains(
+                    "com/example/devicemanagement/destructive/Checkpoint19PGovernanceObservation",
+                ),
         )
     }
 

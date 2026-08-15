@@ -2667,6 +2667,29 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `recovery class cannot reference Checkpoint 19P governance observation`() {
+        val classes = compileJava(
+            "com/example/devicemanagement/destructive/Checkpoint19PGovernanceObservation.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class Checkpoint19PGovernanceObservation {}
+                """.trimIndent(),
+            "com/example/devicemanagement/recovery/RogueRecoveryCheckpoint19P.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.destructive.Checkpoint19PGovernanceObservation;
+                public final class RogueRecoveryCheckpoint19P {
+                    Checkpoint19PGovernanceObservation observation;
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it })
+        assertTrue(violations.any { "Checkpoint19PGovernanceObservation" in it })
+    }
+
+    @Test
     fun `recovery class cannot reference Checkpoint 19H decision`() {
         val classes = compileJava(
             "com/example/devicemanagement/destructive/Checkpoint19HDecision.java" to

@@ -71,6 +71,7 @@ class Checkpoint19EDecisionRealityTest {
             "Checkpoint19GDecision",
             "Checkpoint19HDecision",
             "Checkpoint19JDecision",
+            "Checkpoint19PGovernanceObservation",
             "independent-safety-verification",
         ).forEach { token ->
             assertFalse(token, composition.contains(token))
@@ -89,6 +90,7 @@ class Checkpoint19EDecisionRealityTest {
         assertTrue(sources.contains("Checkpoint19GDecision"))
         assertTrue(sources.contains("Checkpoint19HDecision"))
         assertTrue(sources.contains("Checkpoint19JDecision"))
+        assertTrue(sources.contains("Checkpoint19PGovernanceObservation"))
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("import android.app." + "admin.DevicePolicyManager"))

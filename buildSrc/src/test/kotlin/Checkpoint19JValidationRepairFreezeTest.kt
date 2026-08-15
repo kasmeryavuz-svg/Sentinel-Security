@@ -117,7 +117,10 @@ class Checkpoint19JValidationRepairFreezeTest {
     fun `bytecode policy still forbids recovery from referencing Checkpoint 19J`() {
         val source = File("src/main/kotlin/ProductionBytecodePolicyVerifier.kt").readText()
         assertTrue(
-            source.contains("com/example/devicemanagement/destructive/Checkpoint19JDecision"),
+            source.contains("com/example/devicemanagement/destructive/Checkpoint19JDecision") &&
+                source.contains(
+                    "com/example/devicemanagement/destructive/Checkpoint19PGovernanceObservation",
+                ),
         )
         val allowlistBlock = source
             .substringAfter("private val allowedDpmInvocations = mapOf(")

@@ -42,6 +42,11 @@ class Checkpoint19DDecisionTest {
         assertTrue(
             source.contains("com/example/devicemanagement/destructive/Checkpoint19JDecision"),
         )
+        assertTrue(
+            source.contains(
+                "com/example/devicemanagement/destructive/Checkpoint19PGovernanceObservation",
+            ),
+        )
         val allowlistBlock = source
             .substringAfter("private val allowedDpmInvocations = mapOf(")
             .substringBefore("private val forbiddenLoaderOwners")

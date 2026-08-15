@@ -39,7 +39,7 @@ is read-only evidence, and audit records never authorize.
 | `profileable` | absent | **absent** |
 | Backup / extraction | disabled + exclude-all rules | same |
 | Network | no INTERNET; cleartext denied | same |
-| Signing | Android debug key | production key **only** when secrets are supplied; otherwise an **unsigned** local verification artifact that must not be distributed as production |
+| Signing | Android debug key | ordinary `assembleRelease` / `bundleRelease` remain **unsigned** even when `SENTINEL_RELEASE_*` inputs exist; production signing attaches **only** after an explicit production-distribution request and every fail-closed check passes. `disposableValidation` always remains unsigned. Unsigned local verification artifacts must not be distributed as production |
 
 Debug remains a developer build. It is not a production distribution.
 

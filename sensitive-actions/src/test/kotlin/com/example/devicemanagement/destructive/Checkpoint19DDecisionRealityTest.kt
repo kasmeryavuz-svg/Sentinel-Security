@@ -236,6 +236,7 @@ class Checkpoint19DRealChainAssemblyTest {
             "Checkpoint19GDecision",
             "Checkpoint19HDecision",
             "Checkpoint19JDecision",
+            "Checkpoint19PGovernanceObservation",
             "issueFromTrustedConfirmationSource",
         ).forEach { token ->
             assertFalse(token, composition.contains(token))

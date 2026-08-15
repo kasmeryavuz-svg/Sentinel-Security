@@ -6,7 +6,9 @@
  * authorization, hardware-test approval, or a production distribution.
  *
  * Production runtime types must not import this file. The repository
- * default source is immutable and cannot reach READY.
+ * default source is immutable and cannot reach READY. Main
+ * [DestructiveSigningCeremonyPreparation.evaluate] never returns
+ * READY, including for TEST_ONLY_SYNTHETIC input.
  */
 enum class SigningCeremonySourceKind {
     REPOSITORY_DEFAULT,
@@ -252,14 +254,7 @@ object DestructiveSigningCeremonyPreparation {
             blockers += SigningCeremonyBlocker.SIGNED_VALIDATION_CANDIDATE_NOT_PRODUCED
             blockers += SigningCeremonyBlocker.CHECKOUT_PROVENANCE_DOES_NOT_PROVE_APK_ORIGIN
         }
-        val status = if (
-            record.sourceKind == SigningCeremonySourceKind.TEST_ONLY_SYNTHETIC &&
-            blockers.isEmpty()
-        ) {
-            SigningCeremonyStatus.READY
-        } else {
-            SigningCeremonyStatus.NOT_READY
-        }
+        val status = SigningCeremonyStatus.NOT_READY
         val publicCertValid = isValidFingerprint(record.publicCertificateSha256)
         val expectedCertValid = isValidFingerprint(
             record.independentlySuppliedExpectedCertificateSha256,
