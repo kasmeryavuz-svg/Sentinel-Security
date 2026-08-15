@@ -9,9 +9,9 @@ import java.io.File
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
 
-class Checkpoint19AWipeBoundaryFreezeTest {
+class Checkpoint19CWipeBoundaryFreezeTest {
     @Test
-    fun `DeviceAdmin metadata remains exactly disable-camera after 19A`() {
+    fun `DeviceAdmin metadata remains exactly disable-camera and wipe-data after 19C`() {
         val metadataFile = File(requireNotNull(System.getProperty("deviceAdminMetadataFile")))
         val factory = DocumentBuilderFactory.newInstance().apply {
             setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
@@ -29,11 +29,17 @@ class Checkpoint19AWipeBoundaryFreezeTest {
             .toSet()
 
         assertEquals(setOf("disable-camera", "wipe-data"), declared)
-        assertTrue("wipe-data" in declared)
+        assertFalse("reset-password" in declared)
+        assertFalse("force-lock" in declared)
+        assertFalse("limit-password" in declared)
+        assertFalse("watch-login" in declared)
+        assertFalse("expire-password" in declared)
+        assertFalse("encrypted-storage" in declared)
+        assertFalse("disable-keyguard-features" in declared)
     }
 
     @Test
-    fun `implementation sources still have no destructive wrapper executor or 19A wiring`() {
+    fun `implementation sources still have no assembled chain confirmation or 19C wiring`() {
         val sourceRoot = File(
             requireNotNull(System.getProperty("deviceManagementSourceDir")),
             "java",
@@ -45,6 +51,10 @@ class Checkpoint19AWipeBoundaryFreezeTest {
                 if (file.name == "AndroidDevicePolicyFactoryResetService.kt") {
                     assertTrue(file.path, text.contains("wipeDevice(0)"))
                     assertFalse(file.path, text.contains("wipeData"))
+                    assertFalse(file.path, text.contains("wipeDevice(1)"))
+                    assertFalse(file.path, text.contains("WIPE_SILENTLY"))
+                    assertFalse(file.path, text.contains("WIPE_RESET_PROTECTION_DATA"))
+                    assertFalse(file.path, text.contains("WIPE_EUICC"))
                 } else {
                     assertFalse(file.path, text.contains("wipeDevice"))
                     assertFalse(file.path, text.contains("wipeData"))
@@ -54,18 +64,27 @@ class Checkpoint19AWipeBoundaryFreezeTest {
             .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
             .joinToString("\n") { it.readText() }
 
-        assertFalse(sources.contains("DestructiveDevicePolicy"))
-        assertTrue(sources.contains("AndroidDevicePolicyFactoryResetService"))
-        assertFalse(sources.contains("Checkpoint19ADecision"))
-        assertFalse(sources.contains("Checkpoint19CDecision"))
-        assertFalse(sources.contains("SimulatedDestructiveExecutor"))
-        assertFalse(sources.contains("FutureDestructiveRealChainBoundary"))
         assertFalse(sources.contains("assembleAndHandoff"))
-        assertFalse(sources.contains("AndroidDestructiveSafetyPersistence.create"))
+        assertFalse(sources.contains("Checkpoint19CDecision"))
+        assertFalse(sources.contains("issueFromTrustedConfirmationSource"))
+        assertFalse(sources.contains("issueFromTrustedValidationSource"))
+        assertFalse(sources.contains("FutureDestructiveRealChainBoundary"))
+        assertTrue(sources.contains("ProductionDestructiveRealChain.retainForProduction"))
         assertTrue(sources.contains("AndroidDestructiveSafetyPersistence.issueRuntimeDurability"))
         assertTrue(sources.contains("setScreenCaptureDisabled"))
         assertTrue(sources.contains("setCameraDisabled"))
         assertTrue(sources.contains("setStatusBarDisabled"))
+    }
+
+    @Test
+    fun `19C freeze tests do not invoke the platform whole-device call`() {
+        val moduleRoot = File(requireNotNull(System.getProperty("deviceManagementSourceDir"))).parentFile
+        val thisFile = File(
+            moduleRoot,
+            "src/test/java/com/example/devicemanagement/management/Checkpoint19CWipeBoundaryFreezeTest.kt",
+        ).readText()
+        assertFalse(thisFile.contains("manager.wipeDevice"))
+        assertFalse(thisFile.contains("import android.app.admin.DevicePolicyManager"))
     }
 
     private fun org.w3c.dom.NodeList.asElements(): List<Element> {

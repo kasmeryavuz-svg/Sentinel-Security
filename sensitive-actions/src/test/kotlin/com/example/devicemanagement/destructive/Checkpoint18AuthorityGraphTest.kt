@@ -63,6 +63,7 @@ class Checkpoint18AuthorityGraphTest {
             "Checkpoint18Decision",
             "Checkpoint19ADecision",
             "Checkpoint19BDecision",
+            "Checkpoint19CDecision",
             "UnwiredFutureDestructiveExecutor",
             "AndroidFutureDestructiveExecutor",
             "AndroidDevicePolicyFactoryResetService",
