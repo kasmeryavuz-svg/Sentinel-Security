@@ -1,4 +1,8 @@
-# Checkpoint 17A: Android and GrapheneOS wipe-platform preflight
+# Android and GrapheneOS wipe-platform preflight
+
+Updated for the Checkpoint 17B entry review. Research only. This
+document does **not** add a destructive API to executable production
+code.
 
 Research only. This document does **not** add a destructive API to
 executable production code.
@@ -100,9 +104,38 @@ Sentinel is a fully-managed Device Owner DPC. `REPO_PROVEN`.
 Do not resolve the unresolved rows by guessing. Default until resolved:
 **NO WIPE**.
 
-## 17A executable boundary
+## Stock Android / Pixel (documented)
 
-17A production and simulation sources do not invoke `wipeData` or
-`wipeDevice`, do not declare `<wipe-data>`, and do not add a destructive
-DPM wrapper. Simulation ends at `Checkpoint17ASimulationSink`.
+On stock Android, including Pixel factory images, the public API 34+
+`wipeDevice` contract is the documented whole-device path for an app
+with `targetSdk` 34+. Sentinel `targetSdk` is 36, so a future
+device-wide wipe cannot use `wipeData` on the primary user.
+`VERIFIED_ANDROID` + `REPO_PROVEN`.
+
+This is **not** a hardware test. Expected behavior on stock Android /
+Pixel is the documented platform behavior only. No disposable-device
+validation has been performed.
+
+Device Owner remains mandatory for the intended future path. Profile
+Owner is out of scope. `REPO_PROVEN`.
+
+Required DeviceAdmin metadata for any future real implementation is
+`<wipe-data>` (`USES_POLICY_WIPE_DATA`). Current metadata is exactly
+`disable-camera`. `REPO_PROVEN`.
+
+Expected scope, if ever implemented later, is whole-device factory
+reset (`DEVICE_FACTORY_RESET`). `USER_SCOPED_WIPE` is deny-only.
 `REPO_PROVEN`.
+
+## 17A / 17B executable boundary
+
+17A and 17B production and simulation sources do not invoke `wipeData`
+or `wipeDevice`, do not declare `<wipe-data>`, and do not add a
+destructive DPM wrapper. Simulation ends at
+`Checkpoint17ASimulationSink` and is not production-reachable.
+`REPO_PROVEN`.
+
+GrapheneOS `wipeDevice` / `wipeData` behavior remains
+`UNRESOLVED_REQUIRES_DEVICE_TEST`. Do not resolve that row by guessing.
+
+See `docs/WIPE_17B_ENTRY_REVIEW.md`.

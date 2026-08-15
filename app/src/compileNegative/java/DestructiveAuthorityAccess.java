@@ -15,6 +15,13 @@ import com.example.devicemanagement.destructive.DenyOnlyCooldownMarkerStore;
 import com.example.devicemanagement.destructive.DestructiveFinalExecutionGate;
 import com.example.devicemanagement.destructive.FinalExecutionPermit;
 import com.example.devicemanagement.destructive.SimulatedDestructiveExecutor;
+import com.example.devicemanagement.destructive.DurableDestructivePreExecutionRepository;
+import com.example.devicemanagement.destructive.DestructivePreExecutionDurableStore;
+import com.example.devicemanagement.persistence.DenyOnlyMarkerDurableMedium;
+import com.example.devicemanagement.persistence.TrustedRuntimeDenyOnlyCooldownMarkerStore;
+import com.example.devicemanagement.persistence.SqliteDenyOnlyMarkerStore;
+import com.example.devicemanagement.persistence.SqliteDestructivePreExecutionStore;
+import com.example.devicemanagement.persistence.AndroidDestructiveSafetyPersistence;
 
 final class DestructiveAuthorityAccess {
     DestructiveArmingAuthority arming;
@@ -32,4 +39,11 @@ final class DestructiveAuthorityAccess {
     DestructiveDenyOnlyCooldown cooldown;
     DenyOnlyCooldownMarkerStore store;
     Checkpoint17ASimulationSink sink;
+    DurableDestructivePreExecutionRepository durableRepository;
+    DestructivePreExecutionDurableStore durableStore;
+    DenyOnlyMarkerDurableMedium denyOnlyMedium;
+    TrustedRuntimeDenyOnlyCooldownMarkerStore trustedRuntimeStore;
+    SqliteDenyOnlyMarkerStore sqliteMarkerStore;
+    SqliteDestructivePreExecutionStore sqliteEvidenceStore;
+    AndroidDestructiveSafetyPersistence androidSafetyPersistence;
 }

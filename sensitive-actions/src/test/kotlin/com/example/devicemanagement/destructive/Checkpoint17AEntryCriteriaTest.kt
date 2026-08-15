@@ -40,11 +40,14 @@ class Checkpoint17AEntryCriteriaTest {
         assertTrue(preflight.contains("TESTED PERSISTENCE SEMANTICS"))
         assertTrue(preflight.contains("RUNTIME PERSISTENCE IMPLEMENTATION"))
         assertTrue(preflight.contains("test-only reconstruction adapter"))
-        assertTrue(!preflight.contains("production durable destructive audit is implemented"))
+        assertTrue(preflight.contains("17B entry review"))
         assertTrue(design.contains("## 14. Checkpoint 17A status"))
         assertTrue(design.contains("NO REAL WIPE IS IMPLEMENTED"))
         assertTrue(design.contains("TESTED PERSISTENCE SEMANTICS"))
         assertTrue(design.contains("RUNTIME PERSISTENCE IMPLEMENTATION"))
+        val entryReview = File(docs, "WIPE_17B_ENTRY_REVIEW.md").readText()
+        assertTrue(entryReview.contains("17B_DESTRUCTIVE_BOUNDARY_READY"))
+        assertTrue(entryReview.contains("NO REAL WIPE IMPLEMENTED"))
     }
 
     @Test

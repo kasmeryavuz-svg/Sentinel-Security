@@ -15,6 +15,13 @@ import com.example.devicemanagement.destructive.DenyOnlyCooldownMarkerStore
 import com.example.devicemanagement.destructive.DestructiveFinalExecutionGate
 import com.example.devicemanagement.destructive.FinalExecutionPermit
 import com.example.devicemanagement.destructive.SimulatedDestructiveExecutor
+import com.example.devicemanagement.destructive.DurableDestructivePreExecutionRepository
+import com.example.devicemanagement.destructive.DestructivePreExecutionDurableStore
+import com.example.devicemanagement.persistence.DenyOnlyMarkerDurableMedium
+import com.example.devicemanagement.persistence.TrustedRuntimeDenyOnlyCooldownMarkerStore
+import com.example.devicemanagement.persistence.SqliteDenyOnlyMarkerStore
+import com.example.devicemanagement.persistence.SqliteDestructivePreExecutionStore
+import com.example.devicemanagement.persistence.AndroidDestructiveSafetyPersistence
 
 class DestructiveAuthorityAccess(
     val arming: DestructiveArmingAuthority,
@@ -32,4 +39,11 @@ class DestructiveAuthorityAccess(
     val cooldown: DestructiveDenyOnlyCooldown,
     val store: DenyOnlyCooldownMarkerStore,
     val sink: Checkpoint17ASimulationSink,
+    val durableRepository: DurableDestructivePreExecutionRepository,
+    val durableStore: DestructivePreExecutionDurableStore,
+    val denyOnlyMedium: DenyOnlyMarkerDurableMedium,
+    val trustedRuntimeStore: TrustedRuntimeDenyOnlyCooldownMarkerStore,
+    val sqliteMarkerStore: SqliteDenyOnlyMarkerStore,
+    val sqliteEvidenceStore: SqliteDestructivePreExecutionStore,
+    val androidSafetyPersistence: AndroidDestructiveSafetyPersistence,
 )

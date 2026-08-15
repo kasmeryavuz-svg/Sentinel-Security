@@ -86,14 +86,17 @@ Wall-clock time stored on events is presentation metadata only. It is never
 used for authorization, freshness, cooldowns, or replay protection.
 
 Checkpoint 17A does **not** change this schema and does not overload
-`APPLIED` for destruction. Simulated destructive evidence lives in a
-separate in-process store (`DestructiveEvidencePhase`) and proves
-ordering / fail-closed behavior only. That writer is not durable and is
-not a production audit adapter. Real durable destructive pre-execution
-evidence remains a 17B blocker. A later 17B additive schema review may
-introduce evidence-only phases such as `EXECUTION_COMMITTED` and
-`EXECUTION_INITIATED`; those must not decode as `APPLIED`. See
-`docs/WIPE_17A_PREFLIGHT.md`.
+`APPLIED` for destruction. Simulated destructive evidence still has an
+in-process log (`DestructiveEvidencePhase`) for ordering. Checkpoint 17B
+adds a **separate** durable pre-execution store
+(`sentinel_destructive_pre_execution_evidence.db`) that is not schema
+v1, is not on the app/UI compile classpath, and cannot authorize, resume,
+or replay execution. Production `sentinel_audit.db` remains schema
+version 1. A later additive schema review may still introduce
+evidence-only phases such as `EXECUTION_COMMITTED` and
+`EXECUTION_INITIATED` into the reversible log; those must not decode as
+`APPLIED`. See `docs/WIPE_17A_PREFLIGHT.md` and
+`docs/WIPE_17B_ENTRY_REVIEW.md`.
 
 ## Schema
 

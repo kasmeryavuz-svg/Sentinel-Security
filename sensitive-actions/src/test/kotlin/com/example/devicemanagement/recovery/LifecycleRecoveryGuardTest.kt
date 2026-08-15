@@ -44,6 +44,10 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("FinalExecutionPermit"))
         assertFalse(sources.contains("SimulatedDestructiveExecutor"))
         assertFalse(sources.contains("Checkpoint17ASimulationSink"))
+        assertFalse(sources.contains("TrustedRuntimeDenyOnlyCooldownMarkerStore"))
+        assertFalse(sources.contains("DurableDestructivePreExecutionRepository"))
+        assertFalse(sources.contains("DestructivePreExecutionDurableStore"))
+        assertFalse(sources.contains("AndroidDestructiveSafetyPersistence"))
     }
 
     @Test

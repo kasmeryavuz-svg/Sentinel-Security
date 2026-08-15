@@ -16,13 +16,14 @@ Companion documents:
 - `docs/WIPE_DESIGN.md` — Checkpoint 16 contract (still in force)
 - `docs/WIPE_THREAT_MODEL.md` — threat table (still in force)
 - `docs/WIPE_PLATFORM_PREFLIGHT.md` — Android / GrapheneOS research
+- `docs/WIPE_17B_ENTRY_REVIEW.md` — 17B entry review (safe prerequisites only)
 
 ## 17A versus 17B
 
 | Checkpoint | What it is |
 | --- | --- |
 | **17A (this checkpoint)** | Separate destructive security domain, arming, authorization, target binding, deny-only cooldown, simulated synchronous executor, platform research, and frozen no-wipe gates |
-| **17B (future, blocked)** | Real destructive DevicePolicyManager wrapper, DeviceAdmin `wipe-data` metadata, disposable-device validation, and production-distribution review |
+| **17B (entry review)** | Safe persistence + durable pre-execution evidence + authority-graph review. Real wipe, metadata, and hardware tests remain blocked. See the 17B entry review. |
 
 17A ends at a fake sink that records `DESTRUCTIVE ACTION WOULD EXECUTE`.
 There is still no Android destructive API available to that pipeline.
@@ -158,14 +159,13 @@ Distinguish these two contracts:
 | Contract | 17A status |
 | --- | --- |
 | **TESTED PERSISTENCE SEMANTICS** | Implemented. The deny-only marker codec and state machine are real. Write / readback / reboot-equivalent reconstruction / fail-closed corrupt bytes are exercised with a **test-only reconstruction adapter**. |
-| **RUNTIME PERSISTENCE IMPLEMENTATION** | **Not implemented.** 17A uses an in-memory deny-only store and an in-memory simulation evidence writer. There is no trusted production adapter and no generic filesystem write primitive in `sensitive-actions` main sources. |
+| **RUNTIME PERSISTENCE IMPLEMENTATION** | **Not implemented in 17A.** 17A uses an in-memory deny-only store and an in-memory simulation evidence writer. The 17B entry review adds the purpose-specific trusted runtime adapter. There is still no generic filesystem write primitive in `sensitive-actions` main sources. |
 
-A purpose-specific trusted runtime deny-only persistence adapter is an
-explicit 17B blocker (`TRUSTED_RUNTIME_COOLDOWN_PERSISTENCE_ADAPTER_PRESENT
-= false`). Real durable destructive pre-execution evidence is an explicit
-17B blocker (`REAL_DURABLE_DESTRUCTIVE_PRE_EXECUTION_AUDIT_PRESENT =
-false`). 17A simulation evidence proves ordering and fail-closed behavior
-only. Do not flip those flags by implementing the adapters in 17A.
+17A left those adapters unimplemented. The 17B entry review implements
+them as safe prerequisites and may set the two advisory flags true only
+when the adapters exist and are tested. See `docs/WIPE_17B_ENTRY_REVIEW.md`.
+17A simulation evidence still proves ordering and fail-closed behavior.
+Do not treat the 17B adapters as a wipe authorization.
 
 The attempt/admission lease is process-local, never serialized, and never
 persisted. Process death destroys the lease. A surviving deny-only marker

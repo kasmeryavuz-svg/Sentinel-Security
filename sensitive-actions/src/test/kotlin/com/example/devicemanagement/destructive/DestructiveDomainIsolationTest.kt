@@ -26,6 +26,7 @@ class DestructiveDomainIsolationTest {
             DestructiveAttemptAdmissionAuthority::class.java,
             DestructiveFinalExecutionGate::class.java,
             PreExecutionEvidenceCommitAuthority::class.java,
+            DurableDestructivePreExecutionRepository::class.java,
             FrozenAdminSet::class.java,
             SimulatedDestructiveExecutor::class.java,
         )
@@ -89,6 +90,8 @@ class DestructiveDomainIsolationTest {
         assertFalse(sources.contains("FinalExecutionPermitConsumer"))
         assertTrue(sources.contains("PreExecutionEvidenceCommitProof"))
         assertTrue(sources.contains("CountedAttemptProof"))
+        assertTrue(sources.contains("DurableDestructivePreExecutionRepository"))
+        assertFalse(sources.contains("java.nio.file.Files"))
     }
 
     @Test

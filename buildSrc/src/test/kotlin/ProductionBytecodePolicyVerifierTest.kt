@@ -1649,6 +1649,100 @@ class ProductionBytecodePolicyVerifierTest {
         assertTrue(violations.any { "AuditRecordStore.deleteOldest" in it })
     }
 
+    @Test
+    fun `direct SqliteDenyOnlyMarkerStore persist from rogue class is rejected`() {
+        val classes = compileJava(
+            denyOnlyMarkerMediumStub(),
+            sqliteDenyOnlyMarkerStoreStub(),
+            "attack/RogueDenyOnlyMarkerPersistBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.persistence.SqliteDenyOnlyMarkerStore;
+                public final class RogueDenyOnlyMarkerPersistBypass {
+                    void forge(SqliteDenyOnlyMarkerStore store) {
+                        store.persistEncodedMarker(new byte[0]);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "destructive-safety persistence mutation" in it })
+        assertTrue(violations.any { "SqliteDenyOnlyMarkerStore.persistEncodedMarker" in it })
+    }
+
+    @Test
+    fun `direct SqliteDestructivePreExecutionStore insert from rogue class is rejected`() {
+        val classes = compileJava(
+            destructivePreExecutionStoreStub(),
+            sqliteDestructivePreExecutionStoreStub(),
+            destructivePreExecutionRecordStub(),
+            "attack/RogueDestructiveEvidenceInsertBypass.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.DestructivePreExecutionDurableRecord;
+                import com.example.devicemanagement.persistence.SqliteDestructivePreExecutionStore;
+                public final class RogueDestructiveEvidenceInsertBypass {
+                    void forge(SqliteDestructivePreExecutionStore store, DestructivePreExecutionDurableRecord record) {
+                        store.insert(record);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":device-management-impl", classes)
+        assertTrue(violations.any { "destructive-safety persistence mutation" in it })
+        assertTrue(violations.any { "SqliteDestructivePreExecutionStore.insert" in it })
+    }
+
+    @Test
+    fun `recovery class cannot reference durable destructive evidence store`() {
+        val classes = compileJava(
+            destructivePreExecutionStoreStub(),
+            destructivePreExecutionRecordStub(),
+            "com/example/devicemanagement/recovery/RogueRecoveryDestructiveEvidence.java" to
+                """
+                package com.example.devicemanagement.recovery;
+                import com.example.devicemanagement.destructive.DestructivePreExecutionDurableStore;
+                import com.example.devicemanagement.destructive.DestructivePreExecutionDurableRecord;
+                public final class RogueRecoveryDestructiveEvidence {
+                    void forge(DestructivePreExecutionDurableStore store, DestructivePreExecutionDurableRecord record) {
+                        store.insert(record);
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "recovery code" in it || "destructive-safety persistence mutation" in it })
+    }
+
+    @Test
+    fun `authorized TrustedRuntime adapter may persist through the deny-only medium`() {
+        val classes = compileJava(
+            denyOnlyMarkerMediumStub(),
+            markerWriteResultStub(),
+            "com/example/devicemanagement/persistence/TrustedRuntimeDenyOnlyCooldownMarkerStore.java" to
+                """
+                package com.example.devicemanagement.persistence;
+                import com.example.devicemanagement.destructive.MarkerWriteResult;
+                public final class TrustedRuntimeDenyOnlyCooldownMarkerStore {
+                    public MarkerWriteResult writeMarker(byte[] bytes) {
+                        DenyOnlyMarkerDurableMedium medium = null;
+                        medium.persistEncodedMarker(bytes);
+                        return null;
+                    }
+                }
+                """.trimIndent(),
+        )
+
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(
+            violations.none { "destructive-safety persistence mutation" in it },
+            violations.joinToString("\n"),
+        )
+    }
+
     private fun concreteCameraServiceStub(
         implementInterface: Boolean = false,
     ): Pair<String, String> {
@@ -1799,6 +1893,68 @@ class ProductionBytecodePolicyVerifierTest {
                 }
                 public void deleteOldest(int count) {}
             }
+            """.trimIndent()
+    }
+
+    private fun denyOnlyMarkerMediumStub(): Pair<String, String> {
+        return "com/example/devicemanagement/persistence/DenyOnlyMarkerDurableMedium.java" to
+            """
+            package com.example.devicemanagement.persistence;
+            public interface DenyOnlyMarkerDurableMedium {
+                DenyOnlyMarkerPersistResult persistEncodedMarker(byte[] encoded);
+            }
+            enum DenyOnlyMarkerPersistResult { WRITTEN, FAILED }
+            """.trimIndent()
+    }
+
+    private fun sqliteDenyOnlyMarkerStoreStub(): Pair<String, String> {
+        return "com/example/devicemanagement/persistence/SqliteDenyOnlyMarkerStore.java" to
+            """
+            package com.example.devicemanagement.persistence;
+            public final class SqliteDenyOnlyMarkerStore {
+                public DenyOnlyMarkerPersistResult persistEncodedMarker(byte[] encoded) {
+                    return DenyOnlyMarkerPersistResult.FAILED;
+                }
+            }
+            """.trimIndent()
+    }
+
+    private fun destructivePreExecutionStoreStub(): Pair<String, String> {
+        return "com/example/devicemanagement/destructive/DestructivePreExecutionDurableStore.java" to
+            """
+            package com.example.devicemanagement.destructive;
+            public interface DestructivePreExecutionDurableStore {
+                long insert(DestructivePreExecutionDurableRecord record);
+            }
+            """.trimIndent()
+    }
+
+    private fun sqliteDestructivePreExecutionStoreStub(): Pair<String, String> {
+        return "com/example/devicemanagement/persistence/SqliteDestructivePreExecutionStore.java" to
+            """
+            package com.example.devicemanagement.persistence;
+            import com.example.devicemanagement.destructive.DestructivePreExecutionDurableRecord;
+            public final class SqliteDestructivePreExecutionStore {
+                public long insert(DestructivePreExecutionDurableRecord record) {
+                    return 0L;
+                }
+            }
+            """.trimIndent()
+    }
+
+    private fun destructivePreExecutionRecordStub(): Pair<String, String> {
+        return "com/example/devicemanagement/destructive/DestructivePreExecutionDurableRecord.java" to
+            """
+            package com.example.devicemanagement.destructive;
+            public final class DestructivePreExecutionDurableRecord {}
+            """.trimIndent()
+    }
+
+    private fun markerWriteResultStub(): Pair<String, String> {
+        return "com/example/devicemanagement/destructive/MarkerWriteResult.java" to
+            """
+            package com.example.devicemanagement.destructive;
+            public interface MarkerWriteResult {}
             """.trimIndent()
     }
 

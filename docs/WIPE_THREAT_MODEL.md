@@ -436,4 +436,11 @@ authorization, target binding, deny-only cooldown, and a simulated
 executor chain. The narrow destructive DPM service remains absent.
 `SafeMockWipeAction` is still not a prototype executor.
 
-See `docs/WIPE_17A_PREFLIGHT.md`. **NO REAL WIPE IS IMPLEMENTED.**
+See `docs/WIPE_17A_PREFLIGHT.md` and `docs/WIPE_17B_ENTRY_REVIEW.md`.
+**NO REAL WIPE IS IMPLEMENTED.**
+
+Checkpoint 17B adds the trusted runtime deny-only persistence adapter
+and a separate durable pre-execution evidence path. Those artifacts can
+only deny or record evidence. They do not authorize wipe, add
+`<wipe-data>`, or make simulation production-reachable. GrapheneOS
+destructive API behavior remains unresolved.

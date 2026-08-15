@@ -256,4 +256,20 @@ DeviceAdmin metadata remains exactly:
 
 Future destructive-operation work remains **explicitly deferred**.
 Checkpoint 17A adds only non-destructive simulation machinery and keeps
-this release boundary frozen. See `docs/WIPE_17A_PREFLIGHT.md`.
+this release boundary frozen. Checkpoint 17B defines machine-enforced
+requirements that must exist before a future destructive build can
+exist, and keeps them **disabled**:
+
+- exact production certificate verification remains the Checkpoint 15
+  `PRODUCTION_SIGNED` gate; destructive production signing is not enabled
+- exact APK/artifact hash recording for disposable-device validation is
+  not recorded
+- production vs local-test signing separation is unchanged
+- debug/test builds cannot gain wipe capability; DEX denylist still
+  rejects `wipeData` / `wipeDevice`
+- disposable-device-only destructive validation is not approved
+- explicit human approval is not recorded
+- ordinary `assembleDebug` / `assembleRelease` / `bundleRelease` remain
+  incapable of wiping a device
+
+See `docs/WIPE_17A_PREFLIGHT.md` and `docs/WIPE_17B_ENTRY_REVIEW.md`.

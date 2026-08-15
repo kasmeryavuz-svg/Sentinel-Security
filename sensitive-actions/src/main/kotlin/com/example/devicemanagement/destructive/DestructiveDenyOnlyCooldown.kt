@@ -10,9 +10,10 @@ import com.example.devicemanagement.integration.MonotonicTimeSource
  * cooldown. Same-UID arbitrary code remains application compromise and is
  * out of scope.
  *
- * TESTED PERSISTENCE SEMANTICS are exercised by a test-only reconstruction
- * adapter. A purpose-specific trusted RUNTIME PERSISTENCE IMPLEMENTATION
- * remains a Checkpoint 17B blocker.
+ * TESTED PERSISTENCE SEMANTICS remain in this state machine. The purpose-
+ * specific trusted RUNTIME PERSISTENCE IMPLEMENTATION is
+ * TrustedRuntimeDenyOnlyCooldownMarkerStore plus a
+ * DenyOnlyMarkerDurableMedium. The persisted marker may only deny.
  */
 internal object DenyOnlyCooldownMarker {
     const val MAGIC = "SENTINEL_DENY_ONLY_COOLDOWN_REQUIRED_V1"

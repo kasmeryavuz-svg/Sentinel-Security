@@ -121,6 +121,17 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/audit/AuditSqliteIdentity",
     )
 
+    private val authorizedDestructiveSafetySqliteClasses = setOf(
+        "com/example/devicemanagement/persistence/DenyOnlyCooldownOpenHelper",
+        "com/example/devicemanagement/persistence/SqliteDenyOnlyMarkerStore",
+        "com/example/devicemanagement/persistence/DestructivePreExecutionOpenHelper",
+        "com/example/devicemanagement/persistence/SqliteDestructivePreExecutionStore",
+        "com/example/devicemanagement/persistence/NonDestructiveSafetyDatabaseErrorHandler",
+        "com/example/devicemanagement/persistence/DestructiveSafetySqliteIdentity",
+        "com/example/devicemanagement/persistence/AndroidDestructiveSafetyPersistence",
+        "com/example/devicemanagement/persistence/UnavailableDenyOnlyMarkerMedium",
+    )
+
     private val forbiddenContextDatabaseMethods = setOf(
         "openOrCreateDatabase",
         "deleteDatabase",
@@ -226,6 +237,9 @@ internal object ProductionBytecodePolicyVerifier {
     )
 
     private const val AUDIT_DATABASE_FILE = "sentinel_audit.db"
+    private const val DENY_ONLY_COOLDOWN_DATABASE_FILE = "sentinel_deny_only_cooldown.db"
+    private const val DESTRUCTIVE_EVIDENCE_DATABASE_FILE =
+        "sentinel_destructive_pre_execution_evidence.db"
     private const val SQLITE_PACKAGE = "android/database/sqlite/"
 
     private val verifiedMutationExecutorScreenCapture = InvocationOrigin(
@@ -326,6 +340,21 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/audit/SqliteAuditRecordStore",
         "com/example/devicemanagement/audit/InMemoryAuditRecordStore",
         "com/example/devicemanagement/audit/UnavailableAuditRecordStore",
+        "com/example/devicemanagement/destructive/DestructiveArmingAuthority",
+        "com/example/devicemanagement/destructive/DestructiveAuthorizationAuthority",
+        "com/example/devicemanagement/destructive/DestructiveAttemptAdmissionAuthority",
+        "com/example/devicemanagement/destructive/DestructiveFinalExecutionGate",
+        "com/example/devicemanagement/destructive/DestructiveCapability",
+        "com/example/devicemanagement/destructive/DestructiveAttemptLease",
+        "com/example/devicemanagement/destructive/FinalExecutionPermit",
+        "com/example/devicemanagement/destructive/SimulatedDestructiveExecutor",
+        "com/example/devicemanagement/destructive/PreExecutionEvidenceCommitAuthority",
+        "com/example/devicemanagement/destructive/DurableDestructivePreExecutionRepository",
+        "com/example/devicemanagement/destructive/DestructivePreExecutionDurableStore",
+        "com/example/devicemanagement/persistence/TrustedRuntimeDenyOnlyCooldownMarkerStore",
+        "com/example/devicemanagement/persistence/DenyOnlyMarkerDurableMedium",
+        "com/example/devicemanagement/persistence/SqliteDenyOnlyMarkerStore",
+        "com/example/devicemanagement/persistence/SqliteDestructivePreExecutionStore",
     )
 
     private val recoveryForbiddenMethods = setOf(
@@ -366,9 +395,92 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/audit/InMemoryAuditRecordStore." +
             "deleteOldest(I)V" to
             trustedAuditStoreMutationOrigin,
-        "com/example/devicemanagement/audit/UnavailableAuditRecordStore." +
+            "com/example/devicemanagement/audit/UnavailableAuditRecordStore." +
             "deleteOldest(I)V" to
             trustedAuditStoreMutationOrigin,
+    )
+
+    private val trustedDenyOnlyMarkerWriteOrigin = InvocationOrigin(
+        "com/example/devicemanagement/destructive/DestructiveDenyOnlyCooldown",
+        "recordAttempt",
+        "()Lcom/example/devicemanagement/destructive/CooldownRecordResult;",
+    )
+
+    private val trustedDenyOnlyMarkerAdapterWriteOrigin = InvocationOrigin(
+        "com/example/devicemanagement/persistence/TrustedRuntimeDenyOnlyCooldownMarkerStore",
+        "writeMarker",
+        "([B)Lcom/example/devicemanagement/destructive/MarkerWriteResult;",
+    )
+
+    private val trustedDestructivePreExecutionStoreOrigin = InvocationOrigin(
+        "com/example/devicemanagement/destructive/DurableDestructivePreExecutionRepository",
+        "append",
+        "(Lcom/example/devicemanagement/destructive/DestructivePreExecutionDurableRecord;)" +
+            "Lcom/example/devicemanagement/destructive/DestructiveEvidenceAppendResult;",
+    )
+
+    private val trustedDestructivePreExecutionRepositoryOrigin = InvocationOrigin(
+        "com/example/devicemanagement/destructive/PreExecutionEvidenceCommitAuthority",
+        "commit",
+        "(Lcom/example/devicemanagement/destructive/DestructiveSimulationEvidence;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;)" +
+            "Lcom/example/devicemanagement/destructive/PreExecutionEvidenceCommitResult;",
+    )
+
+    private val trustedDestructivePreExecutionCommitOrigin = InvocationOrigin(
+        "com/example/devicemanagement/destructive/SimulatedDestructiveExecutor",
+        "execute",
+        "(Lcom/example/devicemanagement/destructive/DestructiveCapability;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;)" +
+            "Lcom/example/devicemanagement/destructive/DestructiveSimulationStatus;",
+    )
+
+    private val trustedDestructiveSafetyMutationOrigins = mapOf(
+        "com/example/devicemanagement/destructive/DenyOnlyCooldownMarkerStore." +
+            "writeMarker([B)Lcom/example/devicemanagement/destructive/MarkerWriteResult;" to
+            trustedDenyOnlyMarkerWriteOrigin,
+        "com/example/devicemanagement/destructive/InMemoryDenyOnlyCooldownMarkerStore." +
+            "writeMarker([B)Lcom/example/devicemanagement/destructive/MarkerWriteResult;" to
+            trustedDenyOnlyMarkerWriteOrigin,
+        "com/example/devicemanagement/persistence/TrustedRuntimeDenyOnlyCooldownMarkerStore." +
+            "writeMarker([B)Lcom/example/devicemanagement/destructive/MarkerWriteResult;" to
+            trustedDenyOnlyMarkerWriteOrigin,
+        "com/example/devicemanagement/persistence/DenyOnlyMarkerDurableMedium." +
+            "persistEncodedMarker([B)Lcom/example/devicemanagement/persistence/DenyOnlyMarkerPersistResult;" to
+            trustedDenyOnlyMarkerAdapterWriteOrigin,
+        "com/example/devicemanagement/persistence/SqliteDenyOnlyMarkerStore." +
+            "persistEncodedMarker([B)Lcom/example/devicemanagement/persistence/DenyOnlyMarkerPersistResult;" to
+            trustedDenyOnlyMarkerAdapterWriteOrigin,
+        "com/example/devicemanagement/persistence/ReconstructableDenyOnlyMarkerMedium." +
+            "persistEncodedMarker([B)Lcom/example/devicemanagement/persistence/DenyOnlyMarkerPersistResult;" to
+            trustedDenyOnlyMarkerAdapterWriteOrigin,
+        "com/example/devicemanagement/persistence/UnavailableDenyOnlyMarkerMedium." +
+            "persistEncodedMarker([B)Lcom/example/devicemanagement/persistence/DenyOnlyMarkerPersistResult;" to
+            trustedDenyOnlyMarkerAdapterWriteOrigin,
+        "com/example/devicemanagement/destructive/DestructivePreExecutionDurableStore." +
+            "insert(Lcom/example/devicemanagement/destructive/DestructivePreExecutionDurableRecord;)J" to
+            trustedDestructivePreExecutionStoreOrigin,
+        "com/example/devicemanagement/destructive/InMemoryDestructivePreExecutionDurableStore." +
+            "insert(Lcom/example/devicemanagement/destructive/DestructivePreExecutionDurableRecord;)J" to
+            trustedDestructivePreExecutionStoreOrigin,
+        "com/example/devicemanagement/destructive/UnavailableDestructivePreExecutionDurableStore." +
+            "insert(Lcom/example/devicemanagement/destructive/DestructivePreExecutionDurableRecord;)J" to
+            trustedDestructivePreExecutionStoreOrigin,
+        "com/example/devicemanagement/persistence/SqliteDestructivePreExecutionStore." +
+            "insert(Lcom/example/devicemanagement/destructive/DestructivePreExecutionDurableRecord;)J" to
+            trustedDestructivePreExecutionStoreOrigin,
+        "com/example/devicemanagement/destructive/DurableDestructivePreExecutionRepository." +
+            "append(Lcom/example/devicemanagement/destructive/DestructivePreExecutionDurableRecord;)" +
+            "Lcom/example/devicemanagement/destructive/DestructiveEvidenceAppendResult;" to
+            trustedDestructivePreExecutionRepositoryOrigin,
+        "com/example/devicemanagement/destructive/PreExecutionEvidenceCommitAuthority." +
+            "commit(Lcom/example/devicemanagement/destructive/DestructiveSimulationEvidence;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;)" +
+            "Lcom/example/devicemanagement/destructive/PreExecutionEvidenceCommitResult;" to
+            trustedDestructivePreExecutionCommitOrigin,
     )
 
     fun verify(targets: Iterable<PolicyVerificationTarget>): List<String> {
@@ -519,6 +631,7 @@ internal object ProductionBytecodePolicyVerifier {
                 checkVerifiedMutationInvocation(owner, name, descriptor, location)
                 checkTrustedAuditAppendInvocation(owner, name, descriptor, location)
                 checkTrustedAuditStoreMutationInvocation(owner, name, descriptor, location)
+                checkTrustedDestructiveSafetyMutationInvocation(owner, name, descriptor, location)
                 checkRecoveryIsolation(owner, name, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
                 checkContextDatabaseInvocation(owner, name, location)
@@ -587,6 +700,12 @@ internal object ProductionBytecodePolicyVerifier {
                 "$location method handle",
             )
             checkTrustedAuditStoreMutationInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+            )
+            checkTrustedDestructiveSafetyMutationInvocation(
                 handle.owner,
                 handle.name,
                 handle.desc,
@@ -732,6 +851,30 @@ internal object ProductionBytecodePolicyVerifier {
             }
         }
 
+        private fun checkTrustedDestructiveSafetyMutationInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+        ) {
+            val invocation = "$owner.$name$descriptor"
+            val approvedOrigin = trustedDestructiveSafetyMutationOrigins[invocation] ?: return
+            val actualOrigin = InvocationOrigin(
+                className,
+                methodName(location),
+                methodDescriptor(location),
+            )
+            if (
+                target.artifactPath != ":sensitive-actions" ||
+                actualOrigin != approvedOrigin
+            ) {
+                violation(
+                    "$location invokes destructive-safety persistence mutation " +
+                        "$invocation outside the paired Checkpoint 17B authority",
+                )
+            }
+        }
+
         private fun methodName(location: String): String {
             return location.removePrefix("$className.").substringBefore('(')
         }
@@ -829,7 +972,7 @@ internal object ProductionBytecodePolicyVerifier {
             if (isFrameworkClass() || !owner.startsWith(SQLITE_PACKAGE)) {
                 return
             }
-            if (!authorizedAuditSqliteAccess()) {
+            if (!authorizedAuditSqliteAccess() && !authorizedDestructiveSafetySqliteAccess()) {
                 violation(
                     "$location references $owner outside the trusted audit SQLite implementation",
                 )
@@ -860,7 +1003,7 @@ internal object ProductionBytecodePolicyVerifier {
             if (isFrameworkClass() || name !in forbiddenContextDatabaseMethods) {
                 return
             }
-            if (!authorizedAuditSqliteAccess()) {
+            if (!authorizedAuditSqliteAccess() && !authorizedDestructiveSafetySqliteAccess()) {
                 violation(
                     "$location invokes $owner.$name, which can open, locate, move, or delete " +
                         "the Sentinel audit database outside the trusted audit pipeline",
@@ -875,7 +1018,7 @@ internal object ProductionBytecodePolicyVerifier {
             ) {
                 return
             }
-            if (!authorizedAuditSqliteAccess()) {
+            if (!authorizedAuditSqliteAccess() && !authorizedDestructiveSafetySqliteAccess()) {
                 violation(
                     "$location references $owner, which can create or populate the " +
                         "Sentinel audit database outside the trusted audit pipeline",
@@ -897,11 +1040,11 @@ internal object ProductionBytecodePolicyVerifier {
             if (!osConstants && !fileSyscall) {
                 return
             }
-            if (!authorizedAuditSqliteAccess()) {
+            if (!authorizedAuditSqliteAccess() && !authorizedDestructiveSafetySqliteAccess()) {
                 violation(
                     "$location uses $owner.$name, which can open, unlink, rename, " +
-                        "replace, truncate, chmod, or chown the Sentinel audit " +
-                        "database outside the trusted audit pipeline",
+                        "replace, truncate, chmod, or chown Sentinel private " +
+                        "databases outside the trusted audit or destructive-safety pipeline",
                 )
             }
         }
@@ -921,20 +1064,35 @@ internal object ProductionBytecodePolicyVerifier {
         }
 
         private fun checkAuditDatabaseFilename(value: String, location: String) {
-            if (isFrameworkClass() || value != AUDIT_DATABASE_FILE) {
+            if (isFrameworkClass()) {
                 return
             }
-            if (!authorizedAuditSqliteAccess()) {
-                violation(
-                    "$location embeds the Sentinel audit database filename " +
-                        "$AUDIT_DATABASE_FILE outside the trusted audit SQLite implementation",
-                )
+            when (value) {
+                AUDIT_DATABASE_FILE -> if (!authorizedAuditSqliteAccess()) {
+                    violation(
+                        "$location embeds the Sentinel audit database filename " +
+                            "$AUDIT_DATABASE_FILE outside the trusted audit SQLite implementation",
+                    )
+                }
+                DENY_ONLY_COOLDOWN_DATABASE_FILE,
+                DESTRUCTIVE_EVIDENCE_DATABASE_FILE,
+                -> if (!authorizedDestructiveSafetySqliteAccess()) {
+                    violation(
+                        "$location embeds the destructive-safety database filename " +
+                            "$value outside the trusted destructive-safety SQLite implementation",
+                    )
+                }
             }
         }
 
         private fun authorizedAuditSqliteAccess(): Boolean {
             return target.artifactPath == ":device-management-impl" &&
                 className in authorizedAuditSqliteClasses
+        }
+
+        private fun authorizedDestructiveSafetySqliteAccess(): Boolean {
+            return target.artifactPath == ":device-management-impl" &&
+                className in authorizedDestructiveSafetySqliteClasses
         }
 
         private fun diagnosticOutputRestricted(): Boolean {
