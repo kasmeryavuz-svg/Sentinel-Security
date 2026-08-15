@@ -46,11 +46,11 @@ class Checkpoint19ADecisionRealityTest {
         assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_EXECUTOR_PRESENT)
         assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
         assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
     }
 
     @Test
@@ -157,6 +157,7 @@ class Checkpoint19ADecisionRealityTest {
         assertTrue(sources.contains("REQUIRED_APPROVAL_SENTENCE"))
         assertTrue(sources.contains("Checkpoint19BDecision"))
         assertTrue(sources.contains("Checkpoint19CDecision"))
+        assertTrue(sources.contains("Checkpoint19DDecision"))
         assertFalse(sources.contains("wipeDevice"))
         assertFalse(sources.contains("wipeData"))
         listOf(
@@ -173,6 +174,8 @@ class Checkpoint19ADecisionRealityTest {
             assertFalse(root.path, extra.contains("assembleAndHandoff"))
             assertFalse(root.path, extra.contains("Checkpoint19ADecision"))
             assertFalse(root.path, extra.contains("Checkpoint19CDecision"))
+            assertFalse(root.path, extra.contains("Checkpoint19DDecision"))
+            assertFalse(root.path, extra.contains("assembleAlreadyBoundDeviceFactoryReset"))
             assertFalse(root.path, extra.contains("AndroidFutureDestructiveExecutor"))
             assertFalse(root.path, extra.contains("AndroidDevicePolicyFactoryResetService"))
         }
@@ -190,6 +193,8 @@ class Checkpoint19ADecisionRealityTest {
                     assertFalse(file.path, extra.contains("assembleAndHandoff"))
                     assertFalse(file.path, extra.contains("Checkpoint19ADecision"))
                     assertFalse(file.path, extra.contains("Checkpoint19CDecision"))
+                    assertFalse(file.path, extra.contains("Checkpoint19DDecision"))
+                    assertFalse(file.path, extra.contains("assembleAlreadyBoundDeviceFactoryReset"))
                 }
             }
         val metadata = File("../device-management/src/main/res/xml/device_admin_receiver.xml").readText()

@@ -49,11 +49,20 @@ import com.example.devicemanagement.destructive.Checkpoint18Decision;
 import com.example.devicemanagement.destructive.Checkpoint19ADecision;
 import com.example.devicemanagement.destructive.Checkpoint19BDecision;
 import com.example.devicemanagement.destructive.Checkpoint19CDecision;
+import com.example.devicemanagement.destructive.Checkpoint19DDecision;
 import com.example.devicemanagement.destructive.UnwiredFutureDestructiveExecutor;
 import com.example.devicemanagement.destructive.AuthorizedFactoryResetPort;
 import com.example.devicemanagement.destructive.AndroidFutureDestructiveExecutor;
 import com.example.devicemanagement.destructive.ProductionDestructiveRealChain;
 import com.example.devicemanagement.destructive.ProductionDestructiveRetainer;
+import com.example.devicemanagement.destructive.ProductionDestructiveRealChainOrchestrator;
+import com.example.devicemanagement.destructive.ProductionBoundDeviceFactoryResetAttempt;
+import com.example.devicemanagement.destructive.ProductionDestructiveHumanConfirmationSource;
+import com.example.devicemanagement.destructive.ProductionDestructiveTrustedArtifactExpectationSource;
+import com.example.devicemanagement.destructive.ProductionDestructiveTrustedPerAttemptConfirmationRecordSource;
+import com.example.devicemanagement.destructive.ProductionDestructiveUtcClock;
+import com.example.devicemanagement.destructive.ProductionDestructiveApprovedBuildRevisionSource;
+import com.example.devicemanagement.destructive.TrustedPerAttemptDestructiveConfirmationRecord;
 
 final class DestructiveAuthorityAccess {
     DestructiveArmingAuthority arming;
@@ -105,9 +114,18 @@ final class DestructiveAuthorityAccess {
     Checkpoint19ADecision checkpoint19ADecision;
     Checkpoint19BDecision checkpoint19BDecision;
     Checkpoint19CDecision checkpoint19CDecision;
+    Checkpoint19DDecision checkpoint19DDecision;
     UnwiredFutureDestructiveExecutor unwiredFutureExecutor;
     AuthorizedFactoryResetPort authorizedFactoryResetPort;
     AndroidFutureDestructiveExecutor androidFutureDestructiveExecutor;
     ProductionDestructiveRealChain productionDestructiveRealChain;
     ProductionDestructiveRetainer productionDestructiveRetainer;
+    ProductionDestructiveRealChainOrchestrator productionDestructiveRealChainOrchestrator;
+    ProductionBoundDeviceFactoryResetAttempt productionBoundDeviceFactoryResetAttempt;
+    ProductionDestructiveHumanConfirmationSource productionDestructiveHumanConfirmationSource;
+    ProductionDestructiveTrustedArtifactExpectationSource productionDestructiveTrustedArtifactExpectationSource;
+    ProductionDestructiveTrustedPerAttemptConfirmationRecordSource productionDestructiveTrustedPerAttemptConfirmationRecordSource;
+    ProductionDestructiveUtcClock productionDestructiveUtcClock;
+    ProductionDestructiveApprovedBuildRevisionSource productionDestructiveApprovedBuildRevisionSource;
+    TrustedPerAttemptDestructiveConfirmationRecord trustedPerAttemptDestructiveConfirmationRecord;
 }

@@ -129,9 +129,9 @@ private class IssuedFutureDestructiveExecutionBundle private constructor() :
  * It does not accept a caller-supplied runtime pre-execution proof.
  *
  * [RuntimeDurablePreExecutionCommitAuthority] performs the paired append
- * through the trusted runtime durability capability. Checkpoint 19B
- * retains a production executor, but this boundary is not assembled
- * while the disposable-device artifact digest remains unrecorded.
+ * through the trusted runtime durability capability. Checkpoint 19D
+ * production orchestration may call [assembleAndHandoff] only from
+ * [ProductionDestructiveRealChainOrchestrator.assembleAlreadyBoundDeviceFactoryReset].
  * Append failure means no permit, no bundle, and no executor call.
  */
 internal class FutureDestructiveRealChainBoundary(
