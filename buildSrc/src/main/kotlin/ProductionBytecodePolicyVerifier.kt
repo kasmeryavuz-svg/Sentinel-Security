@@ -386,7 +386,12 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$RealChainFinalLiveValidationPermit\$LiveValidationMint",
         "com/example/devicemanagement/destructive/RealChainHandoffRegistry",
+        "com/example/devicemanagement/destructive/HandoffRegistry",
         "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary\$HandoffRegistry",
+        "com/example/devicemanagement/destructive/IssuedRealChainFinalLiveValidationPermit",
+        "com/example/devicemanagement/destructive/IssuedRealChainFinalLiveValidationPermit\$Companion",
+        "com/example/devicemanagement/destructive/IssuedFutureDestructiveExecutionBundle",
+        "com/example/devicemanagement/destructive/IssuedFutureDestructiveExecutionBundle\$Companion",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitProof",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority\$RuntimeDurablePreExecutionCommitProof",
@@ -545,17 +550,30 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/FutureDestructiveExecutionBundle",
         "com/example/devicemanagement/destructive/RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitProof",
+        "com/example/devicemanagement/destructive/IssuedFutureDestructiveExecutionBundle",
+        "com/example/devicemanagement/destructive/IssuedRealChainFinalLiveValidationPermit",
         "$realChainBoundaryOwner\$FutureDestructiveExecutionBundle",
         "$realChainBoundaryOwner\$RealChainFinalLiveValidationPermit",
         "com/example/devicemanagement/destructive/" +
             "RuntimeDurablePreExecutionCommitAuthority\$RuntimeDurablePreExecutionCommitProof",
     )
 
+    private val realChainIssuedPermitOwner =
+        "com/example/devicemanagement/destructive/IssuedRealChainFinalLiveValidationPermit"
+
+    private val realChainIssuedBundleOwner =
+        "com/example/devicemanagement/destructive/IssuedFutureDestructiveExecutionBundle"
+
     private val realChainHandoffConstructorOwners = setOf(
         realChainBoundaryOwner,
         "$realChainBoundaryOwner\$Companion",
         realChainHandoffRegistryOwner,
         realChainNestedHandoffRegistryOwner,
+        "com/example/devicemanagement/destructive/HandoffRegistry",
+        realChainIssuedPermitOwner,
+        "$realChainIssuedPermitOwner\$Companion",
+        realChainIssuedBundleOwner,
+        "$realChainIssuedBundleOwner\$Companion",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority",
         "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority\$Companion",
     )
@@ -1232,12 +1250,15 @@ internal object ProductionBytecodePolicyVerifier {
             }
             val callerMethod = methodName(location)
             val authorized = when (name) {
-                "mintFinalLiveValidationPermit",
-                "assembleBundleFromPermit",
-                -> {
+                "mintFinalLiveValidationPermit" -> {
                     target.artifactPath == ":sensitive-actions" &&
                         className == realChainBoundaryOwner &&
-                        callerMethod == "assembleAndHandoff"
+                        callerMethod in setOf("assembleAndHandoff", "mintFinalLiveValidationPermit")
+                }
+                "assembleBundleFromPermit" -> {
+                    target.artifactPath == ":sensitive-actions" &&
+                        className == realChainBoundaryOwner &&
+                        callerMethod in setOf("assembleAndHandoff", "assembleBundleFromPermit")
                 }
                 "commitAfterConsumedAuthorization" -> {
                     val fromBoundary = target.artifactPath == ":sensitive-actions" &&
@@ -1253,8 +1274,11 @@ internal object ProductionBytecodePolicyVerifier {
                     callerMethod == "mintFinalLiveValidationPermit" &&
                         (
                             className == realChainBoundaryOwner ||
+                                className == realChainIssuedPermitOwner ||
+                                className == "$realChainIssuedPermitOwner\$Companion" ||
                                 className == realChainHandoffRegistryOwner ||
                                 className == realChainNestedHandoffRegistryOwner ||
+                                className == "com/example/devicemanagement/destructive/HandoffRegistry" ||
                                 className.endsWith("\$LiveValidationMint")
                             )
                 }
@@ -1264,8 +1288,11 @@ internal object ProductionBytecodePolicyVerifier {
                     callerMethod == "assembleBundleFromPermit" &&
                         (
                             className == realChainBoundaryOwner ||
+                                className == realChainIssuedBundleOwner ||
+                                className == "$realChainIssuedBundleOwner\$Companion" ||
                                 className == realChainHandoffRegistryOwner ||
                                 className == realChainNestedHandoffRegistryOwner ||
+                                className == "com/example/devicemanagement/destructive/HandoffRegistry" ||
                                 className.endsWith("\$ExecutionBundleMint")
                             )
                 }

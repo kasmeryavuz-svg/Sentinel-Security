@@ -76,6 +76,8 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("Checkpoint18Decision"))
         assertFalse(sources.contains("RealChainHandoffRegistry"))
         assertFalse(sources.contains("HandoffRegistry"))
+        assertFalse(sources.contains("IssuedRealChainFinalLiveValidationPermit"))
+        assertFalse(sources.contains("IssuedFutureDestructiveExecutionBundle"))
         assertFalse(sources.contains("registerIssuedPermit"))
         assertFalse(sources.contains("registerIssuedBundle"))
     }

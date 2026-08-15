@@ -6,11 +6,12 @@ import java.util.IdentityHashMap
 /**
  * Narrow future destructive executor type boundary.
  *
- * There is no general [create] mint and no companion/object mint for the
- * handoff bundle or the final permit. Those values are file-local
- * private-constructor types. Only
- * [FutureDestructiveRealChainBoundary] in this file can construct them,
- * and only after that boundary completes live validation.
+ * There is no general [create] mint and no public companion/object mint
+ * for the handoff bundle or the final permit. The exported types are
+ * sealed interfaces. Only file-private issued implementations in this
+ * file can be constructed, and only
+ * [FutureDestructiveRealChainBoundary] can ask those implementations
+ * to mint after live validation.
  *
  * [FutureDestructiveExecutorContract.execute] consumes a single-use
  * registered bundle. A reflected or caller-constructed instance is not
@@ -40,17 +41,18 @@ internal sealed interface FutureDestructiveHandoffResult {
 /**
  * Opaque process-local real-chain execution bundle. The only value a
  * [FutureDestructiveExecutorContract] may accept. Not serializable.
- * No companion mint. Constructed only in this file from an exact live
- * permit and registered for a single [execute] consumption.
+ * Sealed: no companion mint on this type. The issued implementation is
+ * file-private and cannot be named from other same-module files.
  */
-internal class FutureDestructiveExecutionBundle private constructor()
+internal sealed interface FutureDestructiveExecutionBundle
 
 /**
- * Ultra-short-lived process-local permit minted only by
- * [FutureDestructiveRealChainBoundary] after fresh live validation.
- * Never returned to callers. Never persisted. No companion [create].
+ * Ultra-short-lived process-local permit minted only after fresh live
+ * validation. Never returned to callers. Never persisted. Sealed: no
+ * companion [create] on this type. The issued implementation is
+ * file-private and cannot be named from other same-module files.
  */
-internal class RealChainFinalLiveValidationPermit private constructor()
+internal sealed interface RealChainFinalLiveValidationPermit
 
 /**
  * Production stand-in. Not an executor. Does not extend
@@ -58,6 +60,60 @@ internal class RealChainFinalLiveValidationPermit private constructor()
  * wipe, authorize, or hand off.
  */
 internal object UnwiredFutureDestructiveExecutor
+
+private object HandoffRegistry {
+    private val issuedPermits =
+        IdentityHashMap<RealChainFinalLiveValidationPermit, Unit>()
+    private val issuedBundles =
+        IdentityHashMap<FutureDestructiveExecutionBundle, Unit>()
+
+    @Synchronized
+    fun registerIssuedPermit(permit: RealChainFinalLiveValidationPermit) {
+        issuedPermits[permit] = Unit
+    }
+
+    @Synchronized
+    fun consumeIssuedPermit(permit: RealChainFinalLiveValidationPermit): Boolean {
+        return issuedPermits.remove(permit) != null
+    }
+
+    @Synchronized
+    fun registerIssuedBundle(bundle: FutureDestructiveExecutionBundle) {
+        issuedBundles[bundle] = Unit
+    }
+
+    @Synchronized
+    fun consumeIssuedBundle(bundle: FutureDestructiveExecutionBundle): Boolean {
+        return issuedBundles.remove(bundle) != null
+    }
+}
+
+private class IssuedRealChainFinalLiveValidationPermit private constructor() :
+    RealChainFinalLiveValidationPermit {
+    companion object {
+        fun mintFinalLiveValidationPermit(): IssuedRealChainFinalLiveValidationPermit {
+            val permit = IssuedRealChainFinalLiveValidationPermit()
+            HandoffRegistry.registerIssuedPermit(permit)
+            return permit
+        }
+    }
+}
+
+private class IssuedFutureDestructiveExecutionBundle private constructor() :
+    FutureDestructiveExecutionBundle {
+    companion object {
+        fun assembleBundleFromPermit(
+            permit: RealChainFinalLiveValidationPermit,
+        ): IssuedFutureDestructiveExecutionBundle? {
+            if (!HandoffRegistry.consumeIssuedPermit(permit)) {
+                return null
+            }
+            val bundle = IssuedFutureDestructiveExecutionBundle()
+            HandoffRegistry.registerIssuedBundle(bundle)
+            return bundle
+        }
+    }
+}
 
 /**
  * Future real-chain boundary. Structurally requires
@@ -91,9 +147,7 @@ internal class FutureDestructiveRealChainBoundary(
      * Abstract future executor. [execute] is the only entry. It consumes
      * a registered bundle and only then calls [onAuthorizedHandoff].
      * Production bytecode allows [execute] only from [assembleAndHandoff]
-     * and [onAuthorizedHandoff] only from [execute]. Nested so it can
-     * consume the private process-local registry; that registry is not
-     * nameable from other JVM classes.
+     * and [onAuthorizedHandoff] only from [execute].
      */
     abstract class FutureDestructiveExecutorContract {
         fun execute(
@@ -255,56 +309,22 @@ internal class FutureDestructiveRealChainBoundary(
     }
 
     /**
-     * Sole permit mint. Not [create]. Callable only from
+     * Sole boundary-side permit mint. Not [create]. Callable only from
      * [assembleAndHandoff] after fresh live validation. Production
      * bytecode allows this call only from that method.
      */
     private fun mintFinalLiveValidationPermit(): RealChainFinalLiveValidationPermit {
-        val permit = RealChainFinalLiveValidationPermit()
-        HandoffRegistry.registerIssuedPermit(permit)
-        return permit
+        return IssuedRealChainFinalLiveValidationPermit.mintFinalLiveValidationPermit()
     }
 
     /**
-     * Sole bundle assembler. Not [create]. Consumes the exact live
-     * permit minted by [mintFinalLiveValidationPermit]. Production
-     * bytecode allows this call only from [assembleAndHandoff].
+     * Sole boundary-side bundle assembler. Not [create]. Consumes the
+     * exact live permit minted by [mintFinalLiveValidationPermit].
+     * Production bytecode allows this call only from [assembleAndHandoff].
      */
     private fun assembleBundleFromPermit(
         permit: RealChainFinalLiveValidationPermit,
     ): FutureDestructiveExecutionBundle? {
-        if (!HandoffRegistry.consumeIssuedPermit(permit)) {
-            return null
-        }
-        val bundle = FutureDestructiveExecutionBundle()
-        HandoffRegistry.registerIssuedBundle(bundle)
-        return bundle
-    }
-
-    private object HandoffRegistry {
-        private val issuedPermits =
-            IdentityHashMap<RealChainFinalLiveValidationPermit, Unit>()
-        private val issuedBundles =
-            IdentityHashMap<FutureDestructiveExecutionBundle, Unit>()
-
-        @Synchronized
-        fun registerIssuedPermit(permit: RealChainFinalLiveValidationPermit) {
-            issuedPermits[permit] = Unit
-        }
-
-        @Synchronized
-        fun consumeIssuedPermit(permit: RealChainFinalLiveValidationPermit): Boolean {
-            return issuedPermits.remove(permit) != null
-        }
-
-        @Synchronized
-        fun registerIssuedBundle(bundle: FutureDestructiveExecutionBundle) {
-            issuedBundles[bundle] = Unit
-        }
-
-        @Synchronized
-        fun consumeIssuedBundle(bundle: FutureDestructiveExecutionBundle): Boolean {
-            return issuedBundles.remove(bundle) != null
-        }
+        return IssuedFutureDestructiveExecutionBundle.assembleBundleFromPermit(permit)
     }
 }

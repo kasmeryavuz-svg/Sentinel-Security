@@ -126,6 +126,8 @@ class DestructiveDomainIsolationTest {
         assertTrue(sources.contains("commitAfterConsumedAuthorization"))
         assertTrue(sources.contains("onAuthorizedHandoff"))
         assertTrue(sources.contains("HandoffRegistry"))
+        assertTrue(sources.contains("IssuedRealChainFinalLiveValidationPermit"))
+        assertTrue(sources.contains("IssuedFutureDestructiveExecutionBundle"))
         assertTrue(sources.contains("registerIssuedPermit"))
         assertFalse(sources.contains("object LiveValidationMint"))
         assertFalse(sources.contains("object ExecutionBundleMint"))

@@ -146,10 +146,10 @@ New types (no Android DevicePolicyManager calls):
 | Type | Role |
 | --- | --- |
 | `FutureDestructiveExecutorContract` | abstract contract; `execute(bundle)` consumes a registered bundle then calls `onAuthorizedHandoff` |
-| `FutureDestructiveExecutionBundle` | file-local private-constructor bundle; no companion `create()` and no public mint object |
+| `FutureDestructiveExecutionBundle` | sealed interface; file-private issued implementation; no companion `create()` |
 | `FutureDestructiveRealChainBoundary` | sole mint of permit/bundle and sole production origin of `execute` |
 | `RuntimeDurablePreExecutionCommitProof` | nested private-constructor proof; issued only after consumed authorization |
-| `RealChainFinalLiveValidationPermit` | file-local private-constructor permit; no companion `create()` and no public mint object |
+| `RealChainFinalLiveValidationPermit` | sealed interface; file-private issued implementation; no companion `create()` |
 | `DestructiveWipeOptionPolicyProof` | default-deny option-policy proof |
 
 The bundle can only be assembled after:
@@ -184,17 +184,16 @@ is not an executor. DeviceManagement does not construct the boundary.
 wipe executor exists.
 
 The handoff bundle and final permit have **no** general `create()` /
-companion mint and **no** public nested mint object. They are file-local
-private-constructor types in the same file as
-`FutureDestructiveRealChainBoundary`. Only that boundary can construct
-them. Same-module code in any other file cannot mint a valid permit or
-bundle. Issued instances are registered in a private nested
-`HandoffRegistry` (`IdentityHashMap`, single-use). That registry is not
-nameable from other JVM classes. The boundary mints a permit only after
-live validation, assembles the bundle only from that exact live permit,
-and production bytecode allows `execute` only from `assembleAndHandoff`.
-A reflected or caller-constructed bundle is not registered and cannot
-reach `onAuthorizedHandoff`.
+companion mint and **no** public nested mint object. The exported types
+are sealed interfaces. Only file-private issued implementations in the
+same file as `FutureDestructiveRealChainBoundary` can be constructed.
+Same-module Kotlin in any other file cannot name or mint those
+implementations. Issued instances are registered in a file-private
+`HandoffRegistry` (`IdentityHashMap`, single-use). The boundary mints a
+permit only after live validation, assembles the bundle only from that
+exact live permit, and production bytecode allows `execute` only from
+`assembleAndHandoff`. A reflected or caller-constructed bundle is not
+registered and cannot reach `onAuthorizedHandoff`.
 
 ```text
 REAL_CHAIN_UNFORGEABLE_HANDOFF_PRESENT = true

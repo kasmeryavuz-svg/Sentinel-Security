@@ -120,6 +120,8 @@ class DestructiveLifecycleRestartTest {
         assertTrue(!source.contains("DestructiveWipeOptionPolicyProof"))
         assertTrue(!source.contains("RealChainHandoffRegistry"))
         assertTrue(!source.contains("HandoffRegistry"))
+        assertTrue(!source.contains("IssuedRealChainFinalLiveValidationPermit"))
+        assertTrue(!source.contains("IssuedFutureDestructiveExecutionBundle"))
         assertTrue(!source.contains("LiveValidationMint"))
         assertTrue(!source.contains("ExecutionBundleMint"))
     }

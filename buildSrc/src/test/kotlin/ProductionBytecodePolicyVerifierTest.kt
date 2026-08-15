@@ -2266,6 +2266,25 @@ class ProductionBytecodePolicyVerifierTest {
     }
 
     @Test
+    fun `rogue caller cannot construct an issued future execution bundle`() {
+        val classes = compileJava(
+            *realChainHandoffStubs(),
+            "attack/RogueIssuedBundleInit.java" to
+                """
+                package attack;
+                import com.example.devicemanagement.destructive.IssuedFutureDestructiveExecutionBundle;
+                public final class RogueIssuedBundleInit {
+                    Object forge() {
+                        return new IssuedFutureDestructiveExecutionBundle();
+                    }
+                }
+                """.trimIndent(),
+        )
+        val violations = verify(":sensitive-actions", classes)
+        assertTrue(violations.any { "constructs real-chain handoff material" in it })
+    }
+
+    @Test
     fun `rogue caller cannot construct a top-level future execution bundle`() {
         val classes = compileJava(
             *realChainHandoffStubs(),
@@ -3072,6 +3091,16 @@ class ProductionBytecodePolicyVerifierTest {
                 """
                 package com.example.devicemanagement.destructive;
                 public final class RealChainFinalLiveValidationPermit {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/IssuedFutureDestructiveExecutionBundle.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class IssuedFutureDestructiveExecutionBundle {}
+                """.trimIndent(),
+            "com/example/devicemanagement/destructive/IssuedRealChainFinalLiveValidationPermit.java" to
+                """
+                package com.example.devicemanagement.destructive;
+                public final class IssuedRealChainFinalLiveValidationPermit {}
                 """.trimIndent(),
         )
     }

@@ -24,25 +24,29 @@ class FutureDestructiveExecutorContractTest {
             FutureDestructiveHandoffAcknowledgement::class.java,
             execute.single().returnType,
         )
+        assertTrue(FutureDestructiveExecutionBundle::class.java.isInterface)
+        assertTrue(RealChainFinalLiveValidationPermit::class.java.isInterface)
+        val issuedBundle = issuedHandoffImplementation(FutureDestructiveExecutionBundle::class.java)
+        val issuedPermit = issuedHandoffImplementation(RealChainFinalLiveValidationPermit::class.java)
         assertTrue(
-            FutureDestructiveExecutionBundle::class.java.declaredConstructors.any { constructor ->
+            issuedBundle.declaredConstructors.any { constructor ->
                 Modifier.isPrivate(constructor.modifiers) && constructor.parameterCount == 0
             },
         )
         assertTrue(
-            FutureDestructiveExecutionBundle::class.java.declaredConstructors.all { constructor ->
+            issuedBundle.declaredConstructors.all { constructor ->
                 Modifier.isPrivate(constructor.modifiers) ||
                     constructor.parameterTypes.singleOrNull()?.name ==
                     "kotlin.jvm.internal.DefaultConstructorMarker"
             },
         )
         assertTrue(
-            RealChainFinalLiveValidationPermit::class.java.declaredConstructors.any { constructor ->
+            issuedPermit.declaredConstructors.any { constructor ->
                 Modifier.isPrivate(constructor.modifiers) && constructor.parameterCount == 0
             },
         )
         assertTrue(
-            RealChainFinalLiveValidationPermit::class.java.declaredConstructors.all { constructor ->
+            issuedPermit.declaredConstructors.all { constructor ->
                 Modifier.isPrivate(constructor.modifiers) ||
                     constructor.parameterTypes.singleOrNull()?.name ==
                     "kotlin.jvm.internal.DefaultConstructorMarker"
@@ -296,7 +300,8 @@ class FutureDestructiveExecutorContractTest {
         assertFalse(source.contains("fun create()"))
         assertFalse(source.contains("object LiveValidationMint"))
         assertFalse(source.contains("object ExecutionBundleMint"))
-        assertFalse(source.contains("companion object"))
+        assertTrue(source.contains("private class IssuedRealChainFinalLiveValidationPermit"))
+        assertTrue(source.contains("private class IssuedFutureDestructiveExecutionBundle"))
         assertFalse(
             FutureDestructiveRealChainBoundary::class.java.methods.any { method ->
                 method.returnType == FutureDestructiveExecutionBundle::class.java ||
@@ -391,15 +396,22 @@ class FutureDestructiveExecutorContractTest {
                 )
             }.isFailure,
         )
-        val registry = FutureDestructiveRealChainBoundary::class.java.declaredClasses
-            .single { it.simpleName == "HandoffRegistry" }
-        assertTrue(Modifier.isPrivate(registry.modifiers))
+        assertEquals(
+            "IssuedFutureDestructiveExecutionBundle",
+            issuedHandoffImplementation(FutureDestructiveExecutionBundle::class.java).simpleName,
+        )
+        assertEquals(
+            "IssuedRealChainFinalLiveValidationPermit",
+            issuedHandoffImplementation(RealChainFinalLiveValidationPermit::class.java).simpleName,
+        )
     }
 
     @Test
     fun `forged bundle and permit cannot mint or invoke the executor`() {
         val recorder = RecordingFutureExecutor()
-        val forgedBundle = reflectConstruct(FutureDestructiveExecutionBundle::class.java)
+        val forgedBundle = reflectConstruct(
+            issuedHandoffImplementation(FutureDestructiveExecutionBundle::class.java),
+        ) as FutureDestructiveExecutionBundle
         val acknowledgement = recorder.execute(forgedBundle)
         assertTrue(acknowledgement is FutureDestructiveHandoffAcknowledgement.Refused)
         assertEquals(
@@ -408,7 +420,9 @@ class FutureDestructiveExecutorContractTest {
         )
         assertEquals(0, recorder.authorizedInvocations)
         val fixture = RealChainBoundaryFixture.create()
-        val forgedPermit = reflectConstruct(RealChainFinalLiveValidationPermit::class.java)
+        val forgedPermit = reflectConstruct(
+            issuedHandoffImplementation(RealChainFinalLiveValidationPermit::class.java),
+        ) as RealChainFinalLiveValidationPermit
         val assemble = FutureDestructiveRealChainBoundary::class.java.declaredMethods
             .single { it.name == "assembleBundleFromPermit" }
         assemble.isAccessible = true
@@ -602,6 +616,20 @@ internal fun reflectRuntimeDurabilityForRejectPathTests(): RuntimeDestructiveSaf
         InMemoryDestructivePreExecutionDurableStore(),
     )
     return newInternalInstance(RuntimeDestructiveSafetyDurability::class.java, cooldown, preExecution)
+}
+
+internal fun issuedHandoffImplementation(type: Class<*>): Class<*> {
+    return when (type) {
+        FutureDestructiveExecutionBundle::class.java ->
+            Class.forName(
+                "com.example.devicemanagement.destructive.IssuedFutureDestructiveExecutionBundle",
+            )
+        RealChainFinalLiveValidationPermit::class.java ->
+            Class.forName(
+                "com.example.devicemanagement.destructive.IssuedRealChainFinalLiveValidationPermit",
+            )
+        else -> error(type.name)
+    }
 }
 
 internal fun <T> reflectConstruct(type: Class<T>): T {
