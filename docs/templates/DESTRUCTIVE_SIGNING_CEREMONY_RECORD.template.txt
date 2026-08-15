@@ -1,0 +1,39 @@
+# Destructive signing-ceremony record template
+#
+# This is a blank schema for a later offline ceremony. Field names and
+# placeholders only. Do not fill this file. Do not commit a filled record.
+# A later checkpoint may write a filled record only to the gitignored path
+# local/destructive-signing-ceremony-record.txt.
+#
+# FORBIDDEN in any filled record:
+# - Private-key bytes
+# - Keystore bytes
+# - Store passwords
+# - Key passwords
+# - Secret environment-variable values
+# - Device unlock credentials
+
+ceremony_id=<CEREMONY_ID>
+utc_start=<UTC_START>
+utc_end=<UTC_END>
+operator_approval_reference=<OPERATOR_APPROVAL_REFERENCE>
+witness_approval_reference=<WITNESS_APPROVAL_REFERENCE>
+source_checkout_revision=<SOURCE_CHECKOUT_REVISION>
+worktree_state=<WORKTREE_STATE>
+unsigned_candidate_sha256=<UNSIGNED_CANDIDATE_SHA256>
+immutable_snapshot_sha256=<IMMUTABLE_SNAPSHOT_SHA256>
+signed_candidate_sha256=<SIGNED_CANDIDATE_SHA256>
+public_signing_certificate_sha256=<PUBLIC_SIGNING_CERTIFICATE_SHA256>
+current_signer_count=<CURRENT_SIGNER_COUNT>
+verified_signature_schemes=<VERIFIED_SIGNATURE_SCHEMES>
+package_name=<PACKAGE_NAME>
+device_admin_component=<DEVICE_ADMIN_COMPONENT>
+device_admin_policies=<DEVICE_ADMIN_POLICIES>
+minimum_sdk=<MINIMUM_SDK>
+target_sdk=<TARGET_SDK>
+observed_build_purpose=<OBSERVED_BUILD_PURPOSE>
+post_signing_inspection_result=<POST_SIGNING_INSPECTION_RESULT>
+candidate_authority=<CANDIDATE_AUTHORITY>
+runtime_authorization=<RUNTIME_AUTHORIZATION>
+trusted_expectation_minted=<TRUSTED_EXPECTATION_MINTED>
+hardware_validation_approval=<HARDWARE_VALIDATION_APPROVAL>

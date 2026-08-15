@@ -68,11 +68,11 @@ class Checkpoint19CDecisionRealityTest {
         assertTrue(Checkpoint19BDecision.DESTRUCTIVE_METADATA_PRESENT)
         assertTrue(Checkpoint19BDecision.WIPE_ZERO_BYTECODE_ENFORCED)
         assertFalse(Checkpoint19BDecision.REAL_DESTRUCTIVE_CHAIN_ASSEMBLED_IN_PRODUCTION)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
         assertTrue(Checkpoint19CDecision.FUTURE_SCOPE_DEVICE_FACTORY_RESET_ONLY)
         assertTrue(Checkpoint19CDecision.FUTURE_EXTRA_FLAG_SET_MUST_BE_EMPTY)
         assertTrue(Checkpoint19CDecision.FUTURE_FLAGS_MUST_BE_LITERAL_ZERO)
@@ -283,6 +283,7 @@ class Checkpoint19CDecisionRealityTest {
         assertFalse(composition.contains("issueFromTrustedConfirmationSource"))
         assertFalse(composition.contains("issueFromTrustedValidationSource"))
         assertFalse(composition.contains("Checkpoint19CDecision"))
+        assertFalse(composition.contains("assembleAlreadyBoundDeviceFactoryReset"))
         assertFalse(composition.contains("DestructiveHumanConfirmationAuthority"))
         val retainer = File(
             "src/main/kotlin/com/example/devicemanagement/destructive/ProductionDestructiveRealChain.kt",
@@ -318,6 +319,12 @@ class Checkpoint19CDecisionRealityTest {
         assertFalse(sources.contains("wipeData"))
         assertFalse(sources.contains("wipeDevice"))
         assertTrue(sources.contains("Checkpoint19CDecision"))
+        assertTrue(sources.contains("Checkpoint19DDecision"))
+        assertTrue(sources.contains("Checkpoint19EDecision"))
+        assertTrue(sources.contains("Checkpoint19FDecision"))
+        assertTrue(sources.contains("Checkpoint19GDecision"))
+        assertTrue(sources.contains("Checkpoint19HDecision"))
+        assertTrue(sources.contains("Checkpoint19JDecision"))
     }
 
     @Test

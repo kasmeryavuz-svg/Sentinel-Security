@@ -289,7 +289,7 @@ class DestructiveHumanApprovalAuthorityTest {
         assertNotEquals("DeviceManagement", UnwiredDestructiveHumanApprovalMint::class.java.simpleName)
         assertNotEquals("DeviceManagement", UnwiredDestructiveHumanConfirmationSource::class.java.simpleName)
         assertTrue(Checkpoint17BHardBlock.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
         assertTrue(Checkpoint18Decision.DESTRUCTIVE_HUMAN_APPROVAL_RECORDED)
         assertTrue(Checkpoint18Decision.REAL_CHAIN_HUMAN_APPROVAL_REQUIRED)
         val handoff = FutureDestructiveRealChainBoundary::class.java.declaredMethods
@@ -308,6 +308,20 @@ class DestructiveHumanApprovalAuthorityTest {
         val confirmation = fixture.confirm(issued)
         val approved = fixture.redeem(issued, confirmation) as DestructiveHumanApprovalResult.Approved
         assertTrue(fixture.consume(approved.approval) is DestructiveHumanApprovalCheck.Accepted)
+    }
+
+    @Test
+    fun `abandoned unused challenge cannot be redeemed`() {
+        val fixture = liveAuthority()
+        val issued = fixture.issueChallenge() as DestructiveChallengeIssueResult.Issued
+        val confirmation = fixture.confirm(issued)
+        fixture.authority.abandon(issued.challenge)
+        assertEquals(
+            "human_approval_challenge_not_issued_or_already_used",
+            (
+                fixture.redeem(issued, confirmation) as DestructiveHumanApprovalResult.Failed
+                ).reason,
+        )
     }
 
     private fun liveAuthority(

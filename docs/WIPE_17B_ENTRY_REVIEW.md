@@ -4,6 +4,15 @@ Checkpoint 17B is a **security and readiness review**. It implements only
 the safe prerequisites that must exist before a later, separately approved
 destructive implementation could be considered.
 
+**Later live-flag update (Checkpoint 19D):** the production real-chain
+assembly path now structurally forces cooldown, durable pre-execution
+audit, artifact identity, human approval, and wipe-option policy on every
+real-chain path. Live `Checkpoint17BHardBlock`
+`REAL_DESTRUCTIVE_CHAIN_*_ENFORCED` flags are therefore `true`. The 17B-time
+snapshot recorded below remains historically `false`. Runtime factory reset
+remains impossible; trusted artifact identity and per-attempt confirmation
+are still absent. See `docs/WIPE_19D_REAL_CHAIN_ASSEMBLY.md`.
+
 **NO REAL WIPE IS IMPLEMENTED.**
 **NO WIPE-DATA METADATA WAS ADDED.**
 **NO DESTRUCTIVE HARDWARE TEST WAS PERFORMED.**

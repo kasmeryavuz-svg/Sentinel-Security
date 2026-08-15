@@ -43,6 +43,70 @@ internal object ProductionBytecodePolicyVerifier {
             "Lcom/example/devicemanagement/integration/MonotonicTimeSource;" +
             "Lcom/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability;)" +
             "Lcom/example/devicemanagement/destructive/ProductionDestructiveRetainer;"
+    private const val ASSEMBLE_AND_HANDOFF = "assembleAndHandoff"
+    private const val ASSEMBLE_AND_HANDOFF_OWNER =
+        "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary"
+    private const val ASSEMBLE_AND_HANDOFF_DESCRIPTOR =
+        "(Lcom/example/devicemanagement/destructive/" +
+            "FutureDestructiveRealChainBoundary\$FutureDestructiveExecutorContract;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveCapability;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveArmingToken;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentityMatchProof;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentity;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveHumanApproval;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveWipeOptionPolicyProof;)" +
+            "Lcom/example/devicemanagement/destructive/FutureDestructiveHandoffResult;"
+    private const val ASSEMBLE_ALREADY_BOUND = "assembleAlreadyBoundDeviceFactoryReset"
+    private const val ORCHESTRATOR_OWNER =
+        "com/example/devicemanagement/destructive/ProductionDestructiveRealChainOrchestrator"
+    private const val ASSEMBLE_ALREADY_BOUND_DESCRIPTOR =
+        "(Lcom/example/devicemanagement/destructive/ProductionBoundDeviceFactoryResetAttempt;)" +
+            "Lcom/example/devicemanagement/destructive/FutureDestructiveHandoffResult;"
+    private const val PRODUCTION_CONFIRMATION_SOURCE_OWNER =
+        "com/example/devicemanagement/destructive/ProductionDestructiveHumanConfirmationSource"
+    private const val PRODUCTION_CONFIRMATION_SOURCE_CONFIRM = "confirm"
+    private const val PRODUCTION_CONFIRMATION_SOURCE_DESCRIPTOR =
+        "(Lcom/example/devicemanagement/destructive/DestructiveCorrelationId;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveScope;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentity;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveOperatorChallenge;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;" +
+            "J)Lcom/example/devicemanagement/destructive/DestructiveHumanConfirmationResult;"
+    private const val HUMAN_CONFIRMATION_AUTHORITY_CONFIRM_DESCRIPTOR =
+        "(Lcom/example/devicemanagement/destructive/DestructiveOperatorChallenge;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveCorrelationId;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveScope;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentity;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;" +
+            "J)Lcom/example/devicemanagement/destructive/DestructiveHumanConfirmationResult;"
+    private const val ORCHESTRATOR_INIT_DESCRIPTOR =
+        "(Lcom/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveLiveFactsSource;" +
+            "Lcom/example/devicemanagement/integration/MonotonicTimeSource;" +
+            "Lcom/example/devicemanagement/destructive/RuntimeDestructiveSafetyDurability;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTrustedArtifactExpectationSource;" +
+            "Lcom/example/devicemanagement/destructive/ProductionDestructiveHumanConfirmationSource;)V"
+    private const val PRODUCTION_CONFIRMATION_SOURCE_INIT_DESCRIPTOR =
+        "(Lcom/example/devicemanagement/destructive/DestructiveTrustedPerAttemptConfirmationRecordSource;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveUtcClock;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTrustedApprovedBuildRevisionSource;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveLiveFactsSource;" +
+            "Lcom/example/devicemanagement/destructive/DestructiveTrustedArtifactExpectationSource;)V"
+    private const val PRODUCTION_ARTIFACT_EXPECTATION_SOURCE_OWNER =
+        "com/example/devicemanagement/destructive/ProductionDestructiveTrustedArtifactExpectationSource"
+    private const val PRODUCTION_RECORD_SOURCE_OWNER =
+        "com/example/devicemanagement/destructive/" +
+            "ProductionDestructiveTrustedPerAttemptConfirmationRecordSource"
+    private const val PRODUCTION_UTC_CLOCK_OWNER =
+        "com/example/devicemanagement/destructive/ProductionDestructiveUtcClock"
+    private const val PRODUCTION_APPROVED_BUILD_SOURCE_OWNER =
+        "com/example/devicemanagement/destructive/ProductionDestructiveApprovedBuildRevisionSource"
+    private const val TRUSTED_CONFIRMATION_FACTS_OWNER =
+        "com/example/devicemanagement/destructive/TrustedPerAttemptConfirmationFacts"
 
     private data class InvocationOrigin(
         val className: String,
@@ -77,6 +141,39 @@ internal object ProductionBytecodePolicyVerifier {
             "Lcom/example/devicemanagement/management/DeviceManagementLogger;" +
             "Lcom/example/devicemanagement/management/AndroidDevicePolicyPlatform;)" +
             "Lcom/example/devicemanagement/destructive/ProductionDestructiveRetainer;",
+    )
+
+    private val authorizedAssembleAndHandoffCaller = InvocationOrigin(
+        ORCHESTRATOR_OWNER,
+        ASSEMBLE_ALREADY_BOUND,
+        ASSEMBLE_ALREADY_BOUND_DESCRIPTOR,
+    )
+
+    private val authorizedHumanConfirmationAuthorityCaller = InvocationOrigin(
+        PRODUCTION_CONFIRMATION_SOURCE_OWNER,
+        PRODUCTION_CONFIRMATION_SOURCE_CONFIRM,
+        PRODUCTION_CONFIRMATION_SOURCE_DESCRIPTOR,
+    )
+
+    private val authorizedProductionConfirmationSourceCaller = InvocationOrigin(
+        ORCHESTRATOR_OWNER,
+        ASSEMBLE_ALREADY_BOUND,
+        ASSEMBLE_ALREADY_BOUND_DESCRIPTOR,
+    )
+
+    private val authorizedProductionInternalInitCaller = InvocationOrigin(
+        RETAIN_FOR_PRODUCTION_OWNER,
+        RETAIN_FOR_PRODUCTION,
+        RETAIN_FOR_PRODUCTION_DESCRIPTOR,
+    )
+
+    private val productionInternalInitDescriptors = mapOf(
+        ORCHESTRATOR_OWNER to ORCHESTRATOR_INIT_DESCRIPTOR,
+        PRODUCTION_CONFIRMATION_SOURCE_OWNER to PRODUCTION_CONFIRMATION_SOURCE_INIT_DESCRIPTOR,
+        PRODUCTION_ARTIFACT_EXPECTATION_SOURCE_OWNER to "()V",
+        PRODUCTION_RECORD_SOURCE_OWNER to "()V",
+        PRODUCTION_UTC_CLOCK_OWNER to "()V",
+        PRODUCTION_APPROVED_BUILD_SOURCE_OWNER to "()V",
     )
 
     private fun origins(vararg origins: InvocationOrigin): Set<InvocationOrigin> =
@@ -480,6 +577,12 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/Checkpoint19ADecision",
         "com/example/devicemanagement/destructive/Checkpoint19BDecision",
         "com/example/devicemanagement/destructive/Checkpoint19CDecision",
+        "com/example/devicemanagement/destructive/Checkpoint19DDecision",
+        "com/example/devicemanagement/destructive/Checkpoint19EDecision",
+        "com/example/devicemanagement/destructive/Checkpoint19FDecision",
+        "com/example/devicemanagement/destructive/Checkpoint19GDecision",
+        "com/example/devicemanagement/destructive/Checkpoint19HDecision",
+        "com/example/devicemanagement/destructive/Checkpoint19JDecision",
         "com/example/devicemanagement/destructive/UnwiredFutureDestructiveExecutor",
         "com/example/devicemanagement/destructive/IssuedRuntimeDurablePreExecutionCommitProof",
         "com/example/devicemanagement/destructive/AuthorizedFactoryResetPort",
@@ -487,6 +590,24 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/AndroidFutureDestructiveExecutor",
         "com/example/devicemanagement/destructive/ProductionDestructiveRealChain",
         "com/example/devicemanagement/destructive/ProductionDestructiveRetainer",
+        "com/example/devicemanagement/destructive/ProductionDestructiveRealChainOrchestrator",
+        "com/example/devicemanagement/destructive/ProductionBoundDeviceFactoryResetAttempt",
+        "com/example/devicemanagement/destructive/ProductionRealChainAssemblyMaterials",
+        "com/example/devicemanagement/destructive/ProductionDestructiveHumanConfirmationSource",
+        "com/example/devicemanagement/destructive/ProductionDestructiveTrustedArtifactExpectationSource",
+        "com/example/devicemanagement/destructive/ProductionDestructiveTrustedPerAttemptConfirmationRecordSource",
+        "com/example/devicemanagement/destructive/ProductionDestructiveUtcClock",
+        "com/example/devicemanagement/destructive/ProductionDestructiveApprovedBuildRevisionSource",
+        "com/example/devicemanagement/destructive/DestructiveTrustedArtifactExpectationSource",
+        "com/example/devicemanagement/destructive/DestructiveTrustedPerAttemptConfirmationRecordSource",
+        "com/example/devicemanagement/destructive/DestructiveTrustedConfirmationRecordConsumeResult",
+        "com/example/devicemanagement/destructive/DestructiveTrustedConfirmationRecordConsumeResult\$Available",
+        "com/example/devicemanagement/destructive/DestructiveTrustedConfirmationRecordConsumeResult\$Missing",
+        "com/example/devicemanagement/destructive/DestructiveTrustedConfirmationRecordConsumeResult\$AlreadyConsumed",
+        "com/example/devicemanagement/destructive/DestructiveUtcClock",
+        "com/example/devicemanagement/destructive/DestructiveTrustedApprovedBuildRevisionSource",
+        "com/example/devicemanagement/destructive/TrustedPerAttemptDestructiveConfirmationRecord",
+        "com/example/devicemanagement/destructive/TrustedPerAttemptConfirmationFacts",
         "com/example/devicemanagement/destructive/UnavailableAuthorizedFactoryResetPort",
         "com/example/devicemanagement/management/AndroidDevicePolicyFactoryResetService",
         "com/example/devicemanagement/management/AndroidDestructiveLiveFactsSource",
@@ -517,6 +638,10 @@ internal object ProductionBytecodePolicyVerifier {
         "redeem",
         "admit",
         "assembleAndHandoff",
+        "assembleAlreadyBoundDeviceFactoryReset",
+        "bindAlreadyAuthorizedDeviceFactoryReset",
+        "consumeMatching",
+        "abandon",
         "verifyDefaultDeny",
         "mintFinalLiveValidationPermit",
         "assembleBundleFromPermit",
@@ -524,6 +649,8 @@ internal object ProductionBytecodePolicyVerifier {
         "onAuthorizedHandoff",
         "performAuthorizedFactoryReset",
         "retainForProduction",
+        "assembleProductionRealChainBoundary",
+        "assembleProductionRealChainMaterials",
         "requirePendingConsumption",
         "registerIssuedPermit",
         "registerIssuedBundle",
@@ -690,21 +817,6 @@ internal object ProductionBytecodePolicyVerifier {
         "assembleBundleFromPermit",
         "commitAfterConsumedAuthorization",
         "assembleAndHandoff",
-    )
-
-    private val trustedRealChainHandoffOrigin = InvocationOrigin(
-        realChainBoundaryOwner,
-        "assembleAndHandoff",
-        "(Lcom/example/devicemanagement/destructive/FutureDestructiveExecutorContract;" +
-            "Lcom/example/devicemanagement/destructive/DestructiveTargetBinding;" +
-            "Lcom/example/devicemanagement/destructive/DestructiveAttemptLease;" +
-            "Lcom/example/devicemanagement/destructive/DestructiveCapability;" +
-            "Lcom/example/devicemanagement/destructive/DestructiveArmingToken;" +
-            "Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentityMatchProof;" +
-            "Lcom/example/devicemanagement/destructive/DestructiveArtifactIdentity;" +
-            "Lcom/example/devicemanagement/destructive/DestructiveHumanApproval;" +
-            "Lcom/example/devicemanagement/destructive/DestructiveWipeOptionPolicyProof;)" +
-            "Lcom/example/devicemanagement/destructive/FutureDestructiveHandoffResult;",
     )
 
     private val trustedDestructiveSafetyMutationOrigins = mapOf(
@@ -1050,7 +1162,14 @@ internal object ProductionBytecodePolicyVerifier {
                 checkTrustedRuntimeDurabilityIssueInvocation(owner, name, descriptor, location)
                 checkTrustedArtifactExpectationIssueInvocation(owner, name, descriptor, location)
                 checkTrustedHumanConfirmationMintInvocation(owner, name, descriptor, location)
-                checkTrustedHumanConfirmationConfirmInvocation(owner, name, descriptor, location)
+                checkTrustedHumanConfirmationConfirmInvocation(
+                    owner,
+                    name,
+                    descriptor,
+                    location,
+                    callerOrigin,
+                    viaMethodHandle = false,
+                )
                 checkRealChainHandoffInvocation(owner, name, descriptor, location)
                 checkAuthorizedFactoryResetPortInvocation(
                     owner,
@@ -1067,6 +1186,43 @@ internal object ProductionBytecodePolicyVerifier {
                     location,
                     callerOrigin,
                     viaMethodHandle = false,
+                )
+                checkAssembleAndHandoffInvocation(
+                    owner,
+                    name,
+                    descriptor,
+                    location,
+                    callerOrigin,
+                    viaMethodHandle = false,
+                )
+                checkProductionOrchestratorProgressionInvocation(
+                    owner,
+                    name,
+                    descriptor,
+                    location,
+                    callerOrigin,
+                    viaMethodHandle = false,
+                )
+                checkProductionConfirmationSourceInvocation(
+                    owner,
+                    name,
+                    descriptor,
+                    location,
+                    callerOrigin,
+                    viaMethodHandle = false,
+                )
+                checkProductionInternalInitInvocation(
+                    owner,
+                    name,
+                    descriptor,
+                    location,
+                    callerOrigin,
+                    viaMethodHandle = false,
+                )
+                checkTrustedConfirmationFactsInitInvocation(
+                    owner,
+                    name,
+                    location,
                 )
                 checkRecoveryIsolation(owner, name, location)
                 checkSqliteInvocation(owner, name, descriptor, location)
@@ -1177,6 +1333,8 @@ internal object ProductionBytecodePolicyVerifier {
                 handle.name,
                 handle.desc,
                 "$location method handle",
+                caller,
+                viaMethodHandle = true,
             )
             checkRealChainHandoffInvocation(
                 handle.owner,
@@ -1199,6 +1357,43 @@ internal object ProductionBytecodePolicyVerifier {
                 "$location method handle",
                 caller,
                 viaMethodHandle = true,
+            )
+            checkAssembleAndHandoffInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+                caller,
+                viaMethodHandle = true,
+            )
+            checkProductionOrchestratorProgressionInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+                caller,
+                viaMethodHandle = true,
+            )
+            checkProductionConfirmationSourceInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+                caller,
+                viaMethodHandle = true,
+            )
+            checkProductionInternalInitInvocation(
+                handle.owner,
+                handle.name,
+                handle.desc,
+                "$location method handle",
+                caller,
+                viaMethodHandle = true,
+            )
+            checkTrustedConfirmationFactsInitInvocation(
+                handle.owner,
+                handle.name,
+                "$location method handle",
             )
             checkRecoveryIsolation(handle.owner, handle.name, "$location method handle")
             checkSqliteInvocation(
@@ -1528,6 +1723,135 @@ internal object ProductionBytecodePolicyVerifier {
             )
         }
 
+        private fun checkAssembleAndHandoffInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+            caller: InvocationOrigin,
+            viaMethodHandle: Boolean,
+        ) {
+            if (name != ASSEMBLE_AND_HANDOFF) {
+                return
+            }
+            val authorized = !viaMethodHandle &&
+                target.artifactPath == ":sensitive-actions" &&
+                owner == ASSEMBLE_AND_HANDOFF_OWNER &&
+                descriptor == ASSEMBLE_AND_HANDOFF_DESCRIPTOR &&
+                caller == authorizedAssembleAndHandoffCaller
+            if (authorized) {
+                return
+            }
+            violation(
+                "$location invokes assembleAndHandoff $owner.$name$descriptor outside " +
+                    "${authorizedAssembleAndHandoffCaller.className}." +
+                    "${authorizedAssembleAndHandoffCaller.methodName}" +
+                    authorizedAssembleAndHandoffCaller.methodDescriptor,
+            )
+        }
+
+        private fun checkProductionOrchestratorProgressionInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+            caller: InvocationOrigin,
+            viaMethodHandle: Boolean,
+        ) {
+            if (name != ASSEMBLE_ALREADY_BOUND) {
+                return
+            }
+            violation(
+                "$location invokes production real-chain orchestrator " +
+                    "$owner.$name$descriptor; no production trigger origin is authorized " +
+                    "(caller ${caller.className}.${caller.methodName}${caller.methodDescriptor}" +
+                    "${if (viaMethodHandle) ", method handle" else ""})",
+            )
+        }
+
+        private fun checkProductionConfirmationSourceInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+            caller: InvocationOrigin,
+            viaMethodHandle: Boolean,
+        ) {
+            if (name != PRODUCTION_CONFIRMATION_SOURCE_CONFIRM) {
+                return
+            }
+            if (owner == trustedHumanConfirmationAuthorityOwner) {
+                return
+            }
+            val authorized = !viaMethodHandle &&
+                target.artifactPath == ":sensitive-actions" &&
+                owner == PRODUCTION_CONFIRMATION_SOURCE_OWNER &&
+                descriptor == PRODUCTION_CONFIRMATION_SOURCE_DESCRIPTOR &&
+                caller == authorizedProductionConfirmationSourceCaller
+            if (authorized) {
+                return
+            }
+            if (
+                owner != PRODUCTION_CONFIRMATION_SOURCE_OWNER &&
+                descriptor != PRODUCTION_CONFIRMATION_SOURCE_DESCRIPTOR
+            ) {
+                return
+            }
+            violation(
+                "$location invokes production confirmation source $owner.$name$descriptor outside " +
+                    "${authorizedProductionConfirmationSourceCaller.className}." +
+                    "${authorizedProductionConfirmationSourceCaller.methodName}" +
+                    authorizedProductionConfirmationSourceCaller.methodDescriptor,
+            )
+        }
+
+        private fun checkProductionInternalInitInvocation(
+            owner: String,
+            name: String,
+            descriptor: String,
+            location: String,
+            caller: InvocationOrigin,
+            viaMethodHandle: Boolean,
+        ) {
+            val expectedDescriptor = productionInternalInitDescriptors[owner] ?: return
+            if (name != "<init>") {
+                return
+            }
+            if (className == owner && methodName(location) == "<init>") {
+                return
+            }
+            val authorized = !viaMethodHandle &&
+                target.artifactPath == ":sensitive-actions" &&
+                descriptor == expectedDescriptor &&
+                caller == authorizedProductionInternalInitCaller
+            if (authorized) {
+                return
+            }
+            violation(
+                "$location constructs production real-chain type $owner$descriptor outside " +
+                    "${authorizedProductionInternalInitCaller.className}." +
+                    "${authorizedProductionInternalInitCaller.methodName}" +
+                    authorizedProductionInternalInitCaller.methodDescriptor,
+            )
+        }
+
+        private fun checkTrustedConfirmationFactsInitInvocation(
+            owner: String,
+            name: String,
+            location: String,
+        ) {
+            if (name != "<init>" || owner != TRUSTED_CONFIRMATION_FACTS_OWNER) {
+                return
+            }
+            if (className == owner && methodName(location) == "<init>") {
+                return
+            }
+            violation(
+                "$location constructs TrustedPerAttemptConfirmationFacts; this type has no " +
+                    "production mint",
+            )
+        }
+
         private fun checkRealChainExecutorExecute(
             owner: String,
             name: String,
@@ -1724,14 +2048,25 @@ internal object ProductionBytecodePolicyVerifier {
             name: String,
             descriptor: String,
             location: String,
+            caller: InvocationOrigin,
+            viaMethodHandle: Boolean,
         ) {
             if (owner != trustedHumanConfirmationAuthorityOwner || name != "confirm") {
                 return
             }
+            val authorized = !viaMethodHandle &&
+                target.artifactPath == ":sensitive-actions" &&
+                descriptor == HUMAN_CONFIRMATION_AUTHORITY_CONFIRM_DESCRIPTOR &&
+                caller == authorizedHumanConfirmationAuthorityCaller
+            if (authorized) {
+                return
+            }
             val invocation = "$owner.$name$descriptor"
             violation(
-                "$location invokes human confirmation $invocation outside an unwired " +
-                    "production confirmation path",
+                "$location invokes human confirmation $invocation outside " +
+                    "${authorizedHumanConfirmationAuthorityCaller.className}." +
+                    "${authorizedHumanConfirmationAuthorityCaller.methodName}" +
+                    authorizedHumanConfirmationAuthorityCaller.methodDescriptor,
             )
         }
 

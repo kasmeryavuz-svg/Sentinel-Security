@@ -58,6 +58,11 @@ class LifecycleCompositionGuardTest {
         assertFalse(composition.contains("Checkpoint19ADecision"))
         assertFalse(composition.contains("Checkpoint19BDecision"))
         assertFalse(composition.contains("Checkpoint19CDecision"))
+        assertFalse(composition.contains("Checkpoint19DDecision"))
+        assertFalse(composition.contains("Checkpoint19EDecision"))
+        assertFalse(composition.contains("Checkpoint19FDecision"))
+        assertFalse(composition.contains("ProductionDestructiveRealChainOrchestrator"))
+        assertFalse(composition.contains("assembleAlreadyBoundDeviceFactoryReset"))
         assertFalse(composition.contains("AndroidFutureDestructiveExecutor"))
     }
 

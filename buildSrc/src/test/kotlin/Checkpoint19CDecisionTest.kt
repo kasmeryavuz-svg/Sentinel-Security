@@ -53,6 +53,12 @@ class Checkpoint19CDecisionTest {
         assertTrue(!allowlistBlock.contains("wipeData"))
         assertTrue(source.contains("exact integer constant 0"))
         assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19CDecision"))
+        assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19DDecision"))
+        assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19EDecision"))
+        assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19FDecision"))
+        assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19GDecision"))
+        assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19HDecision"))
+        assertTrue(source.contains("com/example/devicemanagement/destructive/Checkpoint19JDecision"))
         val forbidden = source
             .substringAfter("checkpoint17BForbiddenDpmMethodNames = setOf(")
             .substringBefore(")")

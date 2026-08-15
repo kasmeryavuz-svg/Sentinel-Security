@@ -49,11 +49,25 @@ import com.example.devicemanagement.destructive.Checkpoint18Decision
 import com.example.devicemanagement.destructive.Checkpoint19ADecision
 import com.example.devicemanagement.destructive.Checkpoint19BDecision
 import com.example.devicemanagement.destructive.Checkpoint19CDecision
+import com.example.devicemanagement.destructive.Checkpoint19DDecision
+import com.example.devicemanagement.destructive.Checkpoint19EDecision
+import com.example.devicemanagement.destructive.Checkpoint19FDecision
+import com.example.devicemanagement.destructive.Checkpoint19GDecision
+import com.example.devicemanagement.destructive.Checkpoint19HDecision
+import com.example.devicemanagement.destructive.Checkpoint19JDecision
 import com.example.devicemanagement.destructive.UnwiredFutureDestructiveExecutor
 import com.example.devicemanagement.destructive.AuthorizedFactoryResetPort
 import com.example.devicemanagement.destructive.AndroidFutureDestructiveExecutor
 import com.example.devicemanagement.destructive.ProductionDestructiveRealChain
 import com.example.devicemanagement.destructive.ProductionDestructiveRetainer
+import com.example.devicemanagement.destructive.ProductionDestructiveRealChainOrchestrator
+import com.example.devicemanagement.destructive.ProductionBoundDeviceFactoryResetAttempt
+import com.example.devicemanagement.destructive.ProductionDestructiveHumanConfirmationSource
+import com.example.devicemanagement.destructive.ProductionDestructiveTrustedArtifactExpectationSource
+import com.example.devicemanagement.destructive.ProductionDestructiveTrustedPerAttemptConfirmationRecordSource
+import com.example.devicemanagement.destructive.ProductionDestructiveUtcClock
+import com.example.devicemanagement.destructive.ProductionDestructiveApprovedBuildRevisionSource
+import com.example.devicemanagement.destructive.TrustedPerAttemptDestructiveConfirmationRecord
 
 class DestructiveAuthorityAccess(
     val arming: DestructiveArmingAuthority,
@@ -105,9 +119,23 @@ class DestructiveAuthorityAccess(
     val checkpoint19ADecision: Checkpoint19ADecision,
     val checkpoint19BDecision: Checkpoint19BDecision,
     val checkpoint19CDecision: Checkpoint19CDecision,
+    val checkpoint19DDecision: Checkpoint19DDecision,
+    val checkpoint19EDecision: Checkpoint19EDecision,
+    val checkpoint19FDecision: Checkpoint19FDecision,
+    val checkpoint19GDecision: Checkpoint19GDecision,
+    val checkpoint19HDecision: Checkpoint19HDecision,
+    val checkpoint19JDecision: Checkpoint19JDecision,
     val unwiredFutureExecutor: UnwiredFutureDestructiveExecutor,
     val authorizedFactoryResetPort: AuthorizedFactoryResetPort,
     val androidFutureDestructiveExecutor: AndroidFutureDestructiveExecutor,
     val productionDestructiveRealChain: ProductionDestructiveRealChain,
     val productionDestructiveRetainer: ProductionDestructiveRetainer,
+    val productionDestructiveRealChainOrchestrator: ProductionDestructiveRealChainOrchestrator,
+    val productionBoundDeviceFactoryResetAttempt: ProductionBoundDeviceFactoryResetAttempt,
+    val productionDestructiveHumanConfirmationSource: ProductionDestructiveHumanConfirmationSource,
+    val productionDestructiveTrustedArtifactExpectationSource: ProductionDestructiveTrustedArtifactExpectationSource,
+    val productionDestructiveTrustedPerAttemptConfirmationRecordSource: ProductionDestructiveTrustedPerAttemptConfirmationRecordSource,
+    val productionDestructiveUtcClock: ProductionDestructiveUtcClock,
+    val productionDestructiveApprovedBuildRevisionSource: ProductionDestructiveApprovedBuildRevisionSource,
+    val trustedPerAttemptDestructiveConfirmationRecord: TrustedPerAttemptDestructiveConfirmationRecord,
 )

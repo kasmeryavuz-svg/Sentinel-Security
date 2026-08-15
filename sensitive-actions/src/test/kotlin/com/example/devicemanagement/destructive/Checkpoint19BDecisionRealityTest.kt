@@ -54,11 +54,11 @@ class Checkpoint19BDecisionRealityTest {
         assertFalse(Checkpoint19BDecision.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
         assertFalse(Checkpoint19BDecision.GRAPHENEOS_WIPE_BEHAVIOR_VERIFIED)
         assertFalse(Checkpoint19BDecision.REAL_DESTRUCTIVE_CHAIN_ASSEMBLED_IN_PRODUCTION)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
-        assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_RUNTIME_COOLDOWN_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_DURABLE_AUDIT_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_HUMAN_APPROVAL_ENFORCED)
+        assertTrue(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_WIPE_OPTION_POLICY_ENFORCED)
         assertTrue(Checkpoint19BDecision.FUTURE_SCOPE_DEVICE_FACTORY_RESET_ONLY)
         assertTrue(Checkpoint19BDecision.FUTURE_EXTRA_FLAG_SET_MUST_BE_EMPTY)
     }
@@ -100,6 +100,13 @@ class Checkpoint19BDecisionRealityTest {
         assertTrue(sources.contains("ProductionDestructiveRealChain"))
         assertTrue(sources.contains("Checkpoint19BDecision"))
         assertTrue(sources.contains("Checkpoint19CDecision"))
+        assertTrue(sources.contains("Checkpoint19DDecision"))
+        assertTrue(sources.contains("Checkpoint19EDecision"))
+        assertTrue(sources.contains("Checkpoint19FDecision"))
+        assertTrue(sources.contains("Checkpoint19GDecision"))
+        assertTrue(sources.contains("Checkpoint19HDecision"))
+        assertTrue(sources.contains("Checkpoint19JDecision"))
+        assertTrue(sources.contains("ProductionDestructiveRealChainOrchestrator"))
     }
 
     private companion object {
@@ -126,6 +133,7 @@ class ProductionDestructiveRealChainTest {
         )
         assertNull(retainer.boundary)
         assertTrue(retainer.executor is AndroidFutureDestructiveExecutor)
+        assertTrue(retainer.orchestrator is ProductionDestructiveRealChainOrchestrator)
         assertNull(TrustedDestructiveArtifactValidationSource.trustedExpectation())
     }
 }
