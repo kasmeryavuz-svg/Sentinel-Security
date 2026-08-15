@@ -43,7 +43,10 @@ class Checkpoint19FValidationEvidenceFreezeTest {
         assertTrue(appGradle.contains("generateDestructiveValidationCandidateEvidence"))
         assertTrue(appGradle.contains("checkUnsignedDestructiveValidationCandidateEvidence"))
         assertTrue(appGradle.contains("sentinel.destructiveValidationCandidateApk"))
-        assertTrue(appGradle.contains("destructive-validation-candidate-snapshot"))
+        assertTrue(appGradle.contains("destructive-validation-explicit-candidate-snapshot"))
+        assertTrue(appGradle.contains("destructive-validation-unsigned-release-snapshot"))
+        assertTrue(appGradle.contains("destructive-validation-disposable-purpose-snapshot"))
+        assertFalse(appGradle.contains("tmp/destructive-validation-candidate-snapshot"))
         assertTrue(
             appGradle.contains("Never auto-selects a build output and never mints a trusted expectation."),
         )
@@ -156,6 +159,9 @@ class Checkpoint19FValidationEvidenceFreezeTest {
         )
         assertTrue(
             source.contains("com/example/devicemanagement/destructive/Checkpoint19HDecision"),
+        )
+        assertTrue(
+            source.contains("com/example/devicemanagement/destructive/Checkpoint19JDecision"),
         )
         val allowlistBlock = source
             .substringAfter("private val allowedDpmInvocations = mapOf(")

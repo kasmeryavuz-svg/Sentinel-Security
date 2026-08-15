@@ -55,6 +55,7 @@ class Checkpoint19GWipeBoundaryFreezeTest {
 
         assertFalse(sources.contains("Checkpoint19GDecision"))
         assertFalse(sources.contains("Checkpoint19HDecision"))
+        assertFalse(sources.contains("Checkpoint19JDecision"))
         assertFalse(sources.contains("DESTRUCTIVE_VALIDATION_BUILD_PURPOSE"))
         assertFalse(sources.contains("checkUnsignedDisposableValidationBuildPurposeEvidence"))
         assertFalse(sources.contains("DestructiveValidationCandidateEvidence"))
