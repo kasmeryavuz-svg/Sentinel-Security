@@ -135,6 +135,8 @@ class RuntimeDestructiveDurabilitySeparationTest {
             "issueFromTrustedAndroidStores",
             "issueRuntimeDurability",
             "AndroidDestructiveSafetyPersistence",
+            "FutureDestructiveRealChainBoundary",
+            "assembleAndHandoff",
         ).forEach { token ->
             assertFalse(recovery.contains(token))
             assertFalse(controller.contains(token))

@@ -120,6 +120,9 @@ class Checkpoint17BHardBlockRealityTest {
         assertFalse(controller.contains("issueFromTrustedValidationSource"))
         assertFalse(controller.contains("RuntimeDestructiveSafetyDurabilityMint"))
         assertFalse(controller.contains("TrustedDestructiveArtifactExpectationMint"))
+        assertFalse(controller.contains("FutureDestructiveRealChainBoundary"))
+        assertFalse(controller.contains("assembleAndHandoff"))
+        assertFalse(controller.contains("FutureDestructiveExecutorContract"))
     }
 
     @Test

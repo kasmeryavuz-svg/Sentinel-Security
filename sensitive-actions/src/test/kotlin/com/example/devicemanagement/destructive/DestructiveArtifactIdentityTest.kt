@@ -191,6 +191,12 @@ class DestructiveArtifactIdentityTest {
         assertFalse(forged::class.java == DestructiveArtifactIdentityExpectation::class.java)
         assertFalse(Checkpoint17BHardBlock.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
         assertFalse(Checkpoint17BHardBlock.REAL_DESTRUCTIVE_CHAIN_ARTIFACT_IDENTITY_ENFORCED)
+        assertFalse(Checkpoint18Decision.DISPOSABLE_DEVICE_ARTIFACT_HASH_RECORDED)
+        assertTrue(Checkpoint18Decision.REAL_CHAIN_ARTIFACT_IDENTITY_REQUIRED)
+        val handoff = FutureDestructiveRealChainBoundary::class.java.declaredMethods
+            .single { it.name == "assembleAndHandoff" }
+        assertTrue(DestructiveArtifactIdentityMatchProof::class.java in handoff.parameterTypes)
+        assertFalse(String::class.java in handoff.parameterTypes)
     }
 
     @Test

@@ -63,6 +63,13 @@ class LifecycleRecoveryGuardTest {
         assertFalse(sources.contains("DestructiveWipeOptionPolicy"))
         assertFalse(sources.contains("issueChallenge"))
         assertFalse(sources.contains("issueFromTrustedConfirmationSource"))
+        assertFalse(sources.contains("FutureDestructiveExecutorContract"))
+        assertFalse(sources.contains("FutureDestructiveRealChainBoundary"))
+        assertFalse(sources.contains("assembleAndHandoff"))
+        assertFalse(sources.contains("RuntimeDurablePreExecutionCommitProof"))
+        assertFalse(sources.contains("RealChainFinalLiveValidationPermit"))
+        assertFalse(sources.contains("DestructiveWipeOptionPolicyProof"))
+        assertFalse(sources.contains("Checkpoint18Decision"))
     }
 
     @Test

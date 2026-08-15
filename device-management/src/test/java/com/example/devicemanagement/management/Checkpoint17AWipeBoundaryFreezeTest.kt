@@ -48,6 +48,8 @@ class Checkpoint17AWipeBoundaryFreezeTest {
         assertFalse(sources.contains("DestructiveArmingAuthority"))
         assertFalse(sources.contains("AndroidDestructiveSafetyPersistence.create"))
         assertFalse(sources.contains("AndroidDestructiveSafetyPersistence.issueRuntimeDurability"))
+        assertFalse(sources.contains("FutureDestructiveRealChainBoundary"))
+        assertFalse(sources.contains("assembleAndHandoff"))
         assertTrue(sources.contains("setScreenCaptureDisabled"))
         assertTrue(sources.contains("setCameraDisabled"))
         assertTrue(sources.contains("setStatusBarDisabled"))

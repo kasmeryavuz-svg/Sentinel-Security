@@ -37,6 +37,17 @@ import com.example.devicemanagement.destructive.DestructiveHumanConfirmation
 import com.example.devicemanagement.destructive.DestructiveHumanConfirmationAuthority
 import com.example.devicemanagement.destructive.DestructiveOperatorChallenge
 import com.example.devicemanagement.destructive.DestructiveWipeOptionPolicy
+import com.example.devicemanagement.destructive.DestructiveWipeOptionPolicyProof
+import com.example.devicemanagement.destructive.DestructiveWipeOptionPolicyAuthority
+import com.example.devicemanagement.destructive.FutureDestructiveExecutorContract
+import com.example.devicemanagement.destructive.FutureDestructiveExecutionBundle
+import com.example.devicemanagement.destructive.FutureDestructiveRealChainBoundary
+import com.example.devicemanagement.destructive.RuntimeDurablePreExecutionCommitProof
+import com.example.devicemanagement.destructive.RuntimeDurablePreExecutionCommitAuthority
+import com.example.devicemanagement.destructive.RealChainFinalLiveValidationPermit
+import com.example.devicemanagement.destructive.Checkpoint18Decision
+import com.example.devicemanagement.destructive.UnwiredFutureDestructiveExecutor
+import com.example.devicemanagement.destructive.UnwiredRuntimeDurablePreExecutionCommitSource
 
 class DestructiveAuthorityAccess(
     val arming: DestructiveArmingAuthority,
@@ -76,4 +87,15 @@ class DestructiveAuthorityAccess(
     val humanConfirmationAuthority: DestructiveHumanConfirmationAuthority,
     val operatorChallenge: DestructiveOperatorChallenge,
     val wipeOptionPolicy: DestructiveWipeOptionPolicy,
+    val wipeOptionPolicyProof: DestructiveWipeOptionPolicyProof,
+    val wipeOptionPolicyAuthority: DestructiveWipeOptionPolicyAuthority,
+    val futureExecutorContract: FutureDestructiveExecutorContract,
+    val futureExecutionBundle: FutureDestructiveExecutionBundle,
+    val realChainBoundary: FutureDestructiveRealChainBoundary,
+    val runtimePreExecutionProof: RuntimeDurablePreExecutionCommitProof,
+    val runtimePreExecutionAuthority: RuntimeDurablePreExecutionCommitAuthority,
+    val realChainPermit: RealChainFinalLiveValidationPermit,
+    val checkpoint18Decision: Checkpoint18Decision,
+    val unwiredFutureExecutor: UnwiredFutureDestructiveExecutor,
+    val unwiredRuntimePreExecutionSource: UnwiredRuntimeDurablePreExecutionCommitSource,
 )

@@ -45,6 +45,10 @@ class LifecycleStartupGuardTest {
         assertFalse(container.contains("wipeDevice"))
         assertFalse(app.contains("AuditRecoveryInspector"))
         assertFalse(container.contains("DeviceManagementRecoveryInspectionFactory"))
+        assertFalse(app.contains("FutureDestructiveRealChainBoundary"))
+        assertFalse(container.contains("FutureDestructiveRealChainBoundary"))
+        assertFalse(app.contains("assembleAndHandoff"))
+        assertFalse(container.contains("assembleAndHandoff"))
     }
 
     @Test

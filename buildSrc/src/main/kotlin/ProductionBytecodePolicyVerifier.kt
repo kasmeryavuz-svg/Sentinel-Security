@@ -375,6 +375,17 @@ internal object ProductionBytecodePolicyVerifier {
         "com/example/devicemanagement/destructive/DestructiveOperatorChallenge",
         "com/example/devicemanagement/destructive/DestructiveChallengeIdentity",
         "com/example/devicemanagement/destructive/DestructiveWipeOptionPolicy",
+        "com/example/devicemanagement/destructive/DestructiveWipeOptionPolicyProof",
+        "com/example/devicemanagement/destructive/DestructiveWipeOptionPolicyAuthority",
+        "com/example/devicemanagement/destructive/FutureDestructiveExecutorContract",
+        "com/example/devicemanagement/destructive/FutureDestructiveExecutionBundle",
+        "com/example/devicemanagement/destructive/FutureDestructiveRealChainBoundary",
+        "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitProof",
+        "com/example/devicemanagement/destructive/RuntimeDurablePreExecutionCommitAuthority",
+        "com/example/devicemanagement/destructive/RealChainFinalLiveValidationPermit",
+        "com/example/devicemanagement/destructive/Checkpoint18Decision",
+        "com/example/devicemanagement/destructive/UnwiredFutureDestructiveExecutor",
+        "com/example/devicemanagement/destructive/UnwiredRuntimeDurablePreExecutionCommitSource",
     )
 
     private val recoveryForbiddenMethods = setOf(
@@ -400,6 +411,8 @@ internal object ProductionBytecodePolicyVerifier {
         "issueChallenge",
         "redeem",
         "admit",
+        "assembleAndHandoff",
+        "verifyDefaultDeny",
     )
 
     private val trustedAuditStoreMutationOrigins = mapOf(

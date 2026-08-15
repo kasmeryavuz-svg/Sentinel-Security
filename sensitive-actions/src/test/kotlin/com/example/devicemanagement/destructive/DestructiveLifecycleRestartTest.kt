@@ -110,6 +110,12 @@ class DestructiveLifecycleRestartTest {
         assertTrue(!source.contains("DestructiveArtifactIdentityAuthority"))
         assertTrue(!source.contains("DestructiveHumanApprovalAuthority"))
         assertTrue(!source.contains("DestructiveWipeOptionPolicy"))
+        assertTrue(!source.contains("FutureDestructiveExecutorContract"))
+        assertTrue(!source.contains("FutureDestructiveRealChainBoundary"))
+        assertTrue(!source.contains("assembleAndHandoff"))
+        assertTrue(!source.contains("RuntimeDurablePreExecutionCommitProof"))
+        assertTrue(!source.contains("RealChainFinalLiveValidationPermit"))
+        assertTrue(!source.contains("DestructiveWipeOptionPolicyProof"))
     }
 
     @Test
