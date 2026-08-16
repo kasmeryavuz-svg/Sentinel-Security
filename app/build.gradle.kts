@@ -1488,6 +1488,31 @@ tasks.register<CheckIndependentWitnessVerificationContractTask>(
     )
 }
 
+tasks.register<CheckIndependentWitnessAuthorityEnrollmentPreparationTask>(
+    "checkIndependentWitnessAuthorityEnrollmentPreparation",
+) {
+    group = "verification"
+    description =
+        "Prove witness-authority enrollment remains NOT_ENROLLED. Never " +
+            "reads a signed APK, receipt, statement, or private key."
+    filledEnrollmentRecordPath.set(
+        rootProject.layout.projectDirectory
+            .file(IndependentWitnessAuthorityEnrollmentSource.LOCAL_RECORD_RELATIVE_PATH)
+            .asFile
+            .absolutePath,
+    )
+    reportFile.set(
+        layout.buildDirectory.file(
+            "reports/independent-witness-authority-enrollment-preparation.txt",
+        ),
+    )
+    temporaryDirectory.set(
+        layout.buildDirectory.dir(
+            "tmp/independent-witness-authority-enrollment-preparation",
+        ),
+    )
+}
+
 tasks.register<VerifyIndependentWitnessStatementTask>(
     "verifyIndependentWitnessStatement",
 ) {

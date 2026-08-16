@@ -1,0 +1,11 @@
+checkpoint=19U
+enrollment_version=1
+witness_identifier=<WITNESS_IDENTIFIER>
+witness_display_name=<WITNESS_DISPLAY_NAME>
+witness_verification_key_sha256=<WITNESS_VERIFICATION_KEY_SHA256>
+witness_role=INDEPENDENT_WITNESS
+independence_basis=<INDEPENDENCE_BASIS>
+enrollment_timestamp_utc=<ENROLLMENT_TIMESTAMP_UTC>
+enrollment_repository_revision=<ENROLLMENT_REPOSITORY_REVISION>
+operator_identifier=<OPERATOR_IDENTIFIER>
+review_identifier=<REVIEW_IDENTIFIER>
