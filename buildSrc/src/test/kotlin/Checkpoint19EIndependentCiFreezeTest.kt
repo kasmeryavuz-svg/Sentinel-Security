@@ -192,6 +192,7 @@ private object Checkpoint19EDecisionSource {
         ":app:checkIndependentWitnessVerificationContract",
         ":app:checkIndependentWitnessAuthorityEnrollmentPreparation",
         ":app:checkIndependentWitnessExternalEvidencePreparation",
+        ":app:checkIndependentWitnessEnrollmentDecisionContract",
     )
 
     val forbiddenGradleTasks = listOf(

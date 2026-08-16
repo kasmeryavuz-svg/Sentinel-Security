@@ -59,6 +59,7 @@ class CurrentProductionWipeBoundaryInvariantTest {
             "IndependentWitnessExternalEvidence",
             "IndependentWitnessEnrollmentReview",
             "IndependentWitnessExternalEvidencePreparation",
+            "IndependentWitnessEnrollmentDecision",
             "inspectWriteAndAssertCleanup",
             "DESTRUCTIVE_VALIDATION_BUILD_PURPOSE",
             "checkUnsignedDisposableValidationBuildPurposeEvidence",
@@ -94,12 +95,15 @@ class CurrentProductionWipeBoundaryInvariantTest {
         assertTrue(workflow.contains(":app:checkIndependentWitnessVerificationContract"))
         assertTrue(workflow.contains(":app:checkIndependentWitnessAuthorityEnrollmentPreparation"))
         assertTrue(workflow.contains(":app:checkIndependentWitnessExternalEvidencePreparation"))
+        assertTrue(workflow.contains(":app:checkIndependentWitnessEnrollmentDecisionContract"))
         assertTrue(workflow.contains("independent_witness_approval=false"))
         assertTrue(workflow.contains("witness_independence_established=false"))
         assertTrue(workflow.contains("witness_authority_enrolled=false"))
         assertTrue(workflow.contains("enrollment_authorizes_wipe=false"))
         assertTrue(workflow.contains("external_independence_evidence_verified=false"))
         assertTrue(workflow.contains("evidence_authorizes_wipe=false"))
+        assertTrue(workflow.contains("witness_enrollment_decision=BLOCKED"))
+        assertTrue(workflow.contains("decision_authorizes_wipe=false"))
         assertFalse(workflow.contains("verifyIndependentWitnessStatement"))
         assertFalse(workflow.contains("recordSignedDisposableValidationCandidateReceipt"))
         assertTrue(workflow.contains("candidate_status=INELIGIBLE"))

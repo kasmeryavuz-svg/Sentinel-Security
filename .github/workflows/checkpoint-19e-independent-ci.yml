@@ -153,6 +153,7 @@ jobs:
             :app:checkIndependentWitnessVerificationContract \
             :app:checkIndependentWitnessAuthorityEnrollmentPreparation \
             :app:checkIndependentWitnessExternalEvidencePreparation \
+            :app:checkIndependentWitnessEnrollmentDecisionContract \
             bundleRelease \
             checkReleaseProductionSecurity \
             checkReleaseBundleProductionSecurity \
@@ -328,6 +329,37 @@ jobs:
           test ! -e local/signed-validation-candidate-receipt.txt
           test ! -e app/build/tmp/independent-witness-external-evidence-preparation
 
+      - name: Prove independent-witness enrollment decision remains BLOCKED
+        run: |
+          set -eu
+          decision_report=app/build/reports/independent-witness-enrollment-decision-contract.txt
+          test -f "${decision_report}"
+          grep -qx 'checkpoint=19W' "${decision_report}"
+          grep -qx 'witness_enrollment_decision=BLOCKED' "${decision_report}"
+          grep -qx 'enrollment_candidate_mechanics_satisfied=false' "${decision_report}"
+          grep -qx 'witness_authority_enrolled=false' "${decision_report}"
+          grep -qx 'established_witness_count=0' "${decision_report}"
+          grep -qx 'witness_independence_established=false' "${decision_report}"
+          grep -qx 'independent_witness_approval=false' "${decision_report}"
+          grep -qx 'runtime_authorization=false' "${decision_report}"
+          grep -qx 'trusted_expectation_minted=false' "${decision_report}"
+          grep -qx 'hardware_validation_approved=false' "${decision_report}"
+          grep -qx 'decision_authorizes_hardware_test=false' "${decision_report}"
+          grep -qx 'decision_authorizes_wipe=false' "${decision_report}"
+          grep -qx 'authority=UNTRUSTED_CANDIDATE_ONLY' "${decision_report}"
+          grep -q 'blocker=NO_REPOSITORY_AUTHORITY_ENROLLMENT' "${decision_report}"
+          if grep -qE '\b[0-9a-fA-F]{64}\b' "${decision_report}"; then
+            echo "Enrollment-decision report must not contain a digest value"
+            exit 1
+          fi
+          test ! -e local/independent-witness-enrollment-decision.txt
+          test ! -e local/independent-witness-external-evidence.txt
+          test ! -e local/independent-witness-enrollment-review.txt
+          test ! -e local/independent-witness-authority-enrollment.txt
+          test ! -e local/independent-witness-verification.txt
+          test ! -e local/signed-validation-candidate-receipt.txt
+          test ! -e app/build/tmp/independent-witness-enrollment-decision-contract
+
       - name: Prove candidate-evidence task-private snapshots were deleted
         run: |
           set -eu
@@ -341,6 +373,7 @@ jobs:
           test ! -e app/build/tmp/independent-witness-verification-contract
           test ! -e app/build/tmp/independent-witness-authority-enrollment-preparation
           test ! -e app/build/tmp/independent-witness-external-evidence-preparation
+          test ! -e app/build/tmp/independent-witness-enrollment-decision-contract
           test ! -e app/build/tmp/destructive-validation-explicit-candidate-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/destructive-validation-unsigned-release-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/destructive-validation-disposable-purpose-snapshot/immutable-candidate-snapshot.apk
@@ -352,5 +385,4 @@ jobs:
           test ! -e local/independent-witness-authority-enrollment.txt
           test ! -e local/independent-witness-external-evidence.txt
           test ! -e local/independent-witness-enrollment-review.txt
-          test ! -e local/independent-witness-external-evidence.txt
-          test ! -e local/independent-witness-enrollment-review.txt
+          test ! -e local/independent-witness-enrollment-decision.txt
