@@ -222,6 +222,10 @@ Behavior:
   `customer_device_authorized=false`, and
   `production_distribution=false`
 - this route is **not** an independent witness
+- `SENTINEL_VALIDATION_*` is a separate input namespace from
+  `SENTINEL_RELEASE_*`. That does **not** verify that two distinct
+  cryptographic keys exist; no real validation key is present in this
+  repository
 
 Independent CI refuses populated `SENTINEL_VALIDATION_*` variables,
 proves ordinary `disposableValidation` remains unsigned, and never

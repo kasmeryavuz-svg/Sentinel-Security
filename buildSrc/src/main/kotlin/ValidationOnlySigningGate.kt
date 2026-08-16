@@ -145,11 +145,13 @@ object ValidationOnlySigningGate {
 
     fun mayAttachToProductionRelease(): Boolean = false
 
-    fun validationKeySeparateFromProduction(): Boolean {
+    fun validationInputNamespaceSeparateFromProduction(): Boolean {
         return INPUT_NAMES.none { it in PRODUCTION_INPUT_NAMES } &&
             INPUT_NAMES.all { it.startsWith("SENTINEL_VALIDATION_") } &&
             PRODUCTION_INPUT_NAMES.all { it.startsWith("SENTINEL_RELEASE_") }
     }
+
+    fun validationKeySeparationVerified(): Boolean = false
 
     fun looksLikeDebugOrTestMaterial(storeFileName: String, keyAlias: String): Boolean {
         val haystack = "$storeFileName $keyAlias".lowercase()

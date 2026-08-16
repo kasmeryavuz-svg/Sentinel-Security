@@ -52,6 +52,19 @@ V2 and V3 signatures are present, the APK purpose is
 `DISPOSABLE_DEVICE_VALIDATION`, and package/admin/policies/SDK still
 match the repository contract.
 
+Signed-candidate inspection never reads the mutable AGP APK. It copies
+one task-private immutable snapshot through the existing 19F/19J
+envelope. Signing, identity, certificate, signer-count, and V2/V3
+checks all read that same snapshot. Cleanup deletes only the owned
+snapshot file and task-private directory; a leftover snapshot fails
+the task. The source APK and any keystore are never deleted. The
+snapshot and its digest are not stored in Git.
+
+`SENTINEL_VALIDATION_*` and `SENTINEL_RELEASE_*` are separate input
+namespaces and attachment routes. That is not cryptographic key
+separation. No real validation key exists, so key separation is not
+verified.
+
 A later successfully signed validation APK remains:
 
 ```text
@@ -87,12 +100,16 @@ an independent witness.
 
 ```text
 CHECKPOINT_19R_VALIDATION_ONLY_SIGNING_PATH = YES
+CHECKPOINT_19R_EVIDENCE_CORRECTNESS_REPAIRED = YES
 VALIDATION_SIGNING_PATH_PRESENT = true
+SIGNED_CANDIDATE_IMMUTABLE_SNAPSHOT_ENFORCED = true
+SIGNED_CANDIDATE_SNAPSHOT_CLEANUP_ENFORCED = true
+VALIDATION_SIGNING_INPUT_NAMESPACE_SEPARATE = true
+VALIDATION_KEY_SEPARATION_VERIFIED = false
 VALIDATION_SIGNING_PERFORMED = false
 ORDINARY_RELEASE_SIGNING = UNSIGNED
 ORDINARY_DISPOSABLE_VALIDATION_SIGNING = UNSIGNED
 PRODUCTION_SIGNING_PERFORMED = false
-VALIDATION_KEY_SEPARATE_FROM_PRODUCTION = true
 CUSTOMER_DEVICE_PRODUCTION_AUTHORIZED = false
 TRUSTED_EXPECTATION_MINTED = false
 CEREMONY_STATUS = NOT_READY

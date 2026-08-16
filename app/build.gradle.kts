@@ -215,8 +215,11 @@ val validationOnlySigningSecrets = if (requestValidationOnlySigning) {
     check(ValidationOnlySigningGate.mustAttach(decision)) {
         "Validation-only signing refused: $decision"
     }
-    check(ValidationOnlySigningGate.validationKeySeparateFromProduction()) {
+    check(ValidationOnlySigningGate.validationInputNamespaceSeparateFromProduction()) {
         "validation-only inputs must stay separate from SENTINEL_RELEASE_*"
+    }
+    check(!ValidationOnlySigningGate.validationKeySeparationVerified()) {
+        "cryptographic validation-key separation is not verified; no real key exists"
     }
     check(!ValidationOnlySigningGate.mayAttachToProductionRelease()) {
         "production release must never use the validation-only key"
@@ -1255,8 +1258,10 @@ androidComponents {
                         "reports/signed-disposable-validation.txt",
                     ),
                 )
-                temporaryDirectory.set(
-                    layout.buildDirectory.dir("tmp/signed-disposable-validation"),
+                snapshotDirectory.set(
+                    layout.buildDirectory.dir(
+                        "tmp/signed-disposable-validation-snapshot",
+                    ),
                 )
             }
         }

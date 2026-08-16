@@ -50,6 +50,7 @@ class CurrentProductionWipeBoundaryInvariantTest {
             "DestructiveSigningCeremonyPreparation",
             "ProductionDistributionSigningGate",
             "ValidationOnlySigningGate",
+            "ValidationOnlySignedCandidateEvidence",
             "inspectWriteAndAssertCleanup",
             "DESTRUCTIVE_VALIDATION_BUILD_PURPOSE",
             "checkUnsignedDisposableValidationBuildPurposeEvidence",
@@ -87,6 +88,7 @@ class CurrentProductionWipeBoundaryInvariantTest {
         assertTrue(workflow.contains("runtime_authorization=false"))
         assertTrue(workflow.contains("ceremony_status=NOT_READY"))
         assertTrue(workflow.contains("destructive-validation-unsigned-release-snapshot"))
+        assertTrue(workflow.contains("signed-disposable-validation-snapshot"))
         assertFalse(workflow.contains("upload-artifact"))
         assertFalse(workflow.contains("\${{ secrets"))
         assertFalse(workflow.contains("SENTINEL_RELEASE_STORE_FILE:"))

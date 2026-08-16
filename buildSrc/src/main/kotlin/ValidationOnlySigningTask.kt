@@ -12,12 +12,12 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import org.gradle.work.DisableCachingByDefault
 import java.io.File
-import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 
 /**
  * Fail-closed inspection for an explicitly requested signed
- * disposableValidation APK. This task never mints trust, never writes
+ * disposableValidation APK. Inspection reads only a task-private
+ * immutable snapshot. This task never mints trust, never writes
  * secrets or digests into Git, and is not an independent witness.
  */
 @DisableCachingByDefault(because = DestructiveProofTaskSemantics.REASON)
@@ -45,92 +45,60 @@ abstract class CheckSignedDisposableValidationTask : DefaultTask() {
     abstract val reportFile: RegularFileProperty
 
     @get:Internal
-    abstract val temporaryDirectory: DirectoryProperty
+    abstract val snapshotDirectory: DirectoryProperty
 
     @TaskAction
     fun proveSignedCandidateStillUntrusted() {
-        val temp = temporaryDirectory.get().asFile
-        try {
-            if (temp.exists()) {
-                temp.deleteRecursively()
-            }
-            temp.mkdirs()
-            check(validationSigningRequested.get()) {
-                "signed disposableValidation inspection runs only after an " +
-                    "explicit assembleSignedDisposableValidation request"
-            }
-            check(ValidationOnlySigningGate.refuseTrustedExpectationMint(null) == null) {
-                "validation-only signing cannot mint a trusted expectation"
-            }
-            check(
-                DestructiveValidationExpectedIdentity.repositoryContract()
-                    .expectedCertificateSha256 == null,
-            ) {
-                "repository expectedCertificateSha256 must remain null"
-            }
-            val apk = findSignedDisposableValidationApk(apkDirectory.get().asFile)
-            val sdk = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File)
-            val signing = DestructiveValidationCandidateInspectors.inspectSigning(apk, sdk)
-            val identity = DestructiveValidationCandidateInspectors.inspectIdentity(apk, sdk)
-            val schemes = readSignatureSchemes(apk, sdk)
-            val expected = ReleaseArtifactSecurityVerifier.normalizeSha256Fingerprint(
-                expectedCertificateSha256.orNull.orEmpty(),
-            )
-            val observedFingerprint = signing.certificateSha256?.let {
-                ReleaseArtifactSecurityVerifier.normalizeSha256Fingerprint(it)
-            }
-            val identityMatches = ValidationOnlySigningGate.identityMatchesRepositoryContract(
-                packageName = identity.packageName,
-                adminComponent = identity.adminComponent,
-                policies = identity.policies,
-                minSdk = identity.minSdk?.toIntOrNull(),
-                targetSdk = identity.targetSdk?.toIntOrNull(),
-            )
-            val debugOrTest =
-                signing.classification ==
-                    DestructiveValidationCandidateEvidence.Signing.DEBUG_SIGNED ||
-                    signing.classification ==
-                    DestructiveValidationCandidateEvidence.Signing.TEST_SIGNED
-            val verified =
-                signing.apksignerExecuted &&
-                    signing.classification ==
-                    DestructiveValidationCandidateEvidence.Signing.SIGNED_UNCLASSIFIED
-            val decision = ValidationOnlySigningGate.evaluateSignedCandidate(
-                ValidationOnlySigningGate.ObservedSignedValidationApk(
-                    signingVerified = verified,
-                    signerCount = signing.signerCount,
-                    signerCountReliable = signing.signerCountReliable,
-                    v2Present = schemes.v2Present,
-                    v3Present = schemes.v3Present,
-                    schemesReliable = schemes.reliable,
-                    buildPurpose = identity.buildPurposeObserved,
-                    identityMatches = identityMatches,
-                    debugOrTestCertificate = debugOrTest,
-                    certificateFingerprintMatches =
-                        expected != null && expected == observedFingerprint,
-                ),
-            )
-            check(
-                decision ==
-                    ValidationOnlySigningGate.SignedCandidateDecision.ACCEPT_UNTRUSTED_CANDIDATE,
-            ) {
-                "signed disposableValidation candidate refused: $decision"
-            }
-            val rendered = ValidationOnlySigningGate.statusLinesWithoutDigest(
-                signedCandidateAccepted = true,
-            )
-            val out = reportFile.get().asFile
-            out.parentFile.mkdirs()
-            out.writeText(rendered)
-            logger.lifecycle(rendered.trim())
-        } finally {
-            if (temp.exists()) {
-                temp.deleteRecursively()
-            }
-        }
-        check(!temp.exists()) {
-            "signed disposableValidation temporary directory must be deleted"
-        }
+        val snapshotDir = snapshotDirectory.get().asFile
+        DestructiveValidationCandidateEvidenceTaskSupport.inspectWriteAndAssertCleanup(
+            snapshotDirectory = snapshotDir,
+            inspect = {
+                check(validationSigningRequested.get()) {
+                    "signed disposableValidation inspection runs only after an " +
+                        "explicit assembleSignedDisposableValidation request"
+                }
+                check(ValidationOnlySigningGate.refuseTrustedExpectationMint(null) == null) {
+                    "validation-only signing cannot mint a trusted expectation"
+                }
+                check(
+                    DestructiveValidationExpectedIdentity.repositoryContract()
+                        .expectedCertificateSha256 == null,
+                ) {
+                    "repository expectedCertificateSha256 must remain null"
+                }
+                val sourceApk = findSignedDisposableValidationApk(apkDirectory.get().asFile)
+                val sdk = androidSdkDirectory.orNull?.takeIf { it.isNotBlank() }?.let(::File)
+                ValidationOnlySignedCandidateEvidence.inspect(
+                    apk = sourceApk,
+                    snapshotDirectory = snapshotDir,
+                    expectedCertificateSha256 = expectedCertificateSha256.orNull,
+                    androidSdkDir = sdk,
+                )
+            },
+            write = { result ->
+                val rendered = ValidationOnlySigningGate.statusLinesWithoutDigest(
+                    signedCandidateAccepted = result.decision ==
+                        ValidationOnlySigningGate.SignedCandidateDecision
+                            .ACCEPT_UNTRUSTED_CANDIDATE,
+                )
+                val out = reportFile.get().asFile
+                out.parentFile.mkdirs()
+                out.writeText(rendered)
+                logger.lifecycle(rendered.trim())
+            },
+            assertProof = { result ->
+                check(result.sameSnapshotForAllInspectors) {
+                    "signed-candidate inspectors must share one immutable snapshot"
+                }
+                check(
+                    result.decision ==
+                        ValidationOnlySigningGate.SignedCandidateDecision
+                            .ACCEPT_UNTRUSTED_CANDIDATE,
+                ) {
+                    "signed disposableValidation candidate refused: ${result.decision}"
+                }
+            },
+        )
     }
 
     companion object {
@@ -146,11 +114,7 @@ abstract class CheckSignedDisposableValidationTask : DefaultTask() {
                 "signed disposableValidation proof requires exactly one signed " +
                     "disposableValidation APK; found ${apks.map { it.name }}"
             }
-            val apk = dedicated.single()
-            check(!Files.isSymbolicLink(apk.toPath())) {
-                "signed disposableValidation APK must not be a symlink"
-            }
-            return apk
+            return dedicated.single()
         }
 
         internal fun readSignatureSchemes(

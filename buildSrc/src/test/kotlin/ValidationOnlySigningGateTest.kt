@@ -139,7 +139,8 @@ class ValidationOnlySigningGateTest {
             productionOrdinary,
         )
         assertFalse(ValidationOnlySigningGate.mayAttachToProductionRelease())
-        assertTrue(ValidationOnlySigningGate.validationKeySeparateFromProduction())
+        assertTrue(ValidationOnlySigningGate.validationInputNamespaceSeparateFromProduction())
+        assertFalse(ValidationOnlySigningGate.validationKeySeparationVerified())
         assertTrue(
             ValidationOnlySigningGate.INPUT_NAMES.none {
                 it in ValidationOnlySigningGate.PRODUCTION_INPUT_NAMES
@@ -364,12 +365,28 @@ class ValidationOnlySigningGateTest {
         assertFalse(appGradle.contains("apksigner sign"))
         assertFalse(appGradle.contains("keytool -genkeypair"))
         val task = File("src/main/kotlin/ValidationOnlySigningTask.kt").readText()
+        val evidence = File("src/main/kotlin/ValidationOnlySignedCandidateEvidence.kt").readText()
         assertTrue(task.contains("DestructiveProofTaskSemantics.neverReuseOutputs"))
         assertTrue(task.contains("@DisableCachingByDefault"))
+        assertTrue(task.contains("inspectWriteAndAssertCleanup"))
+        assertTrue(task.contains("ValidationOnlySignedCandidateEvidence.inspect"))
+        assertTrue(task.contains("snapshotDirectory"))
+        assertFalse(task.contains("temporaryDirectory"))
+        assertFalse(task.contains("inspectSigning"))
+        assertFalse(task.contains("inspectIdentity"))
+        assertTrue(appGradle.contains("signed-disposable-validation-snapshot"))
+        assertTrue(evidence.contains("inspectExplicitCandidate"))
+        assertTrue(
+            evidence.contains("DestructiveValidationCandidateEvidence.SNAPSHOT_FILE_NAME"),
+        )
         assertFalse(task.contains("apksigner sign"))
         assertFalse(task.contains("keytool"))
         assertFalse(HEX_SHA256.containsMatchIn(task))
+        assertFalse(HEX_SHA256.containsMatchIn(evidence))
         assertFalse(HEX_SHA256.containsMatchIn(appGradle))
+        assertFalse(appGradle.contains("validationKeySeparateFromProduction"))
+        assertTrue(appGradle.contains("validationInputNamespaceSeparateFromProduction"))
+        assertTrue(appGradle.contains("validationKeySeparationVerified"))
     }
 
     @Test
@@ -380,7 +397,13 @@ class ValidationOnlySigningGateTest {
         assertTrue(docs.contains("VALIDATION_SIGNING_PERFORMED = false"))
         assertTrue(docs.contains("ORDINARY_RELEASE_SIGNING = UNSIGNED"))
         assertTrue(docs.contains("ORDINARY_DISPOSABLE_VALIDATION_SIGNING = UNSIGNED"))
-        assertTrue(docs.contains("VALIDATION_KEY_SEPARATE_FROM_PRODUCTION = true"))
+        assertTrue(docs.contains("CHECKPOINT_19R_EVIDENCE_CORRECTNESS_REPAIRED = YES"))
+        assertTrue(docs.contains("SIGNED_CANDIDATE_IMMUTABLE_SNAPSHOT_ENFORCED = true"))
+        assertTrue(docs.contains("SIGNED_CANDIDATE_SNAPSHOT_CLEANUP_ENFORCED = true"))
+        assertTrue(docs.contains("VALIDATION_SIGNING_INPUT_NAMESPACE_SEPARATE = true"))
+        assertTrue(docs.contains("VALIDATION_KEY_SEPARATION_VERIFIED = false"))
+        assertFalse(docs.contains("VALIDATION_KEY_SEPARATE_FROM_PRODUCTION"))
+        assertFalse(docs.contains("VALIDATION_KEY_SEPARATION_VERIFIED = true"))
         assertTrue(docs.contains("CUSTOMER_DEVICE_PRODUCTION_AUTHORIZED = false"))
         assertTrue(docs.contains("TRUSTED_EXPECTATION_MINTED = false"))
         assertTrue(docs.contains("CEREMONY_STATUS = NOT_READY"))
@@ -396,6 +419,7 @@ class ValidationOnlySigningGateTest {
     fun `runtime modules cannot access the validation-only signing path`() {
         val tokens = listOf(
             "ValidationOnlySigningGate",
+            "ValidationOnlySignedCandidateEvidence",
             "CheckSignedDisposableValidationTask",
             "assembleSignedDisposableValidation",
             "SENTINEL_VALIDATION_",
