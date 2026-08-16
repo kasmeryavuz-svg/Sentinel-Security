@@ -154,6 +154,8 @@ class SignedValidationCandidateLocalReceiptTest {
         assertFalse(taskSource.contains("STORE_PASSWORD"))
         assertFalse(taskSource.contains("KEY_PASSWORD"))
         assertFalse(taskSource.contains("assembleSignedDisposableValidation"))
+        assertFalse(taskSource.contains("@get:OutputFile"))
+        assertTrue(taskSource.contains("Gradle output cleanup must not bypass"))
         assertTrue(ignore.contains("local/signed-validation-candidate-receipt.txt"))
         assertFalse(workflow.contains("recordSignedDisposableValidationCandidateReceipt"))
         assertFalse(File("../local/signed-validation-candidate-receipt.txt").exists())

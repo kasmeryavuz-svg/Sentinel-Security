@@ -5,7 +5,6 @@ import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
-import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 import org.gradle.work.DisableCachingByDefault
 import java.io.File
@@ -34,7 +33,9 @@ abstract class RecordSignedDisposableValidationCandidateReceiptTask : DefaultTas
     @get:Optional
     abstract val androidSdkDirectory: Property<String>
 
-    @get:OutputFile
+    // This one-shot local record must never be treated as a disposable Gradle
+    // output: Gradle output cleanup must not bypass writeOnce()'s refusal.
+    @get:Internal
     abstract val receiptFile: RegularFileProperty
 
     @get:Internal
