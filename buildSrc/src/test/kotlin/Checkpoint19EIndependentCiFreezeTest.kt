@@ -189,6 +189,7 @@ private object Checkpoint19EDecisionSource {
         ":sensitive-actions:test",
         ":sensitive-actions:checkMainProductionBytecodePolicy",
         ":app:checkDestructiveSigningCeremonyPreparation",
+        ":app:checkIndependentWitnessVerificationContract",
     )
 
     val forbiddenGradleTasks = listOf(
@@ -197,6 +198,8 @@ private object Checkpoint19EDecisionSource {
         "bundleProductionRelease",
         "assembleSignedDisposableValidation",
         "checkSignedDisposableValidation",
+        "verifyIndependentWitnessStatement",
+        "recordSignedDisposableValidationCandidateReceipt",
         "connectedAndroidTest",
         "connectedDebugAndroidTest",
         "connectedReleaseAndroidTest",

@@ -107,6 +107,9 @@ class CurrentProductionWipeBoundaryInvariantTest {
             "ProductionDistributionSigningGate",
             "ValidationOnlySigningGate",
             "ValidationOnlySignedCandidateEvidence",
+            "IndependentWitnessVerification",
+            "IndependentWitnessStatement",
+            "IndependentWitnessAuthorityContract",
             "inspectWriteAndAssertCleanup",
             "destructive-validation-candidate.txt",
         ).forEach { token ->

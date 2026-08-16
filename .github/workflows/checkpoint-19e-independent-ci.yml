@@ -150,6 +150,7 @@ jobs:
             :app:checkUnsignedDestructiveValidationCandidateEvidence \
             :app:checkUnsignedDisposableValidationBuildPurposeEvidence \
             :app:checkDestructiveSigningCeremonyPreparation \
+            :app:checkIndependentWitnessVerificationContract \
             bundleRelease \
             checkReleaseProductionSecurity \
             checkReleaseBundleProductionSecurity \
@@ -229,6 +230,33 @@ jobs:
           test ! -e app/build/tmp/destructive-signing-ceremony-preparation
           test ! -e local/destructive-signing-ceremony-record.txt
 
+      - name: Prove independent-witness verification remains fail-closed
+        run: |
+          set -eu
+          contract_report=app/build/reports/independent-witness-verification-contract.txt
+          test -f "${contract_report}"
+          grep -qx 'checkpoint=19T' "${contract_report}"
+          grep -qx 'witness_independence_established=false' "${contract_report}"
+          grep -qx 'independent_witness_approval=false' "${contract_report}"
+          grep -qx 'authority=UNTRUSTED_CANDIDATE_ONLY' "${contract_report}"
+          grep -qx 'runtime_authorization=false' "${contract_report}"
+          grep -qx 'trusted_expectation_minted=false' "${contract_report}"
+          grep -qx 'hardware_validation_approved=false' "${contract_report}"
+          grep -qx 'hardware_test_performed=false' "${contract_report}"
+          grep -qx 'verification_authorizes_hardware_test=false' "${contract_report}"
+          grep -qx 'verification_authorizes_wipe=false' "${contract_report}"
+          grep -qx 'local_receipt_is_independent_witness=false' "${contract_report}"
+          grep -qx 'ci_is_independent_witness=false' "${contract_report}"
+          grep -qx 'operator_is_independent_witness=false' "${contract_report}"
+          if grep -qE '\b[0-9a-fA-F]{64}\b' "${contract_report}"; then
+            echo "Independent-witness contract report must not contain a digest value"
+            exit 1
+          fi
+          test ! -e local/independent-witness-verification.txt
+          test ! -e local/signed-validation-candidate-receipt.txt
+          test ! -e app/build/tmp/independent-witness-verification-snapshot
+          test ! -e app/build/tmp/independent-witness-verification-contract
+
       - name: Prove candidate-evidence task-private snapshots were deleted
         run: |
           set -eu
@@ -238,9 +266,13 @@ jobs:
           test ! -e app/build/tmp/destructive-validation-candidate-snapshot
           test ! -e app/build/tmp/signed-disposable-validation-snapshot
           test ! -e app/build/tmp/signed-validation-receipt-snapshot
+          test ! -e app/build/tmp/independent-witness-verification-snapshot
+          test ! -e app/build/tmp/independent-witness-verification-contract
           test ! -e app/build/tmp/destructive-validation-explicit-candidate-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/destructive-validation-unsigned-release-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/destructive-validation-disposable-purpose-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/signed-disposable-validation-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/signed-validation-receipt-snapshot/immutable-candidate-snapshot.apk
+          test ! -e app/build/tmp/independent-witness-verification-snapshot/immutable-candidate-snapshot.apk
           test ! -e local/signed-validation-candidate-receipt.txt
+          test ! -e local/independent-witness-verification.txt

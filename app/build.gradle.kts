@@ -1471,6 +1471,73 @@ tasks.register<RecordSignedDisposableValidationCandidateReceiptTask>(
     )
 }
 
+tasks.register<CheckIndependentWitnessVerificationContractTask>(
+    "checkIndependentWitnessVerificationContract",
+) {
+    group = "verification"
+    description =
+        "Prove the independent-witness verification contract remains " +
+            "fail-closed. Never reads a signed APK, receipt, statement, or key."
+    reportFile.set(
+        layout.buildDirectory.file(
+            "reports/independent-witness-verification-contract.txt",
+        ),
+    )
+    temporaryDirectory.set(
+        layout.buildDirectory.dir("tmp/independent-witness-verification-contract"),
+    )
+}
+
+tasks.register<VerifyIndependentWitnessStatementTask>(
+    "verifyIndependentWitnessStatement",
+) {
+    group = "verification"
+    description =
+        "Re-inspect an explicitly supplied signed disposableValidation APK " +
+            "and verify an optional external witness statement. Never grants " +
+            "approval, never reads a private key, and never overwrites the " +
+            "19S receipt."
+    candidateApkPath.set(
+        providers.gradleProperty(
+            SignedValidationCandidateLocalReceipt.CANDIDATE_APK_PROPERTY,
+        ).orElse(""),
+    )
+    publicCertificatePath.set(
+        providers.gradleProperty(
+            SignedValidationCandidateLocalReceipt.PUBLIC_CERTIFICATE_PROPERTY,
+        ).orElse(""),
+    )
+    receiptPath.set(
+        providers.gradleProperty(
+            IndependentWitnessVerification.RECEIPT_PROPERTY,
+        ).orElse(""),
+    )
+    sourceHeadClaimed.set(
+        providers.gradleProperty(
+            SignedValidationCandidateLocalReceipt.SOURCE_HEAD_PROPERTY,
+        ).orElse(""),
+    )
+    witnessStatementPath.set(
+        providers.gradleProperty(
+            IndependentWitnessStatement.STATEMENT_PROPERTY,
+        ).orElse(""),
+    )
+    witnessVerificationKeyPath.set(
+        providers.gradleProperty(
+            IndependentWitnessStatement.VERIFICATION_KEY_PROPERTY,
+        ).orElse(""),
+    )
+    androidSdkDirectory.set(android.sdkDirectory.absolutePath)
+    reportFile.set(
+        rootProject.layout.projectDirectory.file(
+            IndependentWitnessVerification.REPORT_RELATIVE_PATH,
+        ),
+    )
+    snapshotDirectory.set(
+        layout.buildDirectory.dir("tmp/independent-witness-verification-snapshot"),
+    )
+}
+
 tasks.matching { it.name == "preBuild" }.configureEach {
     dependsOn(checkAppDependencyIsolation)
 }

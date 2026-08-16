@@ -237,6 +237,13 @@ APK is documented in
 `docs/WIPE_19S_SIGNED_VALIDATION_LOCAL_RECEIPT.md`; it does not sign, upload,
 mint trust, or authorize hardware.
 
+Checkpoint 19T adds a fail-closed independent-witness verification
+contract for that local receipt. A valid digital signature proves
+control of a witness key; it does not establish independence or
+approval. The repository currently enrolls no independent witness
+authority, so `independent_witness_approval` remains false. See
+`docs/WIPE_19T_INDEPENDENT_WITNESS_VERIFICATION.md`.
+
 ## Logging / information disclosure
 
 Production logcat goes through `AndroidStructuredLogger` and
