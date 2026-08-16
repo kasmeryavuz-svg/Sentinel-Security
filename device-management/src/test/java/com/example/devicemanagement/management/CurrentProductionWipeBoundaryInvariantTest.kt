@@ -112,6 +112,9 @@ class CurrentProductionWipeBoundaryInvariantTest {
             "IndependentWitnessAuthorityContract",
             "IndependentWitnessAuthorityEnrollment",
             "IndependentWitnessAuthorityEnrollmentPreparation",
+            "IndependentWitnessExternalEvidence",
+            "IndependentWitnessEnrollmentReview",
+            "IndependentWitnessExternalEvidencePreparation",
             "inspectWriteAndAssertCleanup",
             "destructive-validation-candidate.txt",
         ).forEach { token ->

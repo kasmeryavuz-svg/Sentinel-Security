@@ -152,6 +152,7 @@ jobs:
             :app:checkDestructiveSigningCeremonyPreparation \
             :app:checkIndependentWitnessVerificationContract \
             :app:checkIndependentWitnessAuthorityEnrollmentPreparation \
+            :app:checkIndependentWitnessExternalEvidencePreparation \
             bundleRelease \
             checkReleaseProductionSecurity \
             checkReleaseBundleProductionSecurity \
@@ -286,6 +287,47 @@ jobs:
           test ! -e local/signed-validation-candidate-receipt.txt
           test ! -e app/build/tmp/independent-witness-authority-enrollment-preparation
 
+      - name: Prove external witness evidence remains NOT_PRESENT
+        run: |
+          set -eu
+          evidence_report=app/build/reports/independent-witness-external-evidence-preparation.txt
+          test -f "${evidence_report}"
+          grep -qx 'checkpoint=19V' "${evidence_report}"
+          grep -qx 'external_witness_evidence_status=NOT_PRESENT' "${evidence_report}"
+          grep -qx 'external_evidence_count=0' "${evidence_report}"
+          grep -qx 'review_attestation_count=0' "${evidence_report}"
+          grep -qx 'external_evidence_present=false' "${evidence_report}"
+          grep -qx 'external_evidence_well_formed=false' "${evidence_report}"
+          grep -qx 'external_evidence_subject_matches_witness=false' "${evidence_report}"
+          grep -qx 'external_evidence_repository_binding_valid=false' "${evidence_report}"
+          grep -qx 'external_evidence_fresh=false' "${evidence_report}"
+          grep -qx 'review_attestation_present=false' "${evidence_report}"
+          grep -qx 'review_attestation_well_formed=false' "${evidence_report}"
+          grep -qx 'reviewer_separate_from_operator=false' "${evidence_report}"
+          grep -qx 'reviewer_separate_from_witness=false' "${evidence_report}"
+          grep -qx 'review_binding_valid=false' "${evidence_report}"
+          grep -qx 'external_independence_evidence_verified=false' "${evidence_report}"
+          grep -qx 'witness_authority_enrolled=false' "${evidence_report}"
+          grep -qx 'witness_independence_established=false' "${evidence_report}"
+          grep -qx 'independent_witness_approval=false' "${evidence_report}"
+          grep -qx 'authority=UNTRUSTED_CANDIDATE_ONLY' "${evidence_report}"
+          grep -qx 'runtime_authorization=false' "${evidence_report}"
+          grep -qx 'trusted_expectation_minted=false' "${evidence_report}"
+          grep -qx 'hardware_validation_approved=false' "${evidence_report}"
+          grep -qx 'hardware_test_performed=false' "${evidence_report}"
+          grep -qx 'evidence_authorizes_hardware_test=false' "${evidence_report}"
+          grep -qx 'evidence_authorizes_wipe=false' "${evidence_report}"
+          if grep -qE '\b[0-9a-fA-F]{64}\b' "${evidence_report}"; then
+            echo "External-evidence-preparation report must not contain a digest value"
+            exit 1
+          fi
+          test ! -e local/independent-witness-external-evidence.txt
+          test ! -e local/independent-witness-enrollment-review.txt
+          test ! -e local/independent-witness-authority-enrollment.txt
+          test ! -e local/independent-witness-verification.txt
+          test ! -e local/signed-validation-candidate-receipt.txt
+          test ! -e app/build/tmp/independent-witness-external-evidence-preparation
+
       - name: Prove candidate-evidence task-private snapshots were deleted
         run: |
           set -eu
@@ -298,6 +340,7 @@ jobs:
           test ! -e app/build/tmp/independent-witness-verification-snapshot
           test ! -e app/build/tmp/independent-witness-verification-contract
           test ! -e app/build/tmp/independent-witness-authority-enrollment-preparation
+          test ! -e app/build/tmp/independent-witness-external-evidence-preparation
           test ! -e app/build/tmp/destructive-validation-explicit-candidate-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/destructive-validation-unsigned-release-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/destructive-validation-disposable-purpose-snapshot/immutable-candidate-snapshot.apk
@@ -307,3 +350,7 @@ jobs:
           test ! -e local/signed-validation-candidate-receipt.txt
           test ! -e local/independent-witness-verification.txt
           test ! -e local/independent-witness-authority-enrollment.txt
+          test ! -e local/independent-witness-external-evidence.txt
+          test ! -e local/independent-witness-enrollment-review.txt
+          test ! -e local/independent-witness-external-evidence.txt
+          test ! -e local/independent-witness-enrollment-review.txt

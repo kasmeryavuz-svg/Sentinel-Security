@@ -1513,6 +1513,37 @@ tasks.register<CheckIndependentWitnessAuthorityEnrollmentPreparationTask>(
     )
 }
 
+tasks.register<CheckIndependentWitnessExternalEvidencePreparationTask>(
+    "checkIndependentWitnessExternalEvidencePreparation",
+) {
+    group = "verification"
+    description =
+        "Prove external witness evidence remains NOT_PRESENT. Never " +
+            "reads a signed APK, receipt, statement, enrollment, or private key."
+    filledEvidencePath.set(
+        rootProject.layout.projectDirectory
+            .file(IndependentWitnessExternalEvidenceSource.LOCAL_EVIDENCE_RELATIVE_PATH)
+            .asFile
+            .absolutePath,
+    )
+    filledReviewPath.set(
+        rootProject.layout.projectDirectory
+            .file(IndependentWitnessExternalEvidenceSource.LOCAL_REVIEW_RELATIVE_PATH)
+            .asFile
+            .absolutePath,
+    )
+    reportFile.set(
+        layout.buildDirectory.file(
+            "reports/independent-witness-external-evidence-preparation.txt",
+        ),
+    )
+    temporaryDirectory.set(
+        layout.buildDirectory.dir(
+            "tmp/independent-witness-external-evidence-preparation",
+        ),
+    )
+}
+
 tasks.register<VerifyIndependentWitnessStatementTask>(
     "verifyIndependentWitnessStatement",
 ) {
