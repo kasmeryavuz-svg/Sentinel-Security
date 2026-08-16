@@ -23,6 +23,11 @@ object ValidationOnlySignedCandidateEvidence {
         val buildPurposeStatus: String,
         val aapt2Available: Boolean,
         val identityDetail: String,
+        val packageMatches: Boolean,
+        val adminMatches: Boolean,
+        val policiesMatch: Boolean,
+        val minSdkMatches: Boolean,
+        val targetSdkMatches: Boolean,
     ) {
         val sameSnapshotForAllInspectors: Boolean
             get() = signingSnapshotPath == identitySnapshotPath &&
@@ -48,6 +53,11 @@ object ValidationOnlySignedCandidateEvidence {
                 appendLine("build_purpose_status=$buildPurposeStatus")
                 appendLine("aapt2_available=$aapt2Available")
                 appendLine("identity_detail=$safeDetail")
+                appendLine("package_matches=$packageMatches")
+                appendLine("admin_matches=$adminMatches")
+                appendLine("policies_match=$policiesMatch")
+                appendLine("min_sdk_matches=$minSdkMatches")
+                appendLine("target_sdk_matches=$targetSdkMatches")
             }
             check(!Regex("\\b[0-9a-fA-F]{40,}\\b").containsMatchIn(rendered)) {
                 "signed-candidate diagnostics must not contain digest values"
@@ -141,6 +151,7 @@ object ValidationOnlySignedCandidateEvidence {
         val observedSigning = checkNotNull(signing)
         val observedIdentity = checkNotNull(identity)
         val observedSchemes = checkNotNull(schemes)
+        val identityContract = DestructiveValidationExpectedIdentity.repositoryContract()
         val expected = ReleaseArtifactSecurityVerifier.normalizeSha256Fingerprint(
             expectedCertificateSha256.orEmpty(),
         )
@@ -186,6 +197,14 @@ object ValidationOnlySignedCandidateEvidence {
             buildPurposeStatus = observedIdentity.buildPurposeStatus,
             aapt2Available = observedIdentity.aapt2Available,
             identityDetail = observedIdentity.detail,
+            packageMatches = observedIdentity.packageName == identityContract.packageName,
+            adminMatches = observedIdentity.adminComponent == identityContract.adminComponent,
+            policiesMatch =
+                observedIdentity.policies?.toSet() == identityContract.policies.toSet(),
+            minSdkMatches =
+                observedIdentity.minSdk?.toIntOrNull() == identityContract.minSdk,
+            targetSdkMatches =
+                observedIdentity.targetSdk?.toIntOrNull() == identityContract.targetSdk,
         )
     }
 }

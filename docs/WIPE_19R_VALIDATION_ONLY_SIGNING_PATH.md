@@ -66,6 +66,11 @@ from blocking on a filled Windows pipe buffer while preserving the
 existing timeout and fail-closed output cap. A refused signed candidate
 records only safe build-purpose status and inspector diagnostics; it
 does not record a certificate fingerprint, APK digest, secret, or path.
+If resource shrinking renames the packaged DeviceAdmin policy XML, the
+inspector enumerates a bounded set of packaged XML entries and accepts
+only one structurally valid `device-admin` policy document. Numeric SDK
+values fall back to the compiled manifest when `aapt2 dump badging`
+omits them. Duplicate or contradictory observations remain refused.
 
 `SENTINEL_VALIDATION_*` and `SENTINEL_RELEASE_*` are separate input
 namespaces and attachment routes. That is not cryptographic key

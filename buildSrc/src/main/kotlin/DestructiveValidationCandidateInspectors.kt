@@ -11,6 +11,8 @@ import java.io.IOException
  * signing environment variables are never read.
  */
 object DestructiveValidationCandidateInspectors {
+    private const val MAX_PACKAGED_XML_CANDIDATES = 512
+    private const val DEVICE_ADMIN_RESOURCE_NAME = "xml/device_admin_receiver"
     private val debugMarkers = listOf("CN=Android Debug", "Android Debug")
     private val testMarkers = listOf("androidtest", "Android Test", "CN=Android Test")
     private val packageName = Regex("""package:\s+name='([^']+)'""")
@@ -20,6 +22,17 @@ object DestructiveValidationCandidateInspectors {
     private val targetSdk = Regex("""targetSdkVersion:'([^']+)'""")
     private val xmlName = Regex("""android:name[^=]*="([^"]+)"""")
     private val xmlElement = Regex("""^(\s*)E:\s+([A-Za-z0-9_.-]+)\b""")
+    private val manifestSdkAttribute = Regex(
+        """android:(minSdkVersion|targetSdkVersion)[^=]*=\s*""" +
+            """(?:\(type\s+[^)]+\)\s*)?(0x[0-9a-fA-F]+|[0-9]+)""",
+    )
+    private val resourceTableEntry = Regex("""^\s*resource\s+\S+\s+(.+)$""")
+    private val resourceTableFile = Regex("""\(file\)\s+([^\s]+\.xml)\b""")
+
+    data class ObservedSdkVersions(
+        val minSdk: String?,
+        val targetSdk: String?,
+    )
     fun inspectSigning(
         apk: File,
         androidSdkDir: File?,
@@ -128,6 +141,9 @@ object DestructiveValidationCandidateInspectors {
         val admin = manifest
             ?.takeIf { it.exitCode == 0 }
             ?.let { extractAdminComponent(it.output, pkg) }
+        val manifestSdkVersions = manifest
+            ?.takeIf { it.exitCode == 0 }
+            ?.let { inspectObservedSdkVersions(it.output) }
         val policiesDump = runCommand(
             listOf(
                 aapt2.absolutePath,
@@ -138,9 +154,15 @@ object DestructiveValidationCandidateInspectors {
                 "res/xml/device_admin_receiver.xml",
             ),
         )
-        val policies = policiesDump
+        val directPolicies = policiesDump
             ?.takeIf { it.exitCode == 0 }
             ?.let { extractPolicies(it.output) }
+        val discoveredPolicies = if (directPolicies == null) {
+            discoverPackagedDeviceAdminPolicies(apk, aapt2)
+        } else {
+            null
+        }
+        val policies = directPolicies ?: discoveredPolicies
         val purpose = if (manifest == null || manifest.exitCode != 0) {
             DestructiveValidationBuildPurposeParser.uninspectable("aapt2 manifest xmltree failed")
         } else {
@@ -152,12 +174,30 @@ object DestructiveValidationCandidateInspectors {
             policies = policies,
             versionCode = observedVersionCode,
             versionName = observedVersionName,
-            minSdk = observedMinSdk,
-            targetSdk = observedTargetSdk,
+            minSdk = normalizeNumericSdk(observedMinSdk) ?: manifestSdkVersions?.minSdk,
+            targetSdk = normalizeNumericSdk(observedTargetSdk) ?: manifestSdkVersions?.targetSdk,
             buildPurposeObserved = purpose.observed,
             buildPurposeStatus = purpose.status,
             aapt2Available = true,
-            detail = "aapt2 inspected;${purpose.detail}",
+            detail = "aapt2 inspected;${purpose.detail};" +
+                "policies=" + when {
+                    directPolicies != null -> "direct"
+                    discoveredPolicies != null -> "discovered"
+                    else -> "unavailable"
+                },
+        )
+    }
+
+    fun inspectObservedSdkVersions(manifestXmltree: String): ObservedSdkVersions {
+        val values = manifestSdkAttribute.findAll(manifestXmltree)
+            .mapNotNull { match ->
+                val value = parseAapt2Integer(match.groupValues[2]) ?: return@mapNotNull null
+                match.groupValues[1] to value.toString()
+            }
+            .groupBy({ it.first }, { it.second })
+        return ObservedSdkVersions(
+            minSdk = values["minSdkVersion"]?.distinct()?.singleOrNull(),
+            targetSdk = values["targetSdkVersion"]?.distinct()?.singleOrNull(),
         )
     }
 
@@ -433,6 +473,86 @@ object DestructiveValidationCandidateInspectors {
             .drop(usesPoliciesIndex + 1)
             .takeWhile { it.first > usesPoliciesIndent }
             .map { it.second }
+    }
+
+    private fun discoverPackagedDeviceAdminPolicies(apk: File, aapt2: File): List<String>? {
+        val packagedXml = packagedXmlCandidatePaths(apk)?.toSet() ?: return null
+        val resources = runCommand(
+            listOf(aapt2.absolutePath, "dump", "resources", apk.absolutePath),
+        )?.takeIf { it.exitCode == 0 } ?: return null
+        val candidate = inspectObservedResourceFilePath(
+            resourceTableDump = resources.output,
+            resourceName = DEVICE_ADMIN_RESOURCE_NAME,
+        )?.takeIf { it in packagedXml } ?: return null
+        return runCommand(
+            listOf(
+                aapt2.absolutePath,
+                "dump",
+                "xmltree",
+                apk.absolutePath,
+                "--file",
+                candidate,
+            ),
+        )
+            ?.takeIf { it.exitCode == 0 }
+            ?.let { extractPolicies(it.output) }
+    }
+
+    fun inspectObservedResourceFilePath(
+        resourceTableDump: String,
+        resourceName: String,
+    ): String? {
+        val matches = mutableListOf<String>()
+        var matchingResource = false
+        resourceTableDump.lineSequence().forEach { line ->
+            val entry = resourceTableEntry.find(line)
+            if (entry != null) {
+                matchingResource = entry.groupValues[1]
+                    .substringAfter(':')
+                    .trim()
+                    .substringBefore(' ') == resourceName
+            } else if (matchingResource) {
+                resourceTableFile.find(line)?.groupValues?.get(1)?.let(matches::add)
+            }
+        }
+        return matches.distinct().singleOrNull()
+    }
+
+    fun packagedXmlCandidatePaths(apk: File): List<String>? {
+        return try {
+            JarFile(apk).use { jar ->
+                val paths = mutableListOf<String>()
+                val entries = jar.entries()
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    if (
+                        !entry.isDirectory &&
+                        entry.name != "AndroidManifest.xml" &&
+                        entry.name.endsWith(".xml", ignoreCase = true)
+                    ) {
+                        paths += entry.name
+                        if (paths.size > MAX_PACKAGED_XML_CANDIDATES) {
+                            return null
+                        }
+                    }
+                }
+                paths.sorted()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun normalizeNumericSdk(value: String?): String? {
+        return value?.toIntOrNull()?.toString()
+    }
+
+    private fun parseAapt2Integer(value: String): Int? {
+        return if (value.startsWith("0x", ignoreCase = true)) {
+            value.substring(2).toIntOrNull(16)
+        } else {
+            value.toIntOrNull()
+        }
     }
 
     private fun unavailableIdentity(

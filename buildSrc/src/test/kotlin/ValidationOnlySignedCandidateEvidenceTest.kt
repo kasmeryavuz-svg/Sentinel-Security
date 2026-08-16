@@ -336,6 +336,11 @@ class ValidationOnlySignedCandidateEvidenceTest {
             assertTrue(result.aapt2Available)
             assertEquals("aapt2 manifest xmltree failed", result.identityDetail)
             assertTrue(result.renderSafeDiagnostics().contains("build_purpose_observed=NONE"))
+            assertTrue(result.renderSafeDiagnostics().contains("package_matches=true"))
+            assertTrue(result.renderSafeDiagnostics().contains("admin_matches=true"))
+            assertTrue(result.renderSafeDiagnostics().contains("policies_match=true"))
+            assertTrue(result.renderSafeDiagnostics().contains("min_sdk_matches=true"))
+            assertTrue(result.renderSafeDiagnostics().contains("target_sdk_matches=true"))
             assertTrue(
                 result.renderSafeDiagnostics().contains(
                     "build_purpose_status=UNINSPECTABLE",
