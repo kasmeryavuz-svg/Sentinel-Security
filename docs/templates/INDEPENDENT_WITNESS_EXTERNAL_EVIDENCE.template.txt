@@ -1,0 +1,12 @@
+checkpoint=19V
+evidence_version=1
+evidence_identifier=<EVIDENCE_IDENTIFIER>
+witness_identifier=<WITNESS_IDENTIFIER>
+evidence_type=<EVIDENCE_TYPE>
+evidence_issuer_identifier=<EVIDENCE_ISSUER_IDENTIFIER>
+evidence_timestamp_utc=<EVIDENCE_TIMESTAMP_UTC>
+evidence_expiry_utc=<EVIDENCE_EXPIRY_UTC>
+repository_revision=<REPOSITORY_REVISION>
+witness_verification_key_sha256=<WITNESS_VERIFICATION_KEY_SHA256>
+evidence_digest_sha256=<EVIDENCE_DIGEST_SHA256>
+review_required=<REVIEW_REQUIRED>

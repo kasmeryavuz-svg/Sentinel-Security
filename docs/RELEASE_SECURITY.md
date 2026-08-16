@@ -249,6 +249,11 @@ schema and CI proof. It does not enroll a real witness, populate
 `establishedWitnessIdentifiers()`, or change 19T approval semantics.
 See `docs/WIPE_19U_WITNESS_AUTHORITY_ENROLLMENT_PREPARATION.md`.
 
+Checkpoint 19V prepares a fail-closed external witness-evidence and
+independent-review verification contract. It does not record real
+evidence, enroll a witness, or change 19U/19T approval semantics.
+See `docs/WIPE_19V_EXTERNAL_WITNESS_EVIDENCE_PREPARATION.md`.
+
 ## Logging / information disclosure
 
 Production logcat goes through `AndroidStructuredLogger` and

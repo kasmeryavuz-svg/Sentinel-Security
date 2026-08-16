@@ -1,0 +1,10 @@
+checkpoint=19V
+review_version=1
+review_identifier=<REVIEW_IDENTIFIER>
+evidence_identifier=<EVIDENCE_IDENTIFIER>
+witness_identifier=<WITNESS_IDENTIFIER>
+reviewer_identifier=<REVIEWER_IDENTIFIER>
+operator_identifier=<OPERATOR_IDENTIFIER>
+review_timestamp_utc=<REVIEW_TIMESTAMP_UTC>
+repository_revision=<REPOSITORY_REVISION>
+decision=<REVIEW_DECISION>

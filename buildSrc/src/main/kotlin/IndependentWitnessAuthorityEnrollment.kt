@@ -52,6 +52,10 @@ object IndependentWitnessAuthorityEnrollment {
         "19t-report",
         "signed-validation-candidate-receipt",
         "independent-witness-verification",
+        "19v-evidence",
+        "19v-review",
+        "independent-witness-external-evidence",
+        "independent-witness-enrollment-review",
     )
 
     enum class IndependenceBasis {
@@ -124,13 +128,13 @@ object IndependentWitnessAuthorityEnrollment {
         check(!isReservedWitnessIdentifier(witnessIdentifier)) {
             "witness_identifier is reserved and cannot be an independent witness"
         }
-        check(!sameIdentifier(operatorIdentifier, witnessIdentifier)) {
+        check(!identifiersMatch(operatorIdentifier, witnessIdentifier)) {
             "operator_identifier must differ from witness_identifier"
         }
-        check(!sameIdentifier(reviewIdentifier, witnessIdentifier)) {
+        check(!identifiersMatch(reviewIdentifier, witnessIdentifier)) {
             "review_identifier must differ from witness_identifier"
         }
-        check(!sameIdentifier(reviewIdentifier, operatorIdentifier)) {
+        check(!identifiersMatch(reviewIdentifier, operatorIdentifier)) {
             "review_identifier must differ from operator_identifier"
         }
         val displayName = values.getValue("witness_display_name")
@@ -174,8 +178,32 @@ object IndependentWitnessAuthorityEnrollment {
         return identifier.trim().lowercase() in RESERVED_WITNESS_IDENTIFIERS
     }
 
+    fun isWellFormedIdentifier(value: String): Boolean {
+        return IDENTIFIER.matches(value)
+    }
+
+    fun identifiersMatch(left: String, right: String): Boolean {
+        return left.trim().equals(right.trim(), ignoreCase = true)
+    }
+
+    fun isValidGitRevision(value: String): Boolean {
+        return GIT_REVISION.matches(value.trim().lowercase())
+    }
+
+    fun isValidTimestampUtc(value: String): Boolean {
+        return TIMESTAMP_UTC.matches(value)
+    }
+
     fun isValidFingerprint(value: String): Boolean {
         return SHA256.matches(value.trim().lowercase())
+    }
+
+    fun requireSha256Hex(value: String, fieldName: String): String {
+        val normalized = value.trim().lowercase()
+        check(SHA256.matches(normalized)) {
+            "$fieldName is not a valid SHA-256 value"
+        }
+        return normalized
     }
 
     fun verificationKeySha256(file: File): String {
@@ -230,14 +258,6 @@ object IndependentWitnessAuthorityEnrollment {
     }
 
     private fun normalizeSha256(value: String): String {
-        val normalized = value.trim().lowercase()
-        check(SHA256.matches(normalized)) {
-            "witness_verification_key_sha256 is not a valid SHA-256 value"
-        }
-        return normalized
-    }
-
-    private fun sameIdentifier(left: String, right: String): Boolean {
-        return left.trim().equals(right.trim(), ignoreCase = true)
+        return requireSha256Hex(value, "witness_verification_key_sha256")
     }
 }
