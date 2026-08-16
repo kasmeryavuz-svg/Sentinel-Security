@@ -109,5 +109,8 @@ execution security boundary behind its narrow API module.
 `assembleRelease` / `bundleRelease` are local verification artifacts. They
 are not production distributions. Production distribution requires
 keystore secrets plus `SENTINEL_RELEASE_CERT_SHA256` and must be built
-with `assembleProductionRelease` / `bundleProductionRelease`. See
-`docs/RELEASE_SECURITY.md`.
+with `assembleProductionRelease` / `bundleProductionRelease`. Ordinary
+`assembleDisposableValidation` stays unsigned. A later explicit
+`assembleSignedDisposableValidation` path can use a separate
+validation-only key; that signed APK is still not production and still
+not trusted. See `docs/RELEASE_SECURITY.md`.

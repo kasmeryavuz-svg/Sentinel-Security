@@ -100,6 +100,7 @@ class Checkpoint19JValidationRepairFreezeTest {
         assertFalse(text.contains("checkProductionDistributionSigning"))
         assertFalse(text.contains("assembleProductionRelease"))
         assertFalse(text.contains("bundleProductionRelease"))
+        assertFalse(text.contains("assembleSignedDisposableValidation"))
         assertFalse(text.contains("upload-artifact"))
         assertFalse(text.contains("\${{ secrets"))
         assertFalse(text.contains("apksigner sign"))

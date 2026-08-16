@@ -592,6 +592,81 @@ class DestructiveValidationCandidateEvidenceTest {
     }
 
     @Test
+    fun `manifest sdk fallback parses aapt2 decimal and hexadecimal values`() {
+        val xmltree = """
+            E: manifest (line=2)
+              E: uses-sdk (line=7)
+                A: android:minSdkVersion(0x0101020c)=(type 0x10)0x1a
+                A: android:targetSdkVersion(0x01010270)=36
+        """.trimIndent()
+        val parsed = DestructiveValidationCandidateInspectors.inspectObservedSdkVersions(xmltree)
+        assertEquals("26", parsed.minSdk)
+        assertEquals("36", parsed.targetSdk)
+    }
+
+    @Test
+    fun `manifest sdk fallback refuses duplicate contradictory values`() {
+        val xmltree = """
+            E: uses-sdk (line=7)
+              A: android:minSdkVersion(0x0101020c)=(type 0x10)0x1a
+              A: android:minSdkVersion(0x0101020c)=(type 0x10)0x1b
+        """.trimIndent()
+        val parsed = DestructiveValidationCandidateInspectors.inspectObservedSdkVersions(xmltree)
+        assertNull(parsed.minSdk)
+        assertNull(parsed.targetSdk)
+    }
+
+    @Test
+    fun `packaged xml discovery includes resource-shrinker renamed paths`() {
+        val root = Files.createTempDirectory("candidate-renamed-xml").toFile()
+        try {
+            val apk = writeZipApk(
+                File(root, "app-disposableValidation.apk"),
+                extraEntry = "r/a.xml" to "compiled-device-admin-placeholder",
+            )
+            assertEquals(
+                listOf("r/a.xml"),
+                DestructiveValidationCandidateInspectors.packagedXmlCandidatePaths(apk),
+            )
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `resource table maps device admin identity to renamed packaged xml`() {
+        val dump = """
+            Package name=com.example.devicemanagement id=7f
+              resource 0x7f100001 com.example.devicemanagement:xml/backup_rules
+                () (file) r/b.xml type=XML
+              resource 0x7f100002 com.example.devicemanagement:xml/device_admin_receiver
+                () (file) r/a.xml type=XML
+        """.trimIndent()
+        assertEquals(
+            "r/a.xml",
+            DestructiveValidationCandidateInspectors.inspectObservedResourceFilePath(
+                resourceTableDump = dump,
+                resourceName = "xml/device_admin_receiver",
+            ),
+        )
+    }
+
+    @Test
+    fun `resource table refuses contradictory device admin file mappings`() {
+        val dump = """
+            resource 0x7f100002 xml/device_admin_receiver
+              () (file) r/a.xml type=XML
+              (land) (file) r/b.xml type=XML
+        """.trimIndent()
+        assertNull(
+            DestructiveValidationCandidateInspectors.inspectObservedResourceFilePath(
+                resourceTableDump = dump,
+                resourceName = "xml/device_admin_receiver",
+            ),
+        )
+    }
+
+    @Test
     fun `unsigned matching purpose remains ineligible without a certificate or trust`() {
         val report = inspect(
             signing = unsignedSigning(),

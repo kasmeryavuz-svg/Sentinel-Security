@@ -91,6 +91,7 @@ class Checkpoint19EIndependentCiFreezeTest {
         assertTrue(text.contains("signing=UNSIGNED"))
         assertTrue(text.contains("This artifact is unsigned and is not a production distribution."))
         assertTrue(text.contains("Unexpected production-signing environment variable is populated"))
+        assertTrue(text.contains("Unexpected validation-signing environment variable is populated"))
 
         assertFalse(text.contains("\${{ secrets"))
         assertFalse(Regex("""^\s*secrets\s*:""", RegexOption.MULTILINE).containsMatchIn(text))
@@ -100,6 +101,11 @@ class Checkpoint19EIndependentCiFreezeTest {
             "SENTINEL_RELEASE_KEY_ALIAS:",
             "SENTINEL_RELEASE_KEY_PASSWORD:",
             "SENTINEL_RELEASE_CERT_SHA256:",
+            "SENTINEL_VALIDATION_STORE_FILE:",
+            "SENTINEL_VALIDATION_STORE_PASSWORD:",
+            "SENTINEL_VALIDATION_KEY_ALIAS:",
+            "SENTINEL_VALIDATION_KEY_PASSWORD:",
+            "SENTINEL_VALIDATION_CERT_SHA256:",
         ).forEach { mapping ->
             assertFalse(text.contains(mapping), mapping)
         }
@@ -176,6 +182,7 @@ private object Checkpoint19EDecisionSource {
         ":app:checkReleaseProductionBytecodePolicy",
         "assembleDebug",
         "assembleRelease",
+        "assembleDisposableValidation",
         "bundleRelease",
         "checkReleaseProductionSecurity",
         "checkReleaseBundleProductionSecurity",
@@ -188,6 +195,8 @@ private object Checkpoint19EDecisionSource {
         "checkProductionDistributionSigning",
         "assembleProductionRelease",
         "bundleProductionRelease",
+        "assembleSignedDisposableValidation",
+        "checkSignedDisposableValidation",
         "connectedAndroidTest",
         "connectedDebugAndroidTest",
         "connectedReleaseAndroidTest",

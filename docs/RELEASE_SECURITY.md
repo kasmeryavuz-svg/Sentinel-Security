@@ -39,7 +39,7 @@ is read-only evidence, and audit records never authorize.
 | `profileable` | absent | **absent** |
 | Backup / extraction | disabled + exclude-all rules | same |
 | Network | no INTERNET; cleartext denied | same |
-| Signing | Android debug key | ordinary `assembleRelease` / `bundleRelease` remain **unsigned** even when `SENTINEL_RELEASE_*` inputs exist; production signing attaches **only** after an explicit production-distribution request and every fail-closed check passes. `disposableValidation` always remains unsigned. Unsigned local verification artifacts must not be distributed as production |
+| Signing | Android debug key | ordinary `assembleRelease` / `bundleRelease` remain **unsigned** even when `SENTINEL_RELEASE_*` inputs exist; production signing attaches **only** after an explicit production-distribution request and every fail-closed check passes. ordinary `assembleDisposableValidation` remains **unsigned** even when `SENTINEL_VALIDATION_*` inputs exist. A dedicated `assembleSignedDisposableValidation` path may attach a **separate** validation-only key after an explicit request and fail-closed checks; that signed APK stays an untrusted disposable-validation candidate, never a production distribution, and never uses the Android debug key or `SENTINEL_RELEASE_*`. Unsigned local verification artifacts must not be distributed as production |
 
 Debug remains a developer build. It is not a production distribution.
 
@@ -188,6 +188,50 @@ Tasks:
 
 This repository does **not** generate a production signing key and does
 **not** hardcode a production certificate fingerprint.
+
+## Validation-only disposable signing
+
+Checkpoint 19R adds a build-only path that can sign **only** the
+`disposableValidation` APK with a separate local validation key after
+an explicit request. It does not generate that key, does not sign an
+artifact in the checkpoint itself, and does not replace the Checkpoint
+19H independent-witness ceremony.
+
+Separate local-only inputs, read **only** when
+`assembleSignedDisposableValidation` is requested:
+
+- `SENTINEL_VALIDATION_STORE_FILE`
+- `SENTINEL_VALIDATION_STORE_PASSWORD`
+- `SENTINEL_VALIDATION_KEY_ALIAS`
+- `SENTINEL_VALIDATION_KEY_PASSWORD`
+- `SENTINEL_VALIDATION_CERT_SHA256`
+
+Behavior:
+
+- ordinary `assembleDisposableValidation` remains unsigned even if
+  those inputs exist
+- ordinary `assembleRelease` / `bundleRelease` never receive the
+  validation-only key
+- production release never uses the validation-only key
+- `disposableValidation` never uses the Android debug key,
+  `SENTINEL_RELEASE_*`, an incomplete key configuration, or an invalid
+  certificate fingerprint
+- a later successfully signed validation APK remains
+  `authority=UNTRUSTED_CANDIDATE_ONLY` with
+  `runtime_authorization=false`, `trusted_expectation_minted=false`,
+  `customer_device_authorized=false`, and
+  `production_distribution=false`
+- this route is **not** an independent witness
+- `SENTINEL_VALIDATION_*` is a separate input namespace from
+  `SENTINEL_RELEASE_*`. That does **not** verify that two distinct
+  cryptographic keys exist; no real validation key is present in this
+  repository
+
+Independent CI refuses populated `SENTINEL_VALIDATION_*` variables,
+proves ordinary `disposableValidation` remains unsigned, and never
+runs the dedicated signed-validation task.
+
+See `docs/WIPE_19R_VALIDATION_ONLY_SIGNING_PATH.md`.
 
 ## Logging / information disclosure
 

@@ -122,6 +122,7 @@ class Checkpoint19FValidationEvidenceFreezeTest {
         assertFalse(text.contains("checkProductionDistributionSigning"))
         assertFalse(text.contains("assembleProductionRelease"))
         assertFalse(text.contains("bundleProductionRelease"))
+        assertFalse(text.contains("assembleSignedDisposableValidation"))
         assertFalse(text.contains("sentinel.destructiveValidationCandidateApk"))
         assertFalse(text.contains("\${{ secrets"))
         listOf(
@@ -130,6 +131,8 @@ class Checkpoint19FValidationEvidenceFreezeTest {
             "SENTINEL_RELEASE_KEY_ALIAS:",
             "SENTINEL_RELEASE_KEY_PASSWORD:",
             "SENTINEL_RELEASE_CERT_SHA256:",
+            "SENTINEL_VALIDATION_STORE_FILE:",
+            "SENTINEL_VALIDATION_CERT_SHA256:",
         ).forEach { mapping ->
             assertFalse(text.contains(mapping), mapping)
         }

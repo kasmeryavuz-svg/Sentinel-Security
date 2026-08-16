@@ -92,6 +92,8 @@ class Checkpoint19HSigningCeremonyFreezeTest {
             "SENTINEL_RELEASE_KEY_ALIAS:",
             "SENTINEL_RELEASE_KEY_PASSWORD:",
             "SENTINEL_RELEASE_CERT_SHA256:",
+            "SENTINEL_VALIDATION_STORE_FILE:",
+            "SENTINEL_VALIDATION_CERT_SHA256:",
         ).forEach { mapping ->
             assertFalse(text.contains(mapping), mapping)
         }
@@ -102,6 +104,7 @@ class Checkpoint19HSigningCeremonyFreezeTest {
         assertFalse(Regex("""\badb\b""").containsMatchIn(text))
         assertFalse(text.contains("checkProductionDistributionSigning"))
         assertFalse(text.contains("assembleProductionRelease"))
+        assertFalse(text.contains("assembleSignedDisposableValidation"))
         val uses = Regex("""^\s+uses:\s*(\S+)""", RegexOption.MULTILINE)
             .findAll(text)
             .map { it.groupValues[1] }

@@ -76,6 +76,27 @@ jobs:
             exit 1
           fi
 
+      - name: Refuse populated validation-signing environment variables
+        run: |
+          set -eu
+          failed=0
+          for name in \
+            SENTINEL_VALIDATION_STORE_FILE \
+            SENTINEL_VALIDATION_STORE_PASSWORD \
+            SENTINEL_VALIDATION_KEY_ALIAS \
+            SENTINEL_VALIDATION_KEY_PASSWORD \
+            SENTINEL_VALIDATION_CERT_SHA256
+          do
+            if [ -n "${!name:-}" ]; then
+              echo "Unexpected validation-signing environment variable is populated: ${name}"
+              failed=1
+            fi
+          done
+          if [ "${failed}" -ne 0 ]; then
+            echo "Independent CI must not run while validation-signing variables are populated."
+            exit 1
+          fi
+
       - name: Install required Android SDK packages
         run: |
           set -eu
@@ -100,8 +121,8 @@ jobs:
             "platforms;android-36" \
             "build-tools;35.0.0"
           printf 'sdk.dir=%s\n' "${SDK_ROOT}" > "${GITHUB_WORKSPACE}/local.properties"
-          if grep -qE '^[[:space:]]*SENTINEL_RELEASE_' "${GITHUB_WORKSPACE}/local.properties"; then
-            echo "local.properties must not contain production-signing keys"
+          if grep -qE '^[[:space:]]*SENTINEL_(RELEASE|VALIDATION)_' "${GITHUB_WORKSPACE}/local.properties"; then
+            echo "local.properties must not contain production-signing or validation-signing keys"
             exit 1
           fi
 
@@ -125,6 +146,7 @@ jobs:
             :app:checkDisposableValidationProductionBytecodePolicy \
             assembleDebug \
             assembleRelease \
+            assembleDisposableValidation \
             :app:checkUnsignedDestructiveValidationCandidateEvidence \
             :app:checkUnsignedDisposableValidationBuildPurposeEvidence \
             :app:checkDestructiveSigningCeremonyPreparation \
@@ -214,6 +236,8 @@ jobs:
           test ! -e app/build/tmp/destructive-validation-unsigned-release-snapshot
           test ! -e app/build/tmp/destructive-validation-disposable-purpose-snapshot
           test ! -e app/build/tmp/destructive-validation-candidate-snapshot
+          test ! -e app/build/tmp/signed-disposable-validation-snapshot
           test ! -e app/build/tmp/destructive-validation-explicit-candidate-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/destructive-validation-unsigned-release-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/destructive-validation-disposable-purpose-snapshot/immutable-candidate-snapshot.apk
+          test ! -e app/build/tmp/signed-disposable-validation-snapshot/immutable-candidate-snapshot.apk
