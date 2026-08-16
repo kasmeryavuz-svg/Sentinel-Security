@@ -1,0 +1,15 @@
+checkpoint=19T
+statement_version=1
+candidate_apk_sha256=<CANDIDATE_APK_SHA256>
+validation_certificate_sha256=<VALIDATION_CERTIFICATE_SHA256>
+source_head_claimed=<SOURCE_HEAD_CLAIMED>
+package_name=<PACKAGE_NAME>
+admin_component=<ADMIN_COMPONENT>
+policies=<POLICIES>
+min_sdk=<MIN_SDK>
+target_sdk=<TARGET_SDK>
+build_purpose=DISPOSABLE_DEVICE_VALIDATION
+witness_identifier=<WITNESS_IDENTIFIER>
+witness_timestamp_utc=<WITNESS_TIMESTAMP_UTC>
+signature_algorithm=SHA256withRSA
+signature=<UNWRAPPED_STANDARD_BASE64_SIGNATURE>

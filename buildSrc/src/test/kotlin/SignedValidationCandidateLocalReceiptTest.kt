@@ -106,6 +106,41 @@ class SignedValidationCandidateLocalReceiptTest {
     }
 
     @Test
+    fun `rendered receipt parses and refuses witness or approval claims`() {
+        val root = Files.createTempDirectory("19s-parse-receipt").toFile()
+        try {
+            val receipt = SignedValidationCandidateLocalReceipt.create(
+                result = acceptedResult(root),
+                sourceHeadClaimed = "12".repeat(20),
+                independentlySuppliedPublicCertificateSha256 = CERTIFICATE_SHA256,
+            )
+            val parsed = SignedValidationCandidateLocalReceipt.parse(receipt.render())
+            assertEquals("12".repeat(20), parsed.sourceHeadClaimed)
+            assertEquals(APK_SHA256, parsed.apkSha256)
+            assertEquals(CERTIFICATE_SHA256, parsed.validationCertificateSha256)
+            assertEquals(1, parsed.signerCount)
+            assertTrue(parsed.v2Present)
+            assertTrue(parsed.v3Present)
+            val tamperedApproval = receipt.render().replace(
+                "independent_witness_approval=false",
+                "independent_witness_approval=true",
+            )
+            assertFailsWith<IllegalStateException> {
+                SignedValidationCandidateLocalReceipt.parse(tamperedApproval)
+            }
+            val tamperedWitness = receipt.render().replace(
+                "local_receipt_is_independent_witness=false",
+                "local_receipt_is_independent_witness=true",
+            )
+            assertFailsWith<IllegalStateException> {
+                SignedValidationCandidateLocalReceipt.parse(tamperedWitness)
+            }
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `receipt write is one-shot verified and leaves no temporary file`() {
         val root = Files.createTempDirectory("19s-write-once").toFile()
         try {

@@ -87,6 +87,157 @@ object SignedValidationCandidateLocalReceipt {
         }
     }
 
+    data class ParsedReceipt(
+        val sourceHeadClaimed: String,
+        val apkSha256: String,
+        val validationCertificateSha256: String,
+        val signerCount: Int,
+        val v2Present: Boolean,
+        val v3Present: Boolean,
+        val packageName: String,
+        val adminComponent: String,
+        val policies: List<String>,
+        val minSdk: Int,
+        val targetSdk: Int,
+        val buildPurpose: String,
+    )
+
+    private val RECEIPT_KEYS = setOf(
+        "checkpoint",
+        "receipt_status",
+        "authority",
+        "source_head_claimed",
+        "source_head_proves_apk_origin",
+        "apk_sha256",
+        "validation_certificate_sha256",
+        "artifact_digest_recorded_local_only",
+        "signing",
+        "signer_count",
+        "signer_count_reliable",
+        "v2_present",
+        "v3_present",
+        "build_purpose",
+        "package_name",
+        "admin_component",
+        "policies",
+        "min_sdk",
+        "target_sdk",
+        "package_matches",
+        "admin_matches",
+        "policies_match",
+        "min_sdk_matches",
+        "target_sdk_matches",
+        "validation_signing_performed_observed",
+        "signed_validation_candidate_accepted",
+        "local_receipt_is_independent_witness",
+        "independent_witness_approval",
+        "runtime_authorization",
+        "trusted_expectation_minted",
+        "production_distribution",
+        "customer_device_authorized",
+        "real_device_identity_recorded",
+        "hardware_validation_approved",
+        "hardware_test_performed",
+        "receipt_authorizes_hardware_test",
+        "receipt_authorizes_wipe",
+    )
+
+    fun parse(text: String): ParsedReceipt {
+        val values = FailClosedStatusLines.requireExactKeys(
+            FailClosedStatusLines.parseUnique(text),
+            RECEIPT_KEYS,
+        )
+        check(values.getValue("checkpoint") == "19S") {
+            "receipt checkpoint must remain 19S"
+        }
+        check(values.getValue("receipt_status") == STATUS) {
+            "receipt_status must remain $STATUS"
+        }
+        check(values.getValue("authority") == ValidationOnlySigningGate.AUTHORITY) {
+            "receipt authority must remain untrusted candidate evidence"
+        }
+        check(values.getValue("source_head_proves_apk_origin") == "false") {
+            "receipt must not claim that checkout proves APK origin"
+        }
+        check(values.getValue("artifact_digest_recorded_local_only") == "true")
+        check(values.getValue("signing") == "SIGNED_UNCLASSIFIED")
+        check(values.getValue("signer_count_reliable") == "true")
+        check(values.getValue("build_purpose") ==
+            DestructiveValidationExpectedIdentity.BUILD_PURPOSE_DISPOSABLE_DEVICE_VALIDATION)
+        check(values.getValue("package_matches") == "true")
+        check(values.getValue("admin_matches") == "true")
+        check(values.getValue("policies_match") == "true")
+        check(values.getValue("min_sdk_matches") == "true")
+        check(values.getValue("target_sdk_matches") == "true")
+        check(values.getValue("validation_signing_performed_observed") == "true")
+        check(values.getValue("signed_validation_candidate_accepted") == "true")
+        check(values.getValue("local_receipt_is_independent_witness") == "false") {
+            "19S receipt must not claim to be an independent witness"
+        }
+        check(values.getValue("independent_witness_approval") == "false") {
+            "19S receipt must not claim independent witness approval"
+        }
+        listOf(
+            "runtime_authorization",
+            "trusted_expectation_minted",
+            "production_distribution",
+            "customer_device_authorized",
+            "real_device_identity_recorded",
+            "hardware_validation_approved",
+            "hardware_test_performed",
+            "receipt_authorizes_hardware_test",
+            "receipt_authorizes_wipe",
+        ).forEach { key ->
+            check(values.getValue(key) == "false") {
+                "receipt authorization field $key must remain false"
+            }
+        }
+        val sourceHead = values.getValue("source_head_claimed").trim().lowercase()
+        check(GIT_REVISION.matches(sourceHead)) {
+            "receipt source_head_claimed must be an exact 40-hex commit"
+        }
+        val apkSha256 = normalizeSha256(values.getValue("apk_sha256"))
+            ?: error("receipt apk_sha256 is not a valid SHA-256 value")
+        val certificateSha256 = normalizeSha256(
+            values.getValue("validation_certificate_sha256"),
+        ) ?: error("receipt validation_certificate_sha256 is not a valid SHA-256 value")
+        val signerCount = values.getValue("signer_count").toIntOrNull()
+            ?: error("receipt signer_count is not an integer")
+        check(signerCount == 1) { "receipt must record exactly one reliable signer" }
+        val v2Present = values.getValue("v2_present") == "true"
+        val v3Present = values.getValue("v3_present") == "true"
+        check(v2Present && v3Present) { "receipt must record V2 and V3" }
+        val identity = DestructiveValidationExpectedIdentity.repositoryContract()
+        val policies = values.getValue("policies").split(',')
+        check(values.getValue("package_name") == identity.packageName)
+        check(values.getValue("admin_component") == identity.adminComponent)
+        check(policies == identity.policies)
+        check(values.getValue("min_sdk") == identity.minSdk.toString())
+        check(values.getValue("target_sdk") == identity.targetSdk.toString())
+        return ParsedReceipt(
+            sourceHeadClaimed = sourceHead,
+            apkSha256 = apkSha256,
+            validationCertificateSha256 = certificateSha256,
+            signerCount = signerCount,
+            v2Present = v2Present,
+            v3Present = v3Present,
+            packageName = identity.packageName,
+            adminComponent = identity.adminComponent,
+            policies = policies,
+            minSdk = identity.minSdk,
+            targetSdk = identity.targetSdk,
+            buildPurpose = identity.buildPurpose,
+        )
+    }
+
+    fun parseFile(file: File): ParsedReceipt {
+        rejectSymlinkPath(file)
+        check(file.isFile && !file.isDirectory) {
+            "19S receipt must be a regular file"
+        }
+        return parse(file.readText())
+    }
+
     fun create(
         result: ValidationOnlySignedCandidateEvidence.Result,
         sourceHeadClaimed: String,
