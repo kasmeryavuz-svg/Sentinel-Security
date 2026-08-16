@@ -17,3 +17,5 @@ captures/
 *.aab
 # Later offline ceremony records must never be committed.
 local/destructive-signing-ceremony-record.txt
+# One-attempt validation-candidate receipt. Contains local artifact digests.
+local/signed-validation-candidate-receipt.txt

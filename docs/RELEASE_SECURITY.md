@@ -232,6 +232,10 @@ proves ordinary `disposableValidation` remains unsigned, and never
 runs the dedicated signed-validation task.
 
 See `docs/WIPE_19R_VALIDATION_ONLY_SIGNING_PATH.md`.
+The optional local-only, one-attempt receipt for an already signed validation
+APK is documented in
+`docs/WIPE_19S_SIGNED_VALIDATION_LOCAL_RECEIPT.md`; it does not sign, upload,
+mint trust, or authorize hardware.
 
 ## Logging / information disclosure
 

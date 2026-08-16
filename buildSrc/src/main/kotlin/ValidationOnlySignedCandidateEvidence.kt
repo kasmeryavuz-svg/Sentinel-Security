@@ -28,6 +28,13 @@ object ValidationOnlySignedCandidateEvidence {
         val policiesMatch: Boolean,
         val minSdkMatches: Boolean,
         val targetSdkMatches: Boolean,
+        val apkSha256: String,
+        val signingCertificateSha256: String?,
+        val signerCount: Int,
+        val signerCountReliable: Boolean,
+        val v2Present: Boolean,
+        val v3Present: Boolean,
+        val schemesReliable: Boolean,
     ) {
         val sameSnapshotForAllInspectors: Boolean
             get() = signingSnapshotPath == identitySnapshotPath &&
@@ -95,7 +102,7 @@ object ValidationOnlySignedCandidateEvidence {
         var signing: DestructiveValidationCandidateEvidence.CandidateSigningInspection? = null
         var identity: DestructiveValidationCandidateEvidence.CandidateApkIdentity? = null
         var schemes: ValidationOnlySigningGate.ObservedSignatureSchemes? = null
-        DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
+        val candidateReport = DestructiveValidationCandidateEvidence.inspectExplicitCandidate(
             apk = apk,
             snapshotDirectory = snapshotDirectory,
             afterInitialDigest = afterInitialDigest,
@@ -205,6 +212,13 @@ object ValidationOnlySignedCandidateEvidence {
                 observedIdentity.minSdk?.toIntOrNull() == identityContract.minSdk,
             targetSdkMatches =
                 observedIdentity.targetSdk?.toIntOrNull() == identityContract.targetSdk,
+            apkSha256 = candidateReport.apkSha256,
+            signingCertificateSha256 = candidateReport.signingCertificateSha256,
+            signerCount = observedSigning.signerCount,
+            signerCountReliable = observedSigning.signerCountReliable,
+            v2Present = observedSchemes.v2Present,
+            v3Present = observedSchemes.v3Present,
+            schemesReliable = observedSchemes.reliable,
         )
     }
 }

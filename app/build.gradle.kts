@@ -1437,6 +1437,40 @@ tasks.register("assembleSignedDisposableValidation") {
     }
 }
 
+tasks.register<RecordSignedDisposableValidationCandidateReceiptTask>(
+    "recordSignedDisposableValidationCandidateReceipt",
+) {
+    group = "verification"
+    description =
+        "Record one gitignored local-only receipt for an explicitly supplied " +
+            "signed disposableValidation APK and public certificate. Never signs, " +
+            "uploads, mints trust, or authorizes hardware."
+    candidateApkPath.set(
+        providers.gradleProperty(
+            SignedValidationCandidateLocalReceipt.CANDIDATE_APK_PROPERTY,
+        ).orElse(""),
+    )
+    publicCertificatePath.set(
+        providers.gradleProperty(
+            SignedValidationCandidateLocalReceipt.PUBLIC_CERTIFICATE_PROPERTY,
+        ).orElse(""),
+    )
+    sourceHeadClaimed.set(
+        providers.gradleProperty(
+            SignedValidationCandidateLocalReceipt.SOURCE_HEAD_PROPERTY,
+        ).orElse(""),
+    )
+    androidSdkDirectory.set(android.sdkDirectory.absolutePath)
+    receiptFile.set(
+        rootProject.layout.projectDirectory.file(
+            SignedValidationCandidateLocalReceipt.RECEIPT_RELATIVE_PATH,
+        ),
+    )
+    snapshotDirectory.set(
+        layout.buildDirectory.dir("tmp/signed-validation-receipt-snapshot"),
+    )
+}
+
 tasks.matching { it.name == "preBuild" }.configureEach {
     dependsOn(checkAppDependencyIsolation)
 }
