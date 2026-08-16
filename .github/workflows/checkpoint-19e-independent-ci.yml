@@ -237,7 +237,10 @@ jobs:
           test ! -e app/build/tmp/destructive-validation-disposable-purpose-snapshot
           test ! -e app/build/tmp/destructive-validation-candidate-snapshot
           test ! -e app/build/tmp/signed-disposable-validation-snapshot
+          test ! -e app/build/tmp/signed-validation-receipt-snapshot
           test ! -e app/build/tmp/destructive-validation-explicit-candidate-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/destructive-validation-unsigned-release-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/destructive-validation-disposable-purpose-snapshot/immutable-candidate-snapshot.apk
           test ! -e app/build/tmp/signed-disposable-validation-snapshot/immutable-candidate-snapshot.apk
+          test ! -e app/build/tmp/signed-validation-receipt-snapshot/immutable-candidate-snapshot.apk
+          test ! -e local/signed-validation-candidate-receipt.txt
