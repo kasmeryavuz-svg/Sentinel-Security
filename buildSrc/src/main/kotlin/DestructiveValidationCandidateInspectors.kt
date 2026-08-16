@@ -1,5 +1,4 @@
 import java.io.File
-import java.util.concurrent.TimeUnit
 import java.util.jar.JarFile
 import java.util.jar.JarException
 import java.io.IOException
@@ -469,21 +468,10 @@ object DestructiveValidationCandidateInspectors {
     )
 
     private fun runCommand(command: List<String>): CommandResult? {
-        return try {
-            val process = ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start()
-            val finished = process.waitFor(60, TimeUnit.SECONDS)
-            if (!finished) {
-                process.destroyForcibly()
-                return null
-            }
-            CommandResult(
-                exitCode = process.exitValue(),
-                output = process.inputStream.bufferedReader().use { it.readText() },
-            )
-        } catch (_: Exception) {
-            null
-        }
+        val result = BoundedProcessRunner.run(command) ?: return null
+        return CommandResult(
+            exitCode = result.exitCode,
+            output = result.output,
+        )
     }
 }

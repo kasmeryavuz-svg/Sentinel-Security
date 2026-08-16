@@ -60,6 +60,13 @@ snapshot file and task-private directory; a leftover snapshot fails
 the task. The source APK and any keystore are never deleted. The
 snapshot and its digest are not stored in Git.
 
+Official Android build-tool output is drained concurrently with the
+bounded process timeout. This prevents a full `aapt2 dump xmltree`
+from blocking on a filled Windows pipe buffer while preserving the
+existing timeout and fail-closed output cap. A refused signed candidate
+records only safe build-purpose status and inspector diagnostics; it
+does not record a certificate fingerprint, APK digest, secret, or path.
+
 `SENTINEL_VALIDATION_*` and `SENTINEL_RELEASE_*` are separate input
 namespaces and attachment routes. That is not cryptographic key
 separation. No real validation key exists, so key separation is not

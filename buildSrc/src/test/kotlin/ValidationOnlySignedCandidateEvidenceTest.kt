@@ -308,6 +308,53 @@ class ValidationOnlySignedCandidateEvidenceTest {
     }
 
     @Test
+    fun `build purpose refusal preserves safe diagnostics and cleans snapshot`() {
+        val root = Files.createTempDirectory("19r-purpose-diagnostics").toFile()
+        val snapshotDir = File(root, "signed-disposable-validation-snapshot")
+        try {
+            val apk = writeZipApk(File(root, "app-disposableValidation.apk"))
+            val unavailablePurpose = acceptedIdentity().copy(
+                buildPurposeObserved = null,
+                buildPurposeStatus =
+                    DestructiveValidationBuildPurposeParser.STATUS_UNINSPECTABLE,
+                detail = "aapt2 manifest xmltree failed",
+            )
+            val result = inspectAccepted(
+                apk = apk,
+                snapshotDirectory = snapshotDir,
+                identityInspector = { unavailablePurpose },
+            )
+            assertEquals(
+                ValidationOnlySigningGate.SignedCandidateDecision.REFUSE_BUILD_PURPOSE,
+                result.decision,
+            )
+            assertEquals(null, result.buildPurposeObserved)
+            assertEquals(
+                DestructiveValidationBuildPurposeParser.STATUS_UNINSPECTABLE,
+                result.buildPurposeStatus,
+            )
+            assertTrue(result.aapt2Available)
+            assertEquals("aapt2 manifest xmltree failed", result.identityDetail)
+            assertTrue(result.renderSafeDiagnostics().contains("build_purpose_observed=NONE"))
+            assertTrue(
+                result.renderSafeDiagnostics().contains(
+                    "build_purpose_status=UNINSPECTABLE",
+                ),
+            )
+            val unexpectedPurpose = result.copy(buildPurposeObserved = "A".repeat(64))
+            assertTrue(
+                unexpectedPurpose.renderSafeDiagnostics().contains(
+                    "build_purpose_observed=OTHER",
+                ),
+            )
+            assertFalse(unexpectedPurpose.renderSafeDiagnostics().contains("A".repeat(64)))
+            assertFalse(DestructiveValidationCandidateEvidence.snapshotStillPresent(snapshotDir))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `ordinary release and ordinary disposableValidation remain unsigned`() {
         val appGradle = File("../app/build.gradle.kts").readText()
         assertTrue(

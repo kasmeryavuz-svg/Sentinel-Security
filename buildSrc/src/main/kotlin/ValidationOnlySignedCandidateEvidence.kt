@@ -19,12 +19,41 @@ object ValidationOnlySignedCandidateEvidence {
         val signingSnapshotPath: String,
         val identitySnapshotPath: String,
         val schemeSnapshotPath: String,
+        val buildPurposeObserved: String?,
+        val buildPurposeStatus: String,
+        val aapt2Available: Boolean,
+        val identityDetail: String,
     ) {
         val sameSnapshotForAllInspectors: Boolean
             get() = signingSnapshotPath == identitySnapshotPath &&
                 identitySnapshotPath == schemeSnapshotPath &&
                 File(signingSnapshotPath).name ==
                 DestructiveValidationCandidateEvidence.SNAPSHOT_FILE_NAME
+
+        fun renderSafeDiagnostics(): String {
+            val safeObserved = when (buildPurposeObserved) {
+                null -> "NONE"
+                DestructiveValidationExpectedIdentity
+                    .BUILD_PURPOSE_DISPOSABLE_DEVICE_VALIDATION ->
+                    DestructiveValidationExpectedIdentity
+                        .BUILD_PURPOSE_DISPOSABLE_DEVICE_VALIDATION
+                else -> "OTHER"
+            }
+            val safeDetail = identityDetail
+                .replace('\r', '_')
+                .replace('\n', '_')
+                .take(256)
+            val rendered = buildString {
+                appendLine("build_purpose_observed=$safeObserved")
+                appendLine("build_purpose_status=$buildPurposeStatus")
+                appendLine("aapt2_available=$aapt2Available")
+                appendLine("identity_detail=$safeDetail")
+            }
+            check(!Regex("\\b[0-9a-fA-F]{40,}\\b").containsMatchIn(rendered)) {
+                "signed-candidate diagnostics must not contain digest values"
+            }
+            return rendered
+        }
     }
 
     fun inspect(
@@ -153,6 +182,10 @@ object ValidationOnlySignedCandidateEvidence {
             signingSnapshotPath = signingPath,
             identitySnapshotPath = identityPath,
             schemeSnapshotPath = schemePath,
+            buildPurposeObserved = observedIdentity.buildPurposeObserved,
+            buildPurposeStatus = observedIdentity.buildPurposeStatus,
+            aapt2Available = observedIdentity.aapt2Available,
+            identityDetail = observedIdentity.detail,
         )
     }
 }

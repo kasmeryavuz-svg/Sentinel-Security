@@ -12,7 +12,6 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import org.gradle.work.DisableCachingByDefault
 import java.io.File
-import java.util.concurrent.TimeUnit
 
 /**
  * Fail-closed inspection for an explicitly requested signed
@@ -80,7 +79,7 @@ abstract class CheckSignedDisposableValidationTask : DefaultTask() {
                     signedCandidateAccepted = result.decision ==
                         ValidationOnlySigningGate.SignedCandidateDecision
                             .ACCEPT_UNTRUSTED_CANDIDATE,
-                )
+                ) + result.renderSafeDiagnostics()
                 val out = reportFile.get().asFile
                 out.parentFile.mkdirs()
                 out.writeText(rendered)
@@ -95,7 +94,11 @@ abstract class CheckSignedDisposableValidationTask : DefaultTask() {
                         ValidationOnlySigningGate.SignedCandidateDecision
                             .ACCEPT_UNTRUSTED_CANDIDATE,
                 ) {
-                    "signed disposableValidation candidate refused: ${result.decision}"
+                    "signed disposableValidation candidate refused: ${result.decision}; " +
+                        result.renderSafeDiagnostics()
+                            .lineSequence()
+                            .filter { it.isNotBlank() }
+                            .joinToString(";")
                 }
             },
         )
@@ -133,28 +136,20 @@ abstract class CheckSignedDisposableValidationTask : DefaultTask() {
                 "--verbose",
                 apk.absolutePath,
             )
-            return try {
-                val process = ProcessBuilder(command)
-                    .redirectErrorStream(true)
-                    .start()
-                val finished = process.waitFor(60, TimeUnit.SECONDS)
-                if (!finished) {
-                    process.destroyForcibly()
-                    return ValidationOnlySigningGate.ObservedSignatureSchemes(
-                        v2Present = false,
-                        v3Present = false,
-                        reliable = false,
-                    )
-                }
-                val output = process.inputStream.bufferedReader().use { it.readText() }
-                ValidationOnlySigningGate.parseSignatureSchemes(output)
-            } catch (_: Exception) {
-                ValidationOnlySigningGate.ObservedSignatureSchemes(
+            val result = BoundedProcessRunner.run(command)
+                ?: return ValidationOnlySigningGate.ObservedSignatureSchemes(
+                    v2Present = false,
+                    v3Present = false,
+                    reliable = false,
+                )
+            if (result.exitCode != 0) {
+                return ValidationOnlySigningGate.ObservedSignatureSchemes(
                     v2Present = false,
                     v3Present = false,
                     reliable = false,
                 )
             }
+            return ValidationOnlySigningGate.parseSignatureSchemes(result.output)
         }
     }
 }
