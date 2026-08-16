@@ -118,6 +118,7 @@ class IndependentWitnessExternalEvidencePreparationTest {
         assertTrue(IndependentWitnessExternalEvidenceSource.repositoryWitnessReviews().isEmpty())
         assertTrue(IndependentWitnessAuthorityEnrollmentSource.repositoryEnrollments().isEmpty())
         assertTrue(IndependentWitnessAuthorityContract.establishedWitnessIdentifiers().isEmpty())
+        assertTrue(evaluation.externalIndependenceEvidenceVerified)
         assertFalse(
             IndependentWitnessAuthorityContract.independenceEstablished("external-witness"),
         )
@@ -126,7 +127,7 @@ class IndependentWitnessExternalEvidencePreparationTest {
                 statementPresent = true,
                 signatureVerified = true,
                 evidenceMatches = true,
-                independenceEstablished = evaluation.externalIndependenceEvidenceVerified,
+                independenceEstablished = false,
             ),
         )
     }
