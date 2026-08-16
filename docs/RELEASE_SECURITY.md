@@ -244,6 +244,11 @@ approval. The repository currently enrolls no independent witness
 authority, so `independent_witness_approval` remains false. See
 `docs/WIPE_19T_INDEPENDENT_WITNESS_VERIFICATION.md`.
 
+Checkpoint 19U prepares a fail-closed witness-authority enrollment
+schema and CI proof. It does not enroll a real witness, populate
+`establishedWitnessIdentifiers()`, or change 19T approval semantics.
+See `docs/WIPE_19U_WITNESS_AUTHORITY_ENROLLMENT_PREPARATION.md`.
+
 ## Logging / information disclosure
 
 Production logcat goes through `AndroidStructuredLogger` and

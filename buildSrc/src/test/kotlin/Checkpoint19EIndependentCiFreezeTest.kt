@@ -190,6 +190,7 @@ private object Checkpoint19EDecisionSource {
         ":sensitive-actions:checkMainProductionBytecodePolicy",
         ":app:checkDestructiveSigningCeremonyPreparation",
         ":app:checkIndependentWitnessVerificationContract",
+        ":app:checkIndependentWitnessAuthorityEnrollmentPreparation",
     )
 
     val forbiddenGradleTasks = listOf(

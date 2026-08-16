@@ -54,6 +54,8 @@ class CurrentProductionWipeBoundaryInvariantTest {
             "IndependentWitnessVerification",
             "IndependentWitnessStatement",
             "IndependentWitnessAuthorityContract",
+            "IndependentWitnessAuthorityEnrollment",
+            "IndependentWitnessAuthorityEnrollmentPreparation",
             "inspectWriteAndAssertCleanup",
             "DESTRUCTIVE_VALIDATION_BUILD_PURPOSE",
             "checkUnsignedDisposableValidationBuildPurposeEvidence",
@@ -87,8 +89,11 @@ class CurrentProductionWipeBoundaryInvariantTest {
         assertTrue(workflow.contains(":app:checkUnsignedDisposableValidationBuildPurposeEvidence"))
         assertTrue(workflow.contains(":app:checkDestructiveSigningCeremonyPreparation"))
         assertTrue(workflow.contains(":app:checkIndependentWitnessVerificationContract"))
+        assertTrue(workflow.contains(":app:checkIndependentWitnessAuthorityEnrollmentPreparation"))
         assertTrue(workflow.contains("independent_witness_approval=false"))
         assertTrue(workflow.contains("witness_independence_established=false"))
+        assertTrue(workflow.contains("witness_authority_enrolled=false"))
+        assertTrue(workflow.contains("enrollment_authorizes_wipe=false"))
         assertFalse(workflow.contains("verifyIndependentWitnessStatement"))
         assertFalse(workflow.contains("recordSignedDisposableValidationCandidateReceipt"))
         assertTrue(workflow.contains("candidate_status=INELIGIBLE"))
