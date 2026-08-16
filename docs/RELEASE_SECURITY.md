@@ -254,6 +254,12 @@ independent-review verification contract. It does not record real
 evidence, enroll a witness, or change 19U/19T approval semantics.
 See `docs/WIPE_19V_EXTERNAL_WITNESS_EVIDENCE_PREPARATION.md`.
 
+Checkpoint 19W combines 19T/19U/19V mechanical signals into a
+fail-closed enrollment **decision**. Mechanical completeness is not
+enrollment and is not runtime authorization. The repository remains
+`witness_enrollment_decision=BLOCKED`. See
+`docs/WIPE_19W_INDEPENDENT_WITNESS_ENROLLMENT_DECISION.md`.
+
 ## Logging / information disclosure
 
 Production logcat goes through `AndroidStructuredLogger` and

@@ -26,3 +26,5 @@ local/independent-witness-authority-enrollment.txt
 # Future filled external witness evidence and review. 19V does not write these files.
 local/independent-witness-external-evidence.txt
 local/independent-witness-enrollment-review.txt
+# Future filled enrollment decision. 19W does not write this file.
+local/independent-witness-enrollment-decision.txt

@@ -1544,6 +1544,32 @@ tasks.register<CheckIndependentWitnessExternalEvidencePreparationTask>(
     )
 }
 
+tasks.register<CheckIndependentWitnessEnrollmentDecisionContractTask>(
+    "checkIndependentWitnessEnrollmentDecisionContract",
+) {
+    group = "verification"
+    description =
+        "Prove the independent-witness enrollment decision remains BLOCKED. " +
+            "Never reads a signed APK, receipt, statement, evidence, review, " +
+            "enrollment, or private key."
+    filledDecisionPath.set(
+        rootProject.layout.projectDirectory
+            .file(IndependentWitnessEnrollmentDecision.LOCAL_DECISION_RELATIVE_PATH)
+            .asFile
+            .absolutePath,
+    )
+    reportFile.set(
+        layout.buildDirectory.file(
+            "reports/independent-witness-enrollment-decision-contract.txt",
+        ),
+    )
+    temporaryDirectory.set(
+        layout.buildDirectory.dir(
+            "tmp/independent-witness-enrollment-decision-contract",
+        ),
+    )
+}
+
 tasks.register<VerifyIndependentWitnessStatementTask>(
     "verifyIndependentWitnessStatement",
 ) {
