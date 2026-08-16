@@ -137,15 +137,18 @@ class SignedValidationCandidateLocalReceiptTest {
         val taskSource = File(
             "src/main/kotlin/RecordSignedDisposableValidationCandidateReceiptTask.kt",
         ).readText()
+        val receiptSource = File(
+            "src/main/kotlin/SignedValidationCandidateLocalReceipt.kt",
+        ).readText()
         val ignore = File("../.gitignore").readText()
         val workflow = File("../.github/workflows/checkpoint-19e-independent-ci.yml").readText()
         val docs = File("../docs/WIPE_19S_SIGNED_VALIDATION_LOCAL_RECEIPT.md").readText()
         assertTrue(
             appGradle.contains("recordSignedDisposableValidationCandidateReceipt"),
         )
-        assertTrue(appGradle.contains("sentinel.signedValidationCandidateApk"))
-        assertTrue(appGradle.contains("sentinel.validationPublicCertificate"))
-        assertTrue(appGradle.contains("sentinel.signedValidationSourceHead"))
+        assertTrue(receiptSource.contains("sentinel.signedValidationCandidateApk"))
+        assertTrue(receiptSource.contains("sentinel.validationPublicCertificate"))
+        assertTrue(receiptSource.contains("sentinel.signedValidationSourceHead"))
         assertFalse(taskSource.contains("SENTINEL_VALIDATION_STORE"))
         assertFalse(taskSource.contains("SENTINEL_VALIDATION_KEY"))
         assertFalse(taskSource.contains("STORE_PASSWORD"))
