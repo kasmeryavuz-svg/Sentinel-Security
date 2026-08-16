@@ -892,11 +892,15 @@ androidComponents {
                 val expectedReceiver =
                     "com.example.devicemanagement.management." +
                         "SentinelDeviceAdminReceiver"
-                val aapt2 = file(
+                val selectedBuildTools = file(
                     "${android.sdkDirectory}/build-tools/" +
-                        "${android.buildToolsVersion}/aapt2",
+                        android.buildToolsVersion,
                 )
-                check(aapt2.isFile) { "aapt2 is unavailable at $aapt2" }
+                val aapt2 = Aapt2Locator.resolveFromBuildTools(selectedBuildTools)
+                    ?: Aapt2Locator.locate(android.sdkDirectory)
+                check(aapt2 != null && aapt2.isFile) {
+                    "aapt2 is unavailable under $selectedBuildTools"
+                }
 
                 val mergedManifest = mergedManifestArtifact.get().asFile
                 check(mergedManifest.isFile) {

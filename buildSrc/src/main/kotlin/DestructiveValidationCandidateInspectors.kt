@@ -225,19 +225,7 @@ object DestructiveValidationCandidateInspectors {
     }
 
     fun locateAapt2(androidSdkDir: File?): File? {
-        val preferred = preferredBuildTools(androidSdkDir)?.let { File(it, "aapt2") }
-        if (preferred != null && preferred.isFile) {
-            return preferred
-        }
-        val all = File(androidSdkDir ?: return null, "build-tools")
-        if (!all.isDirectory) {
-            return null
-        }
-        return all.listFiles()
-            ?.filter { it.isDirectory }
-            ?.sortedByDescending { it.name }
-            ?.map { File(it, "aapt2") }
-            ?.firstOrNull { it.isFile }
+        return Aapt2Locator.locate(androidSdkDir)
     }
 
     private fun preferredBuildTools(androidSdkDir: File?): File? {
